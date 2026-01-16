@@ -16,7 +16,7 @@ use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
 use futures_util::{StreamExt, SinkExt};
 
 /// Ports to proxy (local -> remote with same port)
-const PROXY_PORTS: &[u16] = &[8000, 8042];
+const PROXY_PORTS: &[u16] = &[8000, 8042, 7447];
 
 /// Shared state for the proxy
 pub struct LocalProxyState {

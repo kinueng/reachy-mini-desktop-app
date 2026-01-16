@@ -1294,12 +1294,12 @@
   dependencies:
     "@tauri-apps/api" "^2.8.0"
 
-"@tauri-apps/plugin-http@^2.5.4":
-  version "2.5.4"
-  resolved "https://registry.npmjs.org/@tauri-apps/plugin-http/-/plugin-http-2.5.4.tgz"
-  integrity sha512-/i4U/9za3mrytTgfRn5RHneKubZE/dwRmshYwyMvNRlkWjvu1m4Ma72kcbVJMZFGXpkbl+qLyWMGrihtWB76Zg==
+"@tauri-apps/plugin-http@2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-http/-/plugin-http-2.4.0.tgz#cfb61a9974c71f351e6222f742d968241b40092a"
+  integrity sha512-Y3D7ymHDQA/OtdFbDWFUQRaevxaAUbQPbBS9UWlgphwXrjoebT7gVKgKymM617dAgT5MpaIG1Nagx/x17gImRg==
   dependencies:
-    "@tauri-apps/api" "^2.8.0"
+    "@tauri-apps/api" "^2.0.0"
 
 "@tauri-apps/plugin-positioner@^2.3.1":
   version "2.3.1"

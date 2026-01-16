@@ -4,7 +4,10 @@
 
 import { logApiCall, logPermission, logTimeout, logError, logSuccess } from '../utils/logging';
 import { useStore } from '../store';
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+// 🚀 tauriFetch disabled - using native fetch + local proxy instead
+// tauriFetch has a bug where body stream never completes
+// See: https://github.com/tauri-apps/plugins-workspace/issues/2638
+// import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
 export const DAEMON_CONFIG = {
   // API timeouts (in milliseconds)
@@ -237,12 +240,9 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs, logOptions 
   const method = options.method || 'GET';
   const startTime = Date.now();
 
-  // 🔧 UNIFIED: Always use tauriFetch for ALL requests
-  // tauriFetch from @tauri-apps/plugin-http:
-  // - ✅ Supports body JSON (via standard Request API)
-  // - ✅ Supports AbortController.signal (calls fetch_cancel on abort)
-  // - ✅ Bypasses WebView restrictions (CORS, PNA) for remote/WiFi
-  // - ✅ Works for localhost, remote IPs, and HTTPS
+  // 🚀 ALWAYS use native fetch (localhost via proxy in WiFi mode)
+  // This avoids the tauriFetch body stream bug entirely
+  // The local proxy (Rust) handles forwarding to remote hosts in WiFi mode
 
   // For fire-and-forget requests (like continuous movement), don't use abort signal
   // This prevents premature cancellation on slow networks (WiFi)
@@ -266,12 +266,11 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs, logOptions 
   }
 
   try {
-    const response = await tauriFetch(url, {
+    const response = await fetch(url, {
       method: options.method || 'GET',
       headers: options.headers,
       body: options.body,
       signal: controller?.signal,
-      connectTimeout: timeoutMs,
     });
 
     if (timeoutId) clearTimeout(timeoutId);
@@ -364,15 +363,9 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs, logOptions 
  * - USB/Simulation: uses localhost
  */
 export function getBaseUrl() {
-  const { connectionMode, remoteHost } = useStore.getState();
-
-  if (connectionMode === 'wifi' && remoteHost) {
-    // Ensure proper URL format
-    const host = remoteHost.includes('://') ? remoteHost : `http://${remoteHost}`;
-    return host.endsWith(':8000') ? host : `${host}:8000`;
-  }
-
-  // Default: local daemon (USB or simulation)
+  // 🚀 ALWAYS use localhost:8000
+  // In WiFi mode, the local proxy (started in Rust) forwards to the remote host
+  // This avoids the tauriFetch body stream bug by using native fetch everywhere
   return DAEMON_CONFIG.ENDPOINTS.BASE_URL_LOCAL;
 }
 
