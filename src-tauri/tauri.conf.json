@@ -34,7 +34,6 @@
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": true,
     "targets": ["app", "msi", "deb", "appimage"],
     "icon": [
       "icons/32x32.png",
