@@ -55,13 +55,3 @@ windows = { version = "0.58", features = [
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-cli = "2"
-
-# Patch to constrain zbus_names to a version that doesn't require edition2024
-# This is needed until Rust 1.85+ (with edition2024 support) is stable
-[patch.crates-io]
-zbus_names = "=4.2.0"
-zbus = "=5.12.0"
-zbus_macros = "=5.12.0"
-zvariant = "=5.8.0"
-zvariant_derive = "=5.8.0"
-zvariant_utils = "=3.2.1"
