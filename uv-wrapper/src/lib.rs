@@ -170,6 +170,19 @@ pub fn setup_local_venv_windows(program_files_dir: &std::path::Path) -> Result<P
         }
     }
     
+    // Copy scripts folder (contains avast_ssl_fix.py for Windows)
+    let src_scripts = program_files_dir.join("scripts");
+    let dst_scripts = local_dir.join("scripts");
+    if src_scripts.exists() {
+        println!("   📁 Copying scripts...");
+        if dst_scripts.exists() {
+            fs::remove_dir_all(&dst_scripts)
+                .map_err(|e| format!("Failed to remove old scripts: {}", e))?;
+        }
+        copy_dir_recursive(&src_scripts, &dst_scripts)?;
+        println!("   ✅ scripts copied");
+    }
+    
     // Patch pyvenv.cfg with local paths
     println!("   🔧 Patching pyvenv.cfg...");
     patching_pyvenv_cfg(&local_dir, &cpython_folder)?;

@@ -6,7 +6,7 @@ This wrapper prevents permission errors caused by Avast antivirus injecting
 the SSLKEYLOGFILE environment variable into Python processes.
 
 Background:
-- Avast injects SSLKEYLOGFILE pointing to \\.\aswMonFltProxy\...
+- Avast injects SSLKEYLOGFILE pointing to .aswMonFltProxy...
 - When Python's ssl.create_default_context() tries to write to this path
 - Result: PermissionError [Errno 13] Permission denied
 
