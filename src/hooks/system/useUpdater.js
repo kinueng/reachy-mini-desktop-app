@@ -28,6 +28,7 @@ export const useUpdater = ({
   maxRetries = 3,
   retryDelay = 1000,
 } = {}) => {
+  // 🧪 DEBUG: Force update available for testing
   const [updateAvailable, setUpdateAvailable] = useState(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);

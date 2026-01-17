@@ -1,5 +1,6 @@
 import { useReducer, useEffect, useRef, useMemo } from 'react';
 import { DAEMON_CONFIG } from '../../config/daemon';
+import useAppStore from '../../store/useAppStore';
 
 /**
  * Reducer for managing update view display state
@@ -291,6 +292,9 @@ export const useUpdateViewState = ({
     };
   }, [isDev, updateError, state.checkStartTime, state.minTimeElapsed]);
 
+  // Get skip state from store
+  const { updateSkipped } = useAppStore();
+
   // Compute shouldShowUpdateView
   const shouldShowUpdateView = useMemo(() => {
     // ✅ CRITICAL: Never show again if we already completed the update check once
@@ -299,6 +303,10 @@ export const useUpdateViewState = ({
 
     // Don't show if daemon is active/starting/stopping
     if (isActive || isStarting || isStopping) return false;
+
+    // ✅ User clicked "Skip" - hide update view (unless downloading)
+    // If downloading, keep showing progress until complete
+    if (updateSkipped && !isDownloading) return false;
 
     // Show if checking, downloading, update available, or error
     if (isChecking || updateAvailable || isDownloading || updateError) return true;
@@ -315,6 +323,7 @@ export const useUpdateViewState = ({
     updateAvailable,
     isDownloading,
     updateError,
+    updateSkipped,
     state.checkStartTime,
     state.minTimeElapsed,
     state.hasCompletedOnce,
