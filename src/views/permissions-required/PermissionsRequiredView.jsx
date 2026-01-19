@@ -2,6 +2,7 @@ import React, { useReducer, useRef, useEffect, useCallback } from 'react';
 import { Box, Typography, useTheme, alpha } from '@mui/material';
 import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined';
 import MicNoneOutlinedIcon from '@mui/icons-material/MicNoneOutlined';
+import LanOutlinedIcon from '@mui/icons-material/LanOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -16,12 +17,26 @@ import SleepingReachy from '../../assets/sleeping-reachy.svg';
 /**
  * Permission Card Component
  * Square card similar to ConnectionCard in FindingRobotView
+ *
+ * @param {boolean} granted - Whether the permission is granted
+ * @param {boolean} alwaysClickable - If true, card is always clickable even when granted
  */
-const PermissionCard = ({ icon: Icon, label, subtitle, granted, onClick, darkMode }) => {
+const PermissionCard = ({
+  icon: Icon,
+  label,
+  subtitle,
+  granted,
+  onClick,
+  darkMode,
+  alwaysClickable = false,
+}) => {
   const theme = useTheme();
   // Colors - primary from theme for interactive, success (green) for granted
   const primaryColor = theme.palette.primary.main;
   const successColor = theme.palette.success?.main || '#22c55e';
+
+  const cardColor = granted ? successColor : primaryColor;
+  const isClickable = alwaysClickable || !granted;
 
   return (
     <Box
@@ -36,20 +51,18 @@ const PermissionCard = ({ icon: Icon, label, subtitle, granted, onClick, darkMod
         p: 2,
         borderRadius: '12px',
         border: '1px solid',
-        borderColor: granted ? successColor : primaryColor,
-        bgcolor: granted
-          ? alpha(successColor, darkMode ? 0.1 : 0.05)
-          : alpha(primaryColor, darkMode ? 0.1 : 0.05),
-        cursor: granted ? 'default' : 'pointer',
+        borderColor: cardColor,
+        bgcolor: alpha(cardColor, darkMode ? 0.1 : 0.05),
+        cursor: isClickable ? 'pointer' : 'default',
         transition: 'all 0.2s ease',
         flex: 1,
-        minWidth: 110,
-        minHeight: 110,
-        '&:hover': granted
-          ? {}
-          : {
-              bgcolor: alpha(primaryColor, darkMode ? 0.15 : 0.1),
-            },
+        minWidth: 100,
+        minHeight: 100,
+        '&:hover': isClickable
+          ? {
+              bgcolor: alpha(cardColor, darkMode ? 0.15 : 0.1),
+            }
+          : {},
       }}
     >
       {/* Granted checkmark - top right */}
@@ -82,16 +95,16 @@ const PermissionCard = ({ icon: Icon, label, subtitle, granted, onClick, darkMod
       <Icon
         sx={{
           fontSize: 28,
-          color: granted ? successColor : primaryColor,
+          color: cardColor,
         }}
       />
 
       {/* Label */}
       <Typography
         sx={{
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: 600,
-          color: granted ? successColor : primaryColor,
+          color: cardColor,
           textAlign: 'center',
           lineHeight: 1.2,
         }}
@@ -103,7 +116,7 @@ const PermissionCard = ({ icon: Icon, label, subtitle, granted, onClick, darkMod
       {subtitle && (
         <Typography
           sx={{
-            fontSize: 10,
+            fontSize: 9,
             fontWeight: 400,
             color: granted ? successColor : alpha(primaryColor, 0.7),
             textAlign: 'center',
@@ -126,6 +139,8 @@ const permissionsViewReducer = (state, action) => {
       return { ...state, cameraRequested: true };
     case 'SET_MICROPHONE_REQUESTED':
       return { ...state, microphoneRequested: true };
+    case 'SET_LOCAL_NETWORK_REQUESTED':
+      return { ...state, localNetworkRequested: true };
     default:
       return state;
   }
@@ -140,12 +155,14 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
   const {
     cameraGranted,
     microphoneGranted,
+    localNetworkGranted,
     refresh: refreshPermissions,
   } = usePermissions({ checkInterval: 2000 });
 
   const [state, dispatch] = useReducer(permissionsViewReducer, {
     cameraRequested: false,
     microphoneRequested: false,
+    localNetworkRequested: false,
     isRestarting: false,
     restartStarted: false,
   });
@@ -218,7 +235,7 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
     testPlugin();
   }, []);
 
-  // Generic permission request handler
+  // Generic permission request handler for camera/microphone (uses plugin)
   const requestPermission = useCallback(
     async type => {
       if (!isMacOS()) {
@@ -296,6 +313,82 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
     [refreshPermissions]
   );
 
+  // Local Network permission request handler (uses custom Rust command)
+  const requestLocalNetworkPermission = useCallback(async () => {
+    if (!isMacOS()) {
+      logInfo(`[Permissions] ℹ️ Non-macOS platform - local network permission not needed`);
+      return;
+    }
+
+    try {
+      // Request triggers the permission dialog via NWBrowser
+      const result = await invoke('request_local_network_permission');
+      dispatch({ type: 'SET_LOCAL_NETWORK_REQUESTED' });
+
+      if (result === true) {
+        // Permission granted
+        logInfo('✅ Local Network permission granted');
+        await refreshPermissions();
+      } else if (result === false) {
+        // Permission denied - open settings
+        logInfo('[Permissions] Local Network denied, opening settings...');
+        await invoke('open_local_network_settings');
+      } else {
+        // null = unknown/pending, start polling
+        if (permissionPollingRef.current) {
+          clearInterval(permissionPollingRef.current);
+        }
+
+        let checkCount = 0;
+        const maxChecks = 20;
+
+        permissionPollingRef.current = setInterval(async () => {
+          checkCount++;
+          await refreshPermissions();
+
+          try {
+            const status = await invoke('check_local_network_permission');
+            if (status === true) {
+              if (permissionPollingRef.current) {
+                clearInterval(permissionPollingRef.current);
+                permissionPollingRef.current = null;
+              }
+              logInfo('✅ Local Network permission granted');
+              await refreshPermissions();
+            } else if (status === false) {
+              // Denied
+              if (permissionPollingRef.current) {
+                clearInterval(permissionPollingRef.current);
+                permissionPollingRef.current = null;
+              }
+              await invoke('open_local_network_settings');
+            }
+          } catch (error) {
+            // Ignore errors during polling
+          }
+
+          if (checkCount >= maxChecks) {
+            if (permissionPollingRef.current) {
+              clearInterval(permissionPollingRef.current);
+              permissionPollingRef.current = null;
+            }
+          }
+        }, 500);
+      }
+    } catch (error) {
+      const errorMsg = error?.message || error?.toString() || 'Unknown error';
+      logError(`[Permissions] Local Network: ${errorMsg}`);
+      // Fallback to opening settings
+      try {
+        await invoke('open_local_network_settings');
+      } catch (settingsError) {
+        const settingsErrorMsg =
+          settingsError?.message || settingsError?.toString() || 'Unknown error';
+        logError(`[Permissions] ❌ Failed to open settings: ${settingsErrorMsg}`);
+      }
+    }
+  }, [refreshPermissions]);
+
   const openSettings = useCallback(async type => {
     if (!isMacOS()) {
       logInfo(`[Permissions] ℹ️ Non-macOS platform - no settings to open`);
@@ -313,11 +406,13 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
   // Track permission changes for logging
   const prevCameraGranted = useRef(null);
   const prevMicrophoneGranted = useRef(null);
+  const prevLocalNetworkGranted = useRef(null);
 
   useEffect(() => {
     if (prevCameraGranted.current === null) {
       prevCameraGranted.current = cameraGranted;
       prevMicrophoneGranted.current = microphoneGranted;
+      prevLocalNetworkGranted.current = localNetworkGranted;
       return;
     }
 
@@ -327,10 +422,14 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
     if (!prevMicrophoneGranted.current && microphoneGranted) {
       logInfo('✅ Microphone permission granted');
     }
+    if (!prevLocalNetworkGranted.current && localNetworkGranted) {
+      logInfo('✅ Local Network permission granted');
+    }
 
     prevCameraGranted.current = cameraGranted;
     prevMicrophoneGranted.current = microphoneGranted;
-  }, [cameraGranted, microphoneGranted]);
+    prevLocalNetworkGranted.current = localNetworkGranted;
+  }, [cameraGranted, microphoneGranted, localNetworkGranted]);
 
   const bgColor = darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(253, 252, 250, 0.85)';
 
@@ -463,14 +562,14 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
               Grant permissions to use Reachy
             </Typography>
 
-            {/* Permission cards - 2 square cards */}
+            {/* Permission cards - 3 square cards */}
             <Box
               sx={{
                 display: 'flex',
                 justifyContent: 'center',
                 gap: 1.5,
                 width: '100%',
-                maxWidth: 280,
+                maxWidth: 360,
                 mb: 2.5,
               }}
             >
@@ -501,6 +600,24 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
                 }}
                 darkMode={darkMode}
               />
+
+              {/* Local Network - macOS Sequoia+ requires this permission for LAN communication */}
+              {isMacOS() && (
+                <PermissionCard
+                  icon={LanOutlinedIcon}
+                  label="Local Network"
+                  subtitle={localNetworkGranted ? 'Granted' : 'Required'}
+                  granted={localNetworkGranted}
+                  onClick={() => {
+                    if (!localNetworkGranted) {
+                      state.localNetworkRequested
+                        ? openSettings('local_network')
+                        : requestLocalNetworkPermission();
+                    }
+                  }}
+                  darkMode={darkMode}
+                />
+              )}
             </Box>
 
             {/* Helper text */}
