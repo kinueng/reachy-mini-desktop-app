@@ -8,6 +8,7 @@ import {
   setupSystemPreferenceListener,
 } from './slices';
 import { logReset, logInstallStart, logInstallEnd } from './storeLogger';
+import { disableSimulationMode } from '../utils/simulationMode';
 
 /**
  * ✨ Unified Store with Slices Architecture
@@ -45,6 +46,10 @@ export const useStore = create(
      */
     resetAll: () => {
       logReset('all');
+
+      // 🧹 Clean up simulation mode flag from localStorage
+      // Prevents stale simMode from persisting after crash/force-quit
+      disableSimulationMode();
 
       set({
         // Robot state reset (robotStatus is the source of truth)
