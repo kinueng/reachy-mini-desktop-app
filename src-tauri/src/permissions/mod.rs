@@ -1,9 +1,8 @@
-/// Module for managing cross-platform permissions (camera, microphone, local network, etc.)
-/// 
-/// Note: Camera/microphone permissions are managed by tauri-plugin-macos-permissions
-/// Local Network permission (macOS Sequoia+) is checked/requested via Swift script
-/// using NWBrowser from Network.framework.
-/// This module also provides functions to open System Settings.
+//! Module for managing cross-platform permissions (camera, microphone, local network, etc.)
+//!
+//! Note: Camera/microphone permissions are managed by tauri-plugin-macos-permissions
+//! Local Network permission (macOS Sequoia+) is checked/requested via TCP probe.
+//! This module also provides functions to open System Settings.
 
 /// Log configured permissions at app startup (macOS only)
 #[cfg(target_os = "macos")]
@@ -13,15 +12,17 @@ pub fn request_all_permissions() {
     println!("   🎤 Microphone: NSMicrophoneUsageDescription declared in Info.plist");
     println!("   📁 Filesystem: Entitlements configured");
     println!("   🔌 USB: Entitlements configured");
-    println!("");
+    println!();
     println!("✅ Permissions will be requested automatically when needed:");
     println!("   - Camera/microphone: macOS will show dialog when first accessed by apps");
     println!("   - Filesystem/USB: Already granted via entitlements");
-    println!("");
+    println!();
     println!("ℹ️  Note: Permissions granted to the main app will propagate to child processes");
     println!("   (Python daemon and its apps)");
-    println!("");
-    println!("ℹ️  Note: App will appear in System Settings > Privacy after first permission request");
+    println!();
+    println!(
+        "ℹ️  Note: App will appear in System Settings > Privacy after first permission request"
+    );
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -36,17 +37,19 @@ pub fn request_all_permissions() {
 #[cfg(target_os = "macos")]
 pub fn open_camera_settings() -> Result<(), String> {
     use std::process::Command;
-    
+
     let output = Command::new("open")
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Camera")
         .output()
         .map_err(|e| format!("Failed to open System Settings: {}", e))?;
-    
+
     if !output.status.success() {
-        return Err(format!("Failed to open System Settings: {}", 
-            String::from_utf8_lossy(&output.stderr)));
+        return Err(format!(
+            "Failed to open System Settings: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
-    
+
     Ok(())
 }
 
@@ -55,17 +58,19 @@ pub fn open_camera_settings() -> Result<(), String> {
 #[cfg(target_os = "macos")]
 pub fn open_microphone_settings() -> Result<(), String> {
     use std::process::Command;
-    
+
     let output = Command::new("open")
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
         .output()
         .map_err(|e| format!("Failed to open System Settings: {}", e))?;
-    
+
     if !output.status.success() {
-        return Err(format!("Failed to open System Settings: {}", 
-            String::from_utf8_lossy(&output.stderr)));
+        return Err(format!(
+            "Failed to open System Settings: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
-    
+
     Ok(())
 }
 
@@ -74,26 +79,28 @@ pub fn open_microphone_settings() -> Result<(), String> {
 #[cfg(target_os = "macos")]
 pub fn open_wifi_settings() -> Result<(), String> {
     use std::process::Command;
-    
+
     // Try the new macOS 13+ Network Settings first
     let output = Command::new("open")
         .arg("x-apple.systempreferences:com.apple.Network-Settings.extension")
         .output()
         .map_err(|e| format!("Failed to open System Settings: {}", e))?;
-    
+
     if !output.status.success() {
         // Fallback to legacy Network preferences (macOS 12 and earlier)
         let fallback = Command::new("open")
             .arg("x-apple.systempreferences:com.apple.preference.network")
             .output()
             .map_err(|e| format!("Failed to open System Settings: {}", e))?;
-        
+
         if !fallback.status.success() {
-            return Err(format!("Failed to open System Settings: {}", 
-                String::from_utf8_lossy(&fallback.stderr)));
+            return Err(format!(
+                "Failed to open System Settings: {}",
+                String::from_utf8_lossy(&fallback.stderr)
+            ));
         }
     }
-    
+
     Ok(())
 }
 
@@ -102,17 +109,19 @@ pub fn open_wifi_settings() -> Result<(), String> {
 #[cfg(target_os = "macos")]
 pub fn open_files_settings() -> Result<(), String> {
     use std::process::Command;
-    
+
     let output = Command::new("open")
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders")
         .output()
         .map_err(|e| format!("Failed to open System Settings: {}", e))?;
-    
+
     if !output.status.success() {
-        return Err(format!("Failed to open System Settings: {}", 
-            String::from_utf8_lossy(&output.stderr)));
+        return Err(format!(
+            "Failed to open System Settings: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
-    
+
     Ok(())
 }
 
@@ -281,9 +290,7 @@ pub fn open_camera_settings() -> Result<(), String> {
     // Linux doesn't have a centralized camera settings
     // Best effort: open GNOME Settings if available
     use std::process::Command;
-    let _ = Command::new("gnome-control-center")
-        .arg("privacy")
-        .spawn();
+    let _ = Command::new("gnome-control-center").arg("privacy").spawn();
     Ok(())
 }
 
@@ -292,9 +299,7 @@ pub fn open_camera_settings() -> Result<(), String> {
 pub fn open_microphone_settings() -> Result<(), String> {
     use std::process::Command;
     // Try GNOME Sound settings
-    let _ = Command::new("gnome-control-center")
-        .arg("sound")
-        .spawn();
+    let _ = Command::new("gnome-control-center").arg("sound").spawn();
     Ok(())
 }
 
@@ -319,9 +324,7 @@ pub fn open_files_settings() -> Result<(), String> {
     // Linux doesn't have centralized file access permissions
     // Best effort: open file manager or GNOME privacy settings
     use std::process::Command;
-    let _ = Command::new("gnome-control-center")
-        .arg("privacy")
-        .spawn();
+    let _ = Command::new("gnome-control-center").arg("privacy").spawn();
     Ok(())
 }
 

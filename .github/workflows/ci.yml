@@ -30,3 +30,33 @@ jobs:
       - name: Check Prettier formatting
         run: yarn format:check
 
+  rust:
+    name: Rust Check
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
+      - name: Run clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      - name: Check compilation
+        run: cargo check --manifest-path src-tauri/Cargo.toml

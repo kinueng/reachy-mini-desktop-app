@@ -1,16 +1,14 @@
-/// USB Device Monitor - Event-driven USB detection for Windows
-/// 
-/// This module provides event-driven USB device detection using Windows WM_DEVICECHANGE messages.
-/// This completely eliminates the need for polling, preventing terminal flicker issues on Windows.
+//! USB Device Monitor - Event-driven USB detection for Windows
+//!
+//! This module provides event-driven USB device detection using Windows WM_DEVICECHANGE messages.
+//! This completely eliminates the need for polling, preventing terminal flicker issues on Windows.
 
 #[cfg(target_os = "windows")]
 use std::sync::{Arc, Mutex};
 
 #[cfg(target_os = "windows")]
 use windows::{
-    core::*,
-    Win32::Foundation::*,
-    Win32::System::LibraryLoader::GetModuleHandleA,
+    core::*, Win32::Foundation::*, Win32::System::LibraryLoader::GetModuleHandleA,
     Win32::UI::WindowsAndMessaging::*,
 };
 
@@ -37,17 +35,16 @@ impl UsbMonitorState {
         match serialport::available_ports() {
             Ok(ports) => {
                 self.available_ports = ports.clone();
-                
+
                 // Find Reachy Mini port (VID:PID = 1a86:55d3 - CH340 USB-to-serial)
-                self.reachy_port = ports.iter()
-                    .find_map(|port| {
-                        if let serialport::SerialPortType::UsbPort(usb_info) = &port.port_type {
-                            if usb_info.vid == 0x1a86 && usb_info.pid == 0x55d3 {
-                                return Some(port.port_name.clone());
-                            }
+                self.reachy_port = ports.iter().find_map(|port| {
+                    if let serialport::SerialPortType::UsbPort(usb_info) = &port.port_type {
+                        if usb_info.vid == 0x1a86 && usb_info.pid == 0x55d3 {
+                            return Some(port.port_name.clone());
                         }
-                        None
-                    });
+                    }
+                    None
+                });
             }
             Err(e) => {
                 eprintln!("[USB Monitor] Failed to enumerate ports: {}", e);
@@ -71,22 +68,20 @@ pub fn get_reachy_port() -> Option<String> {
     {
         USB_MONITOR.lock().ok()?.reachy_port.clone()
     }
-    
+
     #[cfg(not(target_os = "windows"))]
     {
         // Direct check on non-Windows platforms (macOS/Linux)
         match serialport::available_ports() {
-            Ok(ports) => {
-                ports.iter().find_map(|port| {
-                    if let serialport::SerialPortType::UsbPort(usb_info) = &port.port_type {
-                        // Reachy Mini uses CH340 USB-to-serial (VID:PID = 1a86:55d3)
-                        if usb_info.vid == 0x1a86 && usb_info.pid == 0x55d3 {
-                            return Some(port.port_name.clone());
-                        }
+            Ok(ports) => ports.iter().find_map(|port| {
+                if let serialport::SerialPortType::UsbPort(usb_info) = &port.port_type {
+                    // Reachy Mini uses CH340 USB-to-serial (VID:PID = 1a86:55d3)
+                    if usb_info.vid == 0x1a86 && usb_info.pid == 0x55d3 {
+                        return Some(port.port_name.clone());
                     }
-                    None
-                })
-            }
+                }
+                None
+            }),
             Err(_) => None,
         }
     }
@@ -107,9 +102,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         WM_DEVICECHANGE => {
             const DBT_DEVICEARRIVAL: u32 = 0x8000;
             const DBT_DEVICEREMOVECOMPLETE: u32 = 0x8004;
-            
+
             let event = wparam.0 as u32;
-            
+
             // Update port list on device arrival or removal
             if event == DBT_DEVICEARRIVAL || event == DBT_DEVICEREMOVECOMPLETE {
                 // Device change detected - update port list
@@ -118,7 +113,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     state.update();
                 }
             }
-            
+
             LRESULT(0)
         }
         WM_DESTROY => {
@@ -161,7 +156,10 @@ pub fn start_monitor() -> std::result::Result<(), String> {
                     class_name,
                     s!("Reachy USB Monitor"),
                     WINDOW_STYLE::default(),
-                    0, 0, 0, 0,
+                    0,
+                    0,
+                    0,
+                    0,
                     HWND_MESSAGE, // Message-only window (completely invisible)
                     None,
                     h_instance,
@@ -169,9 +167,12 @@ pub fn start_monitor() -> std::result::Result<(), String> {
                 )?;
 
                 // Register for device notifications (all device interfaces)
-                // Note: We use a simpler approach without DEV_BROADCAST_DEVICEINTERFACE 
+                // Note: We use a simpler approach without DEV_BROADCAST_DEVICEINTERFACE
                 // since WM_DEVICECHANGE will fire anyway for USB events
-                println!("[USB Monitor] Event-driven monitor started successfully on window {:?}", hwnd);
+                println!(
+                    "[USB Monitor] Event-driven monitor started successfully on window {:?}",
+                    hwnd
+                );
 
                 // Do an initial scan
                 if let Ok(mut state) = USB_MONITOR.lock() {
@@ -202,6 +203,8 @@ pub fn start_monitor() -> std::result::Result<(), String> {
 #[cfg(not(target_os = "windows"))]
 /// Dummy function for non-Windows platforms
 pub fn start_monitor() -> Result<(), String> {
-    println!("[USB Monitor] Event-driven monitoring not available on this platform, using direct checks");
+    println!(
+        "[USB Monitor] Event-driven monitoring not available on this platform, using direct checks"
+    );
     Ok(())
 }

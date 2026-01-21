@@ -16,7 +16,7 @@ pub struct WifiNetwork {
 /// Returns None if not connected to WiFi
 #[tauri::command]
 pub async fn get_current_wifi_ssid() -> Result<Option<String>, String> {
-    tokio::task::spawn_blocking(|| get_current_ssid_sync())
+    tokio::task::spawn_blocking(get_current_ssid_sync)
         .await
         .map_err(|e| format!("Task join error: {}", e))?
 }
@@ -27,17 +27,17 @@ fn get_current_ssid_sync() -> Result<Option<String>, String> {
     {
         get_current_ssid_macos()
     }
-    
+
     #[cfg(target_os = "windows")]
     {
         get_current_ssid_windows()
     }
-    
+
     #[cfg(target_os = "linux")]
     {
         get_current_ssid_linux()
     }
-    
+
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         Ok(None)
@@ -51,7 +51,7 @@ fn get_current_ssid_macos() -> Result<Option<String>, String> {
         .args(["-getairportnetwork", "en0"])
         .output()
         .map_err(|e| format!("Failed to run networksetup: {}", e))?;
-    
+
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         // Output format: "Current Wi-Fi Network: NetworkName"
@@ -71,7 +71,7 @@ fn get_current_ssid_windows() -> Result<Option<String>, String> {
         .args(["wlan", "show", "interfaces"])
         .output()
         .map_err(|e| format!("Failed to run netsh: {}", e))?;
-    
+
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         for line in stdout.lines() {
@@ -95,7 +95,7 @@ fn get_current_ssid_linux() -> Result<Option<String>, String> {
     let output = Command::new("nmcli")
         .args(["-t", "-f", "active,ssid", "dev", "wifi"])
         .output();
-    
+
     if let Ok(output) = output {
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -110,12 +110,10 @@ fn get_current_ssid_linux() -> Result<Option<String>, String> {
             }
         }
     }
-    
+
     // Fallback to iwgetid
-    let output = Command::new("iwgetid")
-        .args(["-r"])
-        .output();
-    
+    let output = Command::new("iwgetid").args(["-r"]).output();
+
     if let Ok(output) = output {
         if output.status.success() {
             let ssid = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -124,7 +122,7 @@ fn get_current_ssid_linux() -> Result<Option<String>, String> {
             }
         }
     }
-    
+
     Ok(None)
 }
 
@@ -134,11 +132,9 @@ fn get_current_ssid_linux() -> Result<Option<String>, String> {
 pub async fn scan_local_wifi_networks() -> Result<Vec<WifiNetwork>, String> {
     // Run the blocking scan operation in a separate thread pool
     // This prevents blocking the main Tauri event loop / UI
-    tokio::task::spawn_blocking(|| {
-        scan_wifi_sync()
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
+    tokio::task::spawn_blocking(scan_wifi_sync)
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 /// Synchronous WiFi scan (runs in spawn_blocking thread)
@@ -147,17 +143,17 @@ fn scan_wifi_sync() -> Result<Vec<WifiNetwork>, String> {
     {
         scan_macos()
     }
-    
+
     #[cfg(target_os = "windows")]
     {
         scan_windows()
     }
-    
+
     #[cfg(target_os = "linux")]
     {
         scan_linux()
     }
-    
+
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         Err("WiFi scanning not supported on this platform".to_string())
@@ -167,9 +163,9 @@ fn scan_wifi_sync() -> Result<Vec<WifiNetwork>, String> {
 /// Check if a network name looks like a Reachy hotspot
 fn is_reachy_hotspot(ssid: &str) -> bool {
     let ssid_lower = ssid.to_lowercase();
-    ssid_lower.contains("reachy-mini") || 
-    ssid_lower.contains("reachy_mini") ||
-    ssid_lower.contains("reachymini")
+    ssid_lower.contains("reachy-mini")
+        || ssid_lower.contains("reachy_mini")
+        || ssid_lower.contains("reachymini")
 }
 
 // ============================================================================
@@ -179,28 +175,28 @@ fn is_reachy_hotspot(ssid: &str) -> bool {
 #[cfg(target_os = "macos")]
 fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
     use std::process::Command;
-    
+
     // Use system_profiler which works on modern macOS (airport is deprecated)
     // Note: Don't use -detailLevel basic, it hides "Other Local Wi-Fi Networks"
     let output = Command::new("system_profiler")
         .arg("SPAirPortDataType")
         .output()
         .map_err(|e| format!("Failed to run system_profiler: {}", e))?;
-    
+
     if !output.status.success() {
         return Err(format!(
             "system_profiler command failed: {}",
             String::from_utf8_lossy(&output.stderr)
         ));
     }
-    
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut networks = Vec::new();
     let mut seen_ssids = std::collections::HashSet::new();
     let mut in_other_networks = false;
     let mut current_ssid: Option<String> = None;
     let mut current_signal: Option<i32> = None;
-    
+
     // Parse system_profiler output
     // Format:
     //   Other Local Wi-Fi Networks:
@@ -209,15 +205,19 @@ fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
     //       Signal / Noise: -50 dBm / -86 dBm
     for line in stdout.lines() {
         let trimmed = line.trim();
-        
+
         // Start parsing when we hit "Other Local Wi-Fi Networks:"
         if trimmed.contains("Other Local Wi-Fi Networks:") {
             in_other_networks = true;
             continue;
         }
-        
+
         // Stop parsing if we hit another major section
-        if in_other_networks && !trimmed.is_empty() && !line.starts_with(' ') && !line.starts_with('\t') {
+        if in_other_networks
+            && !trimmed.is_empty()
+            && !line.starts_with(' ')
+            && !line.starts_with('\t')
+        {
             // Save last network if exists
             if let Some(ssid) = current_ssid.take() {
                 if !seen_ssids.contains(&ssid) {
@@ -231,13 +231,16 @@ fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
             }
             break;
         }
-        
+
         if in_other_networks {
             // Check if this is a network name (ends with colon, moderate indentation)
             // Network names have ~12 spaces of indentation
             let leading_spaces = line.len() - line.trim_start().len();
-            
-            if trimmed.ends_with(':') && !trimmed.contains('/') && leading_spaces >= 10 && leading_spaces <= 16 {
+
+            if trimmed.ends_with(':')
+                && !trimmed.contains('/')
+                && (10..=16).contains(&leading_spaces)
+            {
                 // Save previous network
                 if let Some(ssid) = current_ssid.take() {
                     if !seen_ssids.contains(&ssid) {
@@ -249,7 +252,7 @@ fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
                         });
                     }
                 }
-                
+
                 // Start new network
                 let ssid = trimmed.trim_end_matches(':').to_string();
                 if !ssid.is_empty() && !ssid.contains("Wi-Fi") {
@@ -257,7 +260,7 @@ fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
                     current_signal = None;
                 }
             }
-            
+
             // Parse signal strength
             if trimmed.starts_with("Signal / Noise:") {
                 // Format: "Signal / Noise: -50 dBm / -86 dBm"
@@ -270,7 +273,7 @@ fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
             }
         }
     }
-    
+
     // Don't forget the last network
     if let Some(ssid) = current_ssid {
         if !seen_ssids.contains(&ssid) {
@@ -281,7 +284,7 @@ fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
             });
         }
     }
-    
+
     // Sort: Reachy hotspots first, then by signal strength
     networks.sort_by(|a, b| {
         if a.is_reachy_hotspot != b.is_reachy_hotspot {
@@ -295,7 +298,7 @@ fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
             (None, None) => std::cmp::Ordering::Equal,
         }
     });
-    
+
     Ok(networks)
 }
 
@@ -306,27 +309,27 @@ fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
 #[cfg(target_os = "windows")]
 fn scan_windows() -> Result<Vec<WifiNetwork>, String> {
     use std::process::Command;
-    
+
     let output = Command::new("netsh")
         .args(["wlan", "show", "networks", "mode=Bssid"])
         .output()
         .map_err(|e| format!("Failed to run netsh command: {}", e))?;
-    
+
     if !output.status.success() {
         return Err(format!(
             "netsh command failed: {}",
             String::from_utf8_lossy(&output.stderr)
         ));
     }
-    
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut networks = Vec::new();
     let mut current_ssid: Option<String> = None;
     let mut current_signal: Option<i32> = None;
-    
+
     for line in stdout.lines() {
         let trimmed = line.trim();
-        
+
         // Parse SSID line
         if trimmed.starts_with("SSID") && trimmed.contains(':') {
             // Save previous network if exists
@@ -339,13 +342,13 @@ fn scan_windows() -> Result<Vec<WifiNetwork>, String> {
                     });
                 }
             }
-            
+
             // Extract new SSID
             if let Some(pos) = trimmed.find(':') {
                 current_ssid = Some(trimmed[pos + 1..].trim().to_string());
             }
         }
-        
+
         // Parse Signal line (percentage)
         if trimmed.starts_with("Signal") && trimmed.contains(':') {
             if let Some(pos) = trimmed.find(':') {
@@ -354,7 +357,7 @@ fn scan_windows() -> Result<Vec<WifiNetwork>, String> {
             }
         }
     }
-    
+
     // Don't forget the last network
     if let Some(ssid) = current_ssid {
         if !ssid.is_empty() {
@@ -365,7 +368,7 @@ fn scan_windows() -> Result<Vec<WifiNetwork>, String> {
             });
         }
     }
-    
+
     // Sort: Reachy hotspots first, then by signal
     networks.sort_by(|a, b| {
         if a.is_reachy_hotspot != b.is_reachy_hotspot {
@@ -376,7 +379,7 @@ fn scan_windows() -> Result<Vec<WifiNetwork>, String> {
             _ => std::cmp::Ordering::Equal,
         }
     });
-    
+
     Ok(networks)
 }
 
@@ -387,18 +390,27 @@ fn scan_windows() -> Result<Vec<WifiNetwork>, String> {
 #[cfg(target_os = "linux")]
 fn scan_linux() -> Result<Vec<WifiNetwork>, String> {
     use std::process::Command;
-    
+
     // Try nmcli first (most common on modern distros)
     let output = Command::new("nmcli")
-        .args(["-t", "-f", "SSID,SIGNAL", "device", "wifi", "list", "--rescan", "yes"])
+        .args([
+            "-t",
+            "-f",
+            "SSID,SIGNAL",
+            "device",
+            "wifi",
+            "list",
+            "--rescan",
+            "yes",
+        ])
         .output();
-    
+
     match output {
         Ok(output) if output.status.success() => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let mut networks = Vec::new();
             let mut seen_ssids = std::collections::HashSet::new();
-            
+
             for line in stdout.lines() {
                 let parts: Vec<&str> = line.split(':').collect();
                 if parts.len() >= 2 {
@@ -414,33 +426,33 @@ fn scan_linux() -> Result<Vec<WifiNetwork>, String> {
                     }
                 }
             }
-            
+
             // Sort: Reachy hotspots first
             networks.sort_by(|a, b| b.is_reachy_hotspot.cmp(&a.is_reachy_hotspot));
-            
+
             return Ok(networks);
         }
         _ => {}
     }
-    
+
     // Fallback to iwlist (requires sudo/root)
     let output = Command::new("iwlist")
         .args(["scan"])
         .output()
         .map_err(|e| format!("Failed to run iwlist: {}", e))?;
-    
+
     if !output.status.success() {
         return Err("WiFi scanning requires nmcli or root privileges for iwlist".to_string());
     }
-    
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut networks = Vec::new();
     let mut current_ssid: Option<String> = None;
     let mut current_signal: Option<i32> = None;
-    
+
     for line in stdout.lines() {
         let trimmed = line.trim();
-        
+
         if trimmed.starts_with("ESSID:") {
             if let Some(ssid) = current_ssid.take() {
                 networks.push(WifiNetwork {
@@ -449,7 +461,7 @@ fn scan_linux() -> Result<Vec<WifiNetwork>, String> {
                     signal_strength: current_signal.take(),
                 });
             }
-            
+
             // Extract SSID (remove quotes)
             let ssid = trimmed
                 .replace("ESSID:", "")
@@ -460,7 +472,7 @@ fn scan_linux() -> Result<Vec<WifiNetwork>, String> {
                 current_ssid = Some(ssid);
             }
         }
-        
+
         if trimmed.contains("Signal level=") {
             // Parse signal level (dBm)
             if let Some(pos) = trimmed.find("Signal level=") {
@@ -470,7 +482,7 @@ fn scan_linux() -> Result<Vec<WifiNetwork>, String> {
             }
         }
     }
-    
+
     // Last network
     if let Some(ssid) = current_ssid {
         networks.push(WifiNetwork {
@@ -479,10 +491,9 @@ fn scan_linux() -> Result<Vec<WifiNetwork>, String> {
             signal_strength: current_signal,
         });
     }
-    
+
     // Sort: Reachy hotspots first
     networks.sort_by(|a, b| b.is_reachy_hotspot.cmp(&a.is_reachy_hotspot));
-    
+
     Ok(networks)
 }
-

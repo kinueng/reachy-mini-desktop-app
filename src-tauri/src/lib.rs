@@ -1,9 +1,10 @@
-// Suppress warnings from objc crate's msg_send! macro (uses deprecated cfg checks)
+// Allow unexpected_cfgs from the objc crate's msg_send! macro
 #![allow(unexpected_cfgs)]
 
 // Modules
 #[macro_use]
 mod daemon;
+mod local_proxy;
 mod permissions;
 mod python;
 mod signing;
@@ -11,12 +12,13 @@ mod update;
 mod usb;
 mod wifi;
 mod window;
-mod local_proxy;
 
-use std::sync::Arc;
-use tauri::{State, Manager};
-use daemon::{DaemonState, add_log, kill_daemon, cleanup_system_daemons, spawn_and_monitor_sidecar};
+use daemon::{
+    add_log, cleanup_system_daemons, kill_daemon, spawn_and_monitor_sidecar, DaemonState,
+};
 use local_proxy::LocalProxyState;
+use std::sync::Arc;
+use tauri::{Manager, State};
 
 #[cfg(not(windows))]
 use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
@@ -26,14 +28,21 @@ use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 // ============================================================================
 
 #[tauri::command]
-fn start_daemon(app_handle: tauri::AppHandle, state: State<DaemonState>, sim_mode: Option<bool>) -> Result<String, String> {
+fn start_daemon(
+    app_handle: tauri::AppHandle,
+    state: State<DaemonState>,
+    sim_mode: Option<bool>,
+) -> Result<String, String> {
     let sim_mode = sim_mode.unwrap_or(false);
-    
+
     // 🎭 Simulation mode: mockup-sim backend (no physics engine needed)
     if sim_mode {
-        add_log(&state, "🎭 Starting simulation mode (mockup-sim)...".to_string());
+        add_log(
+            &state,
+            "🎭 Starting simulation mode (mockup-sim)...".to_string(),
+        );
     }
-    
+
     // 1. ⚡ Aggressive cleanup of all existing daemons (including zombies)
     let cleanup_msg = if sim_mode {
         "🧹 Cleaning up existing daemons (simulation mode)..."
@@ -42,10 +51,10 @@ fn start_daemon(app_handle: tauri::AppHandle, state: State<DaemonState>, sim_mod
     };
     add_log(&state, cleanup_msg.to_string());
     kill_daemon(&state);
-    
+
     // 2. Spawn embedded daemon sidecar
     spawn_and_monitor_sidecar(app_handle, &state, sim_mode)?;
-    
+
     // 3. Log success
     let success_msg = if sim_mode {
         "✓ Daemon started in simulation mode (mockup-sim) via embedded sidecar"
@@ -53,7 +62,7 @@ fn start_daemon(app_handle: tauri::AppHandle, state: State<DaemonState>, sim_mod
         "✓ Daemon started via embedded sidecar"
     };
     add_log(&state, success_msg.to_string());
-    
+
     Ok("Daemon started successfully".to_string())
 }
 
@@ -61,10 +70,10 @@ fn start_daemon(app_handle: tauri::AppHandle, state: State<DaemonState>, sim_mod
 fn stop_daemon(state: State<DaemonState>) -> Result<String, String> {
     // 1. Kill daemon (local process + system)
     kill_daemon(&state);
-    
+
     // 2. Log stop
     add_log(&state, "✓ Daemon stopped".to_string());
-    
+
     Ok("Daemon stopped successfully".to_string())
 }
 
@@ -79,7 +88,10 @@ fn get_logs(state: State<DaemonState>) -> Vec<String> {
 // ============================================================================
 
 #[tauri::command]
-async fn set_local_proxy_target(state: State<'_, Arc<LocalProxyState>>, host: String) -> Result<(), String> {
+async fn set_local_proxy_target(
+    state: State<'_, Arc<LocalProxyState>>,
+    host: String,
+) -> Result<(), String> {
     local_proxy::set_target_host(&state, host).await;
     Ok(())
 }
@@ -100,8 +112,9 @@ pub fn run() {
     #[cfg(not(windows))]
     {
         std::thread::spawn(|| {
-            let mut signals = Signals::new(TERM_SIGNALS).expect("Failed to register signal handlers");
-            for sig in signals.forever() {
+            let mut signals =
+                Signals::new(TERM_SIGNALS).expect("Failed to register signal handlers");
+            if let Some(sig) = signals.forever().next() {
                 eprintln!("🔴 Signal {:?} received - cleaning up daemon", sig);
                 cleanup_system_daemons();
                 std::process::exit(0);
@@ -111,15 +124,18 @@ pub fn run() {
 
     // PostHog Analytics (EU Cloud) - Project ID: 115674
     // Override with POSTHOG_KEY env var for self-hosted instances
-    let posthog_key = option_env!("POSTHOG_KEY").unwrap_or("phc_oFlHvjvOT6aWXQ4Fot7A1VSAOHtGv9L2M9BZRZcyYQm");
+    let posthog_key =
+        option_env!("POSTHOG_KEY").unwrap_or("phc_oFlHvjvOT6aWXQ4Fot7A1VSAOHtGv9L2M9BZRZcyYQm");
     let posthog_host = option_env!("POSTHOG_HOST").unwrap_or("https://eu.i.posthog.com");
 
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_posthog::init(tauri_plugin_posthog::PostHogConfig {
-            api_key: posthog_key.to_string(),
-            api_host: posthog_host.to_string(),
-            ..Default::default()
-        }))
+        .plugin(tauri_plugin_posthog::init(
+            tauri_plugin_posthog::PostHogConfig {
+                api_key: posthog_key.to_string(),
+                api_host: posthog_host.to_string(),
+                ..Default::default()
+            },
+        ))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_positioner::init())
@@ -143,42 +159,39 @@ pub fn run() {
             logs: std::sync::Mutex::new(std::collections::VecDeque::new()),
         })
         .manage(local_proxy_state)
-        .setup(move |
-            #[cfg(target_os = "macos")]
-            app,
-            #[cfg(not(target_os = "macos"))]
-            _app
-        | {
-            // 🔌 Start USB device monitor (Windows: event-driven, no polling, no terminal flicker)
-            if let Err(e) = usb::start_monitor() {
-                eprintln!("⚠️ Failed to start USB monitor: {}", e);
-            }
-            
-            #[cfg(target_os = "macos")]
-            {
-                let window = app.get_webview_window("main").unwrap();
-                use cocoa::base::{id, YES};
-                use objc::{msg_send, sel, sel_impl};
-                
-                unsafe {
-                    let ns_window = window.ns_window().unwrap() as id;
-                    
-                    // Transparent titlebar and fullscreen content
-                    let _: () = msg_send![ns_window, setTitlebarAppearsTransparent: YES];
-                    
-                    // Full size content view so content goes under titlebar
-                    let style_mask: u64 = msg_send![ns_window, styleMask];
-                    let new_style = style_mask | (1 << 15); // NSWindowStyleMaskFullSizeContentView
-                    let _: () = msg_send![ns_window, setStyleMask: new_style];
+        .setup(
+            move |#[cfg(target_os = "macos")] app, #[cfg(not(target_os = "macos"))] _app| {
+                // 🔌 Start USB device monitor (Windows: event-driven, no polling, no terminal flicker)
+                if let Err(e) = usb::start_monitor() {
+                    eprintln!("⚠️ Failed to start USB monitor: {}", e);
                 }
-                
-                // Request all macOS permissions (camera, microphone, etc.)
-                // These permissions will propagate to child processes (Python daemon and apps)
-                permissions::request_all_permissions();
-            }
-            
-            Ok(())
-        })
+
+                #[cfg(target_os = "macos")]
+                {
+                    let window = app.get_webview_window("main").unwrap();
+                    use cocoa::base::{id, YES};
+                    use objc::{msg_send, sel, sel_impl};
+
+                    unsafe {
+                        let ns_window = window.ns_window().unwrap() as id;
+
+                        // Transparent titlebar and fullscreen content
+                        let _: () = msg_send![ns_window, setTitlebarAppearsTransparent: YES];
+
+                        // Full size content view so content goes under titlebar
+                        let style_mask: u64 = msg_send![ns_window, styleMask];
+                        let new_style = style_mask | (1 << 15); // NSWindowStyleMaskFullSizeContentView
+                        let _: () = msg_send![ns_window, setStyleMask: new_style];
+                    }
+
+                    // Request all macOS permissions (camera, microphone, etc.)
+                    // These permissions will propagate to child processes (Python daemon and apps)
+                    permissions::request_all_permissions();
+                }
+
+                Ok(())
+            },
+        )
         .invoke_handler(tauri::generate_handler![
             start_daemon,
             stop_daemon,
@@ -207,8 +220,8 @@ pub fn run() {
                     // Only kill daemon if main window is closing
                     if window.label() == "main" {
                         println!("🔴 Main window close requested - killing daemon");
-                    let state: tauri::State<DaemonState> = window.state();
-                    kill_daemon(&state);
+                        let state: tauri::State<DaemonState> = window.state();
+                        kill_daemon(&state);
                     } else {
                         println!("🔴 Secondary window close requested: {}", window.label());
                     }
@@ -217,7 +230,7 @@ pub fn run() {
                     // Only cleanup if main window is destroyed
                     if window.label() == "main" {
                         println!("🔴 Main window destroyed - final cleanup");
-                    cleanup_system_daemons();
+                        cleanup_system_daemons();
                     } else {
                         println!("🔴 Secondary window destroyed: {}", window.label());
                     }
