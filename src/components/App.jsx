@@ -18,6 +18,13 @@ import { DAEMON_CONFIG, setAppStoreInstance } from '../config/daemon';
 import { isDevMode } from '../utils/devMode';
 import { isSimulationMode, disableSimulationMode } from '../utils/simulationMode';
 import useAppStore from '../store/useAppStore';
+
+// 🧹 CRITICAL: Clean stale simMode at module load (BEFORE React mounts)
+// This ensures useUsbDetection sees simMode=false on first check
+// Fixes bug where app stays in simulation mode after crash/force-quit
+if (isSimulationMode()) {
+  disableSimulationMode();
+}
 import { useToast } from '../hooks/useToast';
 import Toast from './Toast/Toast';
 
@@ -28,27 +35,6 @@ function App() {
   // Initialize the store in daemon.js for centralized logging
   useEffect(() => {
     setAppStoreInstance(useAppStore);
-  }, []);
-
-  // 🧹 Cleanup stale simulation mode on app startup
-  // If simMode persists from a crash/force-quit AND real USB is detected, clean it up
-  useEffect(() => {
-    const cleanupStaleSimMode = async () => {
-      if (!isSimulationMode()) return;
-
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const portName = await invoke('check_usb_robot');
-        if (portName !== null) {
-          console.warn('[App] 🧹 Cleaning stale simMode - real USB detected:', portName);
-          disableSimulationMode();
-        }
-      } catch (e) {
-        // Ignore errors - this is a best-effort cleanup
-      }
-    };
-
-    cleanupStaleSimMode();
   }, []);
 
   const {

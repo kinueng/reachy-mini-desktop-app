@@ -74,11 +74,12 @@ pub fn get_reachy_port() -> Option<String> {
     
     #[cfg(not(target_os = "windows"))]
     {
-        // Fallback to direct check on non-Windows platforms
+        // Direct check on non-Windows platforms (macOS/Linux)
         match serialport::available_ports() {
             Ok(ports) => {
                 ports.iter().find_map(|port| {
                     if let serialport::SerialPortType::UsbPort(usb_info) = &port.port_type {
+                        // Reachy Mini uses CH340 USB-to-serial (VID:PID = 1a86:55d3)
                         if usb_info.vid == 0x1a86 && usb_info.pid == 0x55d3 {
                             return Some(port.port_name.clone());
                         }
@@ -86,7 +87,7 @@ pub fn get_reachy_port() -> Option<String> {
                     None
                 })
             }
-            Err(_) => None
+            Err(_) => None,
         }
     }
 }
