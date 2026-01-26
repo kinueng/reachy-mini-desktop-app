@@ -256,12 +256,13 @@ export const telemetry = {
 
   /**
    * Track connection error
-   * @param {{ mode?: string, error_type?: string }} props
+   * @param {{ mode?: string, error_type?: string, error_message?: string }} props
    */
   connectionError: (props = {}) => {
     track(EVENTS.CONNECTION_ERROR, {
       mode: validateConnectionMode(props.mode),
       error_type: props.error_type,
+      error_message: props.error_message, // Optional: truncated error message for debugging
     });
   },
 

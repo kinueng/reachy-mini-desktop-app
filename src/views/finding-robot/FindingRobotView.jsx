@@ -254,10 +254,11 @@ export default function FindingRobotView() {
       const savedMode = localStorage.getItem(LAST_CONNECTION_MODE_KEY);
       if (savedMode) {
         // Only pre-select if the saved mode is available
+        // 🧹 Don't pre-select Simulation if real USB is available (prevents confusion after crash)
         const isAvailable =
           (savedMode === ConnectionMode.USB && usbRobot.available) ||
           (savedMode === ConnectionMode.WIFI && wifiRobot.available) ||
-          savedMode === ConnectionMode.SIMULATION;
+          (savedMode === ConnectionMode.SIMULATION && !usbRobot.available);
 
         if (isAvailable) {
           setSelectedMode(savedMode);

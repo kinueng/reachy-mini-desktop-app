@@ -1,22 +1,38 @@
 //! Local Proxy Module
 //!
-//! Forwards HTTP and WebSocket connections from localhost to a remote host.
-//! Supports multiple ports (8000 for daemon API, 8042 for video streams).
+//! Forwards HTTP, WebSocket, and UDP connections from localhost to a remote host.
+//! Supports multiple TCP ports (8000 for daemon API, 8443 for WebRTC signaling).
+//! Also proxies UDP for WebRTC media streams (RTP audio on port 5000).
 //! This bypasses browser Private Network Access (PNA) restrictions.
 //!
 //! The proxy only runs when in WiFi mode (when a target host is set).
 
+use futures_util::{SinkExt, StreamExt};
+use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{RwLock, Mutex};
+use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt;
+use tokio::net::{TcpListener, TcpStream, UdpSocket};
+use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
-use futures_util::{StreamExt, SinkExt};
 
-/// Ports to proxy (local -> remote with same port)
-const PROXY_PORTS: &[u16] = &[8000, 8042, 7447];
+/// TCP ports to proxy (local -> remote with same port)
+/// 8000: Dashboard/Daemon API
+/// 8042: Applications
+/// 7447: Zenoh
+/// 8443: WebRTC signaling
+const TCP_PROXY_PORTS: &[u16] = &[8000, 8042, 7447, 8443];
+
+/// UDP ports to proxy for WebRTC media streams
+/// 5000: RTP audio input to robot (from webrtc_daemon.py)
+/// 8443: WebRTC media (in case webrtcsink uses UDP on this port)
+const UDP_PROXY_PORTS: &[u16] = &[5000, 8443];
+
+/// Timeout for UDP client mappings (clean up inactive clients after this duration)
+const UDP_CLIENT_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Shared state for the proxy
 pub struct LocalProxyState {
@@ -50,15 +66,28 @@ async fn start_local_proxy(state: Arc<LocalProxyState>) {
         return;
     }
 
-    for &port in PROXY_PORTS {
+    // Start TCP proxies
+    for &port in TCP_PROXY_PORTS {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
-            start_port_proxy(state_clone, port).await;
+            start_tcp_proxy(state_clone, port).await;
         });
         handles.push(handle);
     }
 
-    println!("[proxy] 🚀 Proxy started for WiFi mode");
+    // Start UDP proxies for WebRTC media
+    for &port in UDP_PROXY_PORTS {
+        let state_clone = state.clone();
+        let handle = tokio::spawn(async move {
+            start_udp_proxy(state_clone, port).await;
+        });
+        handles.push(handle);
+    }
+
+    println!(
+        "[proxy] 🚀 Proxy started (TCP: {:?}, UDP: {:?})",
+        TCP_PROXY_PORTS, UDP_PROXY_PORTS
+    );
 }
 
 /// Stop all running proxy servers
@@ -77,19 +106,19 @@ async fn stop_local_proxy(state: &Arc<LocalProxyState>) {
     println!("[proxy] 🛑 Proxy stopped");
 }
 
-/// Start a proxy server for a specific port
-async fn start_port_proxy(state: Arc<LocalProxyState>, port: u16) {
+/// Start a TCP proxy server for a specific port
+async fn start_tcp_proxy(state: Arc<LocalProxyState>, port: u16) {
     let bind_addr = format!("127.0.0.1:{}", port);
     let listener = match TcpListener::bind(&bind_addr).await {
         Ok(l) => {
-            println!("[proxy] ✅ Listening on http://localhost:{}", port);
+            println!("[proxy] ✅ TCP listening on localhost:{}", port);
             l
         }
         Err(e) => {
             if e.kind() == std::io::ErrorKind::AddrInUse {
-                println!("[proxy] ⏭️  Port {} already in use - skipping", port);
+                println!("[proxy] ⏭️  TCP port {} already in use - skipping", port);
             } else {
-                eprintln!("[proxy] ❌ Failed to bind to port {}: {}", port, e);
+                eprintln!("[proxy] ❌ Failed to bind TCP port {}: {}", port, e);
             }
             return;
         }
@@ -100,20 +129,166 @@ async fn start_port_proxy(state: Arc<LocalProxyState>, port: u16) {
             Ok((stream, addr)) => {
                 let state_clone = state.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = handle_connection(stream, state_clone, addr, port).await {
-                        eprintln!("[proxy] ❌ Connection error from {} on port {}: {}", addr, port, e);
+                    if let Err(e) = handle_tcp_connection(stream, state_clone, addr, port).await {
+                        eprintln!("[proxy] ❌ TCP error from {} on port {}: {}", addr, port, e);
                     }
                 });
             }
             Err(e) => {
-                eprintln!("[proxy] ❌ Accept error on port {}: {}", port, e);
+                eprintln!("[proxy] ❌ TCP accept error on port {}: {}", port, e);
             }
         }
     }
 }
 
-/// Handle a connection - detect if WebSocket or HTTP and route accordingly
-async fn handle_connection(
+/// Start a UDP proxy server for a specific port
+async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
+    let bind_addr = format!("127.0.0.1:{}", port);
+    let local_socket = match UdpSocket::bind(&bind_addr).await {
+        Ok(s) => {
+            println!("[proxy] ✅ UDP listening on localhost:{}", port);
+            Arc::new(s)
+        }
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::AddrInUse {
+                println!("[proxy] ⏭️  UDP port {} already in use - skipping", port);
+            } else {
+                eprintln!("[proxy] ❌ Failed to bind UDP port {}: {}", port, e);
+            }
+            return;
+        }
+    };
+
+    // Track client connections: client_addr -> (remote_socket, last_activity)
+    let clients: Arc<Mutex<HashMap<SocketAddr, (Arc<UdpSocket>, Instant)>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+
+    // Spawn cleanup task for stale client mappings
+    let clients_cleanup = clients.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            let mut clients = clients_cleanup.lock().await;
+            let now = Instant::now();
+            clients.retain(|addr, (_, last_activity)| {
+                let keep = now.duration_since(*last_activity) < UDP_CLIENT_TIMEOUT;
+                if !keep {
+                    println!("[proxy] 🧹 UDP cleanup: removing stale client {}", addr);
+                }
+                keep
+            });
+        }
+    });
+
+    let mut buf = vec![0u8; 65535]; // Max UDP packet size
+
+    loop {
+        // Receive packet from a client
+        let (len, client_addr) = match local_socket.recv_from(&mut buf).await {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("[proxy] ❌ UDP recv error on port {}: {}", port, e);
+                continue;
+            }
+        };
+
+        // Get target host
+        let target_host = {
+            let host = state.target_host.read().await;
+            match host.as_ref() {
+                Some(h) => h.clone(),
+                None => {
+                    // No target configured, drop packet
+                    continue;
+                }
+            }
+        };
+
+        let remote_addr: SocketAddr = match format!("{}:{}", target_host, port).parse() {
+            Ok(addr) => addr,
+            Err(e) => {
+                eprintln!("[proxy] ❌ UDP invalid remote address: {}", e);
+                continue;
+            }
+        };
+
+        // Get or create a socket for this client
+        let remote_socket = {
+            let mut clients_map = clients.lock().await;
+
+            if let Some((socket, last_activity)) = clients_map.get_mut(&client_addr) {
+                *last_activity = Instant::now();
+                socket.clone()
+            } else {
+                // Create a new socket for this client to communicate with remote
+                let new_socket = match UdpSocket::bind("0.0.0.0:0").await {
+                    Ok(s) => Arc::new(s),
+                    Err(e) => {
+                        eprintln!("[proxy] ❌ UDP failed to create client socket: {}", e);
+                        continue;
+                    }
+                };
+
+                println!(
+                    "[proxy] 🔗 UDP new client {} -> {}:{}",
+                    client_addr, target_host, port
+                );
+
+                // Spawn a task to forward responses from remote back to this client
+                let response_socket = new_socket.clone();
+                let local_socket_clone = local_socket.clone();
+                let client_addr_clone = client_addr;
+                let clients_clone = clients.clone();
+
+                tokio::spawn(async move {
+                    let mut resp_buf = vec![0u8; 65535];
+                    loop {
+                        match response_socket.recv_from(&mut resp_buf).await {
+                            Ok((len, _remote)) => {
+                                // Update last activity
+                                {
+                                    let mut clients_map = clients_clone.lock().await;
+                                    if let Some((_, last_activity)) =
+                                        clients_map.get_mut(&client_addr_clone)
+                                    {
+                                        *last_activity = Instant::now();
+                                    }
+                                }
+
+                                // Forward response back to original client
+                                if let Err(e) = local_socket_clone
+                                    .send_to(&resp_buf[..len], client_addr_clone)
+                                    .await
+                                {
+                                    eprintln!(
+                                        "[proxy] ❌ UDP failed to send response to {}: {}",
+                                        client_addr_clone, e
+                                    );
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("[proxy] ❌ UDP recv from remote error: {}", e);
+                                break;
+                            }
+                        }
+                    }
+                });
+
+                clients_map.insert(client_addr, (new_socket.clone(), Instant::now()));
+                new_socket
+            }
+        };
+
+        // Forward the packet to remote
+        if let Err(e) = remote_socket.send_to(&buf[..len], remote_addr).await {
+            eprintln!("[proxy] ❌ UDP failed to forward to {}: {}", remote_addr, e);
+        }
+    }
+}
+
+/// Handle a TCP connection - detect if WebSocket or HTTP and route accordingly
+async fn handle_tcp_connection(
     mut stream: TcpStream,
     state: Arc<LocalProxyState>,
     addr: std::net::SocketAddr,
@@ -155,29 +330,36 @@ async fn handle_websocket(
     addr: std::net::SocketAddr,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    use tokio_tungstenite::tungstenite::protocol::CloseFrame;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+    use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 
     // Capture the request path during handshake
     let request_path = Arc::new(RwLock::new(String::from("/")));
     let request_path_clone = request_path.clone();
 
     // Accept with callback to capture path
-    let mut local_ws = tokio_tungstenite::accept_hdr_async(stream, |req: &Request, resp: Response| {
-        let path = req.uri().path_and_query()
-            .map(|pq| pq.to_string())
-            .unwrap_or_else(|| "/".to_string());
+    let mut local_ws =
+        tokio_tungstenite::accept_hdr_async(stream, |req: &Request, resp: Response| {
+            let path = req
+                .uri()
+                .path_and_query()
+                .map(|pq| pq.to_string())
+                .unwrap_or_else(|| "/".to_string());
 
-        // Store in a thread-local or use blocking lock
-        if let Ok(mut p) = request_path_clone.try_write() {
-            *p = path;
-        }
-        Ok(resp)
-    }).await?;
+            // Store in a thread-local or use blocking lock
+            if let Ok(mut p) = request_path_clone.try_write() {
+                *p = path;
+            }
+            Ok(resp)
+        })
+        .await?;
 
     // Get the captured path
     let path = request_path.read().await.clone();
-    println!("[proxy] 🔌 WS {} -> ws://{}:{}{}", addr, target_host, port, path);
+    println!(
+        "[proxy] 🔌 WS {} -> ws://{}:{}{}",
+        addr, target_host, port, path
+    );
 
     // Build remote URL with the same path and port
     let remote_url = format!("ws://{}:{}{}", target_host, port, path);
@@ -256,7 +438,10 @@ async fn handle_http(
         Err(e) => {
             // Friendly error message - service may still be starting up
             let (status, message) = if e.kind() == std::io::ErrorKind::ConnectionRefused {
-                ("503 Service Unavailable", "No content yet - service starting up")
+                (
+                    "503 Service Unavailable",
+                    "No content yet - service starting up",
+                )
             } else {
                 ("502 Bad Gateway", "Remote service unavailable")
             };
@@ -279,7 +464,10 @@ async fn handle_http(
             .next()
             .unwrap_or("")
             .to_string();
-        println!("[proxy] 📡 HTTP {} -> {}:{} | {}", addr, target_host, port, first_line);
+        println!(
+            "[proxy] 📡 HTTP {} -> {}:{} | {}",
+            addr, target_host, port, first_line
+        );
     }
 
     // Bidirectional copy between local and remote

@@ -8,9 +8,9 @@ pub fn build_daemon_args(sim_mode: bool) -> Result<Vec<String>, String> {
     let python_cmd = ".venv\\Scripts\\python.exe";
     #[cfg(not(target_os = "windows"))]
     let python_cmd = ".venv/bin/python3";
-    
+
     let mut args = vec![python_cmd.to_string()];
-    
+
     // On Windows, use avast_ssl_fix wrapper to prevent Avast antivirus SSL injection issues
     // Avast injects SSLKEYLOGFILE pointing to aswMonFltProxy which causes PermissionError
     // This is a Windows-specific issue (Avast is primarily a Windows antivirus)
@@ -18,23 +18,23 @@ pub fn build_daemon_args(sim_mode: bool) -> Result<Vec<String>, String> {
     {
         args.push("scripts\\avast_ssl_fix.py".to_string());
     }
-    
+
     // On macOS/Linux, run the daemon module directly (no wrapper needed)
     #[cfg(not(target_os = "windows"))]
     {
         args.push("-m".to_string());
         args.push("reachy_mini.daemon.app.main".to_string());
     }
-    
+
     // Common daemon arguments
     args.push("--desktop-app-daemon".to_string());
     args.push("--no-wake-up-on-start".to_string()); // Robot starts sleeping, toggle controls wake
-    args.push("--preload-datasets".to_string());    // Pre-download emotions/dances at startup
-    
+    args.push("--preload-datasets".to_string()); // Pre-download emotions/dances at startup
+
     if sim_mode {
         // Use --mockup-sim for mockup simulation (no MuJoCo required)
         args.push("--mockup-sim".to_string());
     }
-    
+
     Ok(args)
 }

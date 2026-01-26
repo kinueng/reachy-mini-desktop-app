@@ -30,3 +30,45 @@ jobs:
       - name: Check Prettier formatting
         run: yarn format:check
 
+  rust:
+    name: Rust Check
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Create placeholder sidecar binaries
+        run: |
+          mkdir -p src-tauri/binaries/.venv
+          mkdir -p src-tauri/binaries/cpython-3.12.12-macos-aarch64-none/lib
+          # Create placeholder binaries for all supported platforms
+          # These are required by tauri_build but not needed for lint checks
+          touch src-tauri/binaries/uv-trampoline-aarch64-apple-darwin
+          touch src-tauri/binaries/uv-trampoline-x86_64-apple-darwin
+          touch src-tauri/binaries/uv
+          touch src-tauri/binaries/uvx
+          chmod +x src-tauri/binaries/uv-trampoline-* src-tauri/binaries/uv src-tauri/binaries/uvx
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
+      - name: Run clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      - name: Check compilation
+        run: cargo check --manifest-path src-tauri/Cargo.toml

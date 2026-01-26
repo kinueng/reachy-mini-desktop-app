@@ -171,11 +171,21 @@ export function useRobotDiscovery() {
     const startTime = Date.now();
 
     try {
-      // Scan USB and WiFi in parallel
-      const [usbResult, wifiResult] = await Promise.all([
-        checkUsbRobot(),
-        checkWifiRobot(isRobotBlacklisted),
-      ]);
+      // Scan USB and WiFi in parallel, but don't let WiFi block USB results
+      // USB check is fast, WiFi can take up to 10s per host
+      const usbPromise = checkUsbRobot();
+      const wifiPromise = checkWifiRobot(isRobotBlacklisted);
+
+      // Get USB result first (it's fast)
+      const usbResult = await usbPromise;
+
+      // Update USB immediately so user sees it (don't wait for slow WiFi check)
+      if (isMountedRef.current) {
+        setUsbRobot(usbResult);
+      }
+
+      // Wait for WiFi (may be slow)
+      const wifiResult = await wifiPromise;
 
       // Ensure minimum delay on first check for smooth UX
       if (isFirstCheck) {
@@ -189,9 +199,8 @@ export function useRobotDiscovery() {
         setIsFirstCheck(false);
       }
 
-      // Only update state if still mounted
+      // Only update state if still mounted (USB already updated above)
       if (isMountedRef.current) {
-        setUsbRobot(usbResult);
         setWifiRobot(wifiResult);
         setIsScanning(false);
       }
@@ -244,6 +253,8 @@ export function useRobotDiscovery() {
   // Start scanning on mount, cleanup on unmount
   useEffect(() => {
     isMountedRef.current = true;
+    // Reset scanning flag on mount (fixes HMR issues)
+    isScanningRef.current = false;
     startScanning();
 
     return () => {

@@ -16,7 +16,15 @@ import { useViewRouter, ViewRouterWrapper } from '../hooks/system/useViewRouter'
 import { useRobotCommands, useRobotStateWebSocket, useActiveMoves } from '../hooks/robot';
 import { DAEMON_CONFIG, setAppStoreInstance } from '../config/daemon';
 import { isDevMode } from '../utils/devMode';
+import { isSimulationMode, disableSimulationMode } from '../utils/simulationMode';
 import useAppStore from '../store/useAppStore';
+
+// 🧹 CRITICAL: Clean stale simMode at module load (BEFORE React mounts)
+// This ensures useUsbDetection sees simMode=false on first check
+// Fixes bug where app stays in simulation mode after crash/force-quit
+if (isSimulationMode()) {
+  disableSimulationMode();
+}
 import { useToast } from '../hooks/useToast';
 import Toast from './Toast/Toast';
 
@@ -77,6 +85,8 @@ function App() {
     // Track app closed on unmount/window close
     const handleBeforeUnload = () => {
       telemetry.appClosed();
+      // 🧹 Clean up simulation mode to prevent stale flag on next launch
+      disableSimulationMode();
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -84,6 +94,7 @@ function App() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       telemetry.appClosed();
+      disableSimulationMode();
     };
   }, []);
 
