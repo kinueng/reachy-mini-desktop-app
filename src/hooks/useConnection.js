@@ -31,6 +31,7 @@ import {
   DAEMON_CONFIG,
 } from '../config/daemon';
 import { enableSimulationMode } from '../utils/simulationMode';
+import { telemetry } from '../utils/telemetry';
 
 /**
  * Connection modes
@@ -121,6 +122,17 @@ export function useConnection() {
             resolve(true);
           } catch (e) {
             console.error('Connection failed:', e);
+
+            // 📊 Télémétrie - Track échec de connexion (safety net)
+            // Note: La plupart des erreurs passent par handleDaemonError() via eventBus
+            // Ce catch n'est atteint que pour des erreurs JS inattendues
+            const errorMessage = e?.message || String(e) || 'Unknown error';
+            telemetry.connectionError({
+              mode,
+              error_type: 'connection_failed_unexpected',
+              error_message: errorMessage.slice(0, 200), // Tronquer pour éviter les données sensibles
+            });
+
             resolve(false);
           }
         });
