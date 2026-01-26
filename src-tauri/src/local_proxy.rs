@@ -6,17 +6,21 @@
 //!
 //! The proxy only runs when in WiFi mode (when a target host is set).
 
+use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{RwLock, Mutex};
 use tokio::io::AsyncWriteExt;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
-use futures_util::{StreamExt, SinkExt};
 
 /// Ports to proxy (local -> remote with same port)
-const PROXY_PORTS: &[u16] = &[8000, 8042, 7447];
+/// 8000: Dashboard
+/// 8042: Applications
+/// 7447: Zenoh
+/// 8443: Video streams
+const PROXY_PORTS: &[u16] = &[8000, 8042, 7447, 8443];
 
 /// Shared state for the proxy
 pub struct LocalProxyState {
@@ -101,7 +105,10 @@ async fn start_port_proxy(state: Arc<LocalProxyState>, port: u16) {
                 let state_clone = state.clone();
                 tokio::spawn(async move {
                     if let Err(e) = handle_connection(stream, state_clone, addr, port).await {
-                        eprintln!("[proxy] ❌ Connection error from {} on port {}: {}", addr, port, e);
+                        eprintln!(
+                            "[proxy] ❌ Connection error from {} on port {}: {}",
+                            addr, port, e
+                        );
                     }
                 });
             }
@@ -155,29 +162,36 @@ async fn handle_websocket(
     addr: std::net::SocketAddr,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    use tokio_tungstenite::tungstenite::protocol::CloseFrame;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+    use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 
     // Capture the request path during handshake
     let request_path = Arc::new(RwLock::new(String::from("/")));
     let request_path_clone = request_path.clone();
 
     // Accept with callback to capture path
-    let mut local_ws = tokio_tungstenite::accept_hdr_async(stream, |req: &Request, resp: Response| {
-        let path = req.uri().path_and_query()
-            .map(|pq| pq.to_string())
-            .unwrap_or_else(|| "/".to_string());
+    let mut local_ws =
+        tokio_tungstenite::accept_hdr_async(stream, |req: &Request, resp: Response| {
+            let path = req
+                .uri()
+                .path_and_query()
+                .map(|pq| pq.to_string())
+                .unwrap_or_else(|| "/".to_string());
 
-        // Store in a thread-local or use blocking lock
-        if let Ok(mut p) = request_path_clone.try_write() {
-            *p = path;
-        }
-        Ok(resp)
-    }).await?;
+            // Store in a thread-local or use blocking lock
+            if let Ok(mut p) = request_path_clone.try_write() {
+                *p = path;
+            }
+            Ok(resp)
+        })
+        .await?;
 
     // Get the captured path
     let path = request_path.read().await.clone();
-    println!("[proxy] 🔌 WS {} -> ws://{}:{}{}", addr, target_host, port, path);
+    println!(
+        "[proxy] 🔌 WS {} -> ws://{}:{}{}",
+        addr, target_host, port, path
+    );
 
     // Build remote URL with the same path and port
     let remote_url = format!("ws://{}:{}{}", target_host, port, path);
@@ -256,7 +270,10 @@ async fn handle_http(
         Err(e) => {
             // Friendly error message - service may still be starting up
             let (status, message) = if e.kind() == std::io::ErrorKind::ConnectionRefused {
-                ("503 Service Unavailable", "No content yet - service starting up")
+                (
+                    "503 Service Unavailable",
+                    "No content yet - service starting up",
+                )
             } else {
                 ("502 Bad Gateway", "Remote service unavailable")
             };
@@ -279,7 +296,10 @@ async fn handle_http(
             .next()
             .unwrap_or("")
             .to_string();
-        println!("[proxy] 📡 HTTP {} -> {}:{} | {}", addr, target_host, port, first_line);
+        println!(
+            "[proxy] 📡 HTTP {} -> {}:{} | {}",
+            addr, target_host, port, first_line
+        );
     }
 
     // Bidirectional copy between local and remote
