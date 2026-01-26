@@ -354,7 +354,16 @@ export const createRobotSlice = (set, get) => ({
     },
 
     crashed: () => {
+      const state = get();
       logCrash();
+
+      // 📊 Télémétrie - Track crash détecté via health check (3 timeouts consécutifs)
+      telemetry.connectionError({
+        mode: state.connectionMode,
+        error_type: 'crash_health_timeout',
+        error_message: `Daemon unresponsive after ${state.consecutiveTimeouts} consecutive health check failures`,
+      });
+
       set({
         robotStatus: 'crashed',
         busyReason: null,
