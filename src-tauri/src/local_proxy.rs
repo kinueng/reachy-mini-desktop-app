@@ -34,6 +34,10 @@ const UDP_PROXY_PORTS: &[u16] = &[5000, 8443];
 /// Timeout for UDP client mappings (clean up inactive clients after this duration)
 const UDP_CLIENT_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// Type alias for UDP client map to reduce complexity
+/// Maps client address to (remote socket, last activity timestamp)
+type UdpClientMap = Arc<Mutex<HashMap<SocketAddr, (Arc<UdpSocket>, Instant)>>>;
+
 /// Shared state for the proxy
 pub struct LocalProxyState {
     pub target_host: RwLock<Option<String>>,
@@ -160,8 +164,7 @@ async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
     };
 
     // Track client connections: client_addr -> (remote_socket, last_activity)
-    let clients: Arc<Mutex<HashMap<SocketAddr, (Arc<UdpSocket>, Instant)>>> =
-        Arc::new(Mutex::new(HashMap::new()));
+    let clients: UdpClientMap = Arc::new(Mutex::new(HashMap::new()));
 
     // Spawn cleanup task for stale client mappings
     let clients_cleanup = clients.clone();
