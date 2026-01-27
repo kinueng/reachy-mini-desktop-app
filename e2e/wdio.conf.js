@@ -48,8 +48,6 @@ export const config = {
       maxInstances: 1,
       'tauri:options': {
         application: APP_BINARY,
-        // Launch in simulation mode (no real robot needed)
-        args: ['--mockup-sim'],
       },
     },
   ],
