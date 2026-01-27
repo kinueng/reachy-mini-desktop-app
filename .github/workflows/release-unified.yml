@@ -1055,16 +1055,30 @@ jobs:
           }
           
           # Find the installed application
-          $APP_PATH = "C:\Program Files\Reachy Mini Control\Reachy Mini Control.exe"
-          if (-not (Test-Path $APP_PATH)) {
-            # Try alternative path
-            $APP_PATH = "${env:ProgramFiles}\Reachy Mini Control\Reachy Mini Control.exe"
+          # The exe name comes from Cargo.toml package name: reachy-mini-control
+          # The folder name comes from tauri.conf.json productName: Reachy Mini Control
+          $POSSIBLE_PATHS = @(
+            "C:\Program Files\Reachy Mini Control\reachy-mini-control.exe",
+            "C:\Program Files\Reachy Mini Control\Reachy Mini Control.exe",
+            "${env:ProgramFiles}\Reachy Mini Control\reachy-mini-control.exe",
+            "${env:ProgramFiles}\Reachy Mini Control\Reachy Mini Control.exe"
+          )
+          
+          $APP_PATH = $null
+          foreach ($path in $POSSIBLE_PATHS) {
+            Write-Host "   Checking: $path"
+            if (Test-Path $path) {
+              $APP_PATH = $path
+              break
+            }
           }
           
-          if (-not (Test-Path $APP_PATH)) {
-            Write-Error "❌ Application not found after installation"
-            Write-Host "Searching for installed files..."
-            Get-ChildItem -Path "C:\Program Files" -Filter "*Reachy*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+          if (-not $APP_PATH) {
+            Write-Host "❌ Application not found at expected paths"
+            Write-Host "🔍 Searching for installed files..."
+            Get-ChildItem -Path "C:\Program Files" -Filter "*reachy*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   Found: $($_.FullName)" }
+            Get-ChildItem -Path "C:\Program Files" -Filter "*Reachy*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   Found: $($_.FullName)" }
+            Write-Error "❌ Could not find installed application"
             exit 1
           }
           
