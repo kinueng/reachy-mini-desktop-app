@@ -941,10 +941,20 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         run: |
           echo "📦 Installing E2E test dependencies..."
+          
+          # System dependencies for running the app and WebDriver
           sudo apt-get install -y \
             xvfb \
             webkit2gtk-driver \
             at-spi2-core
+          
+          # Install tauri-driver (Rust crate that wraps WebDriver for Tauri)
+          # This is the official way to run E2E tests on Tauri apps
+          echo "🦀 Installing tauri-driver..."
+          cargo install tauri-driver --locked
+          
+          # Verify installation
+          echo "✅ tauri-driver installed: $(which tauri-driver)"
 
       - name: Install .deb and run E2E tests (Linux only)
         if: matrix.os == 'ubuntu-22.04'
@@ -983,7 +993,7 @@ jobs:
           
           # Run the E2E tests
           echo "🧪 Running E2E tests..."
-          WEBDRIVER_PATH=/usr/bin/WebKitWebDriver yarn test:e2e
+          yarn test:e2e
           
           echo "🧪 ════════════════════════════════════════════════════════════════"
           echo "🧪 ✅ E2E TESTS PASSED"
