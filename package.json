@@ -49,6 +49,8 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@crabnebula/tauri-driver": "^2.0.8",
+    "@crabnebula/test-runner-backend": "^2.0.6",
     "@wdio/cli": "^9.4.5",
     "@wdio/local-runner": "^9.4.5",
     "@wdio/mocha-framework": "^9.4.4",

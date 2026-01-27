@@ -1121,6 +1121,61 @@ jobs:
           Write-Host "🧪 ✅ E2E TESTS PASSED (Windows)"
           Write-Host "🧪 ════════════════════════════════════════════════════════════════"
 
+      # ===========================================
+      # E2E Tests - Run directly after macOS build
+      # ===========================================
+      - name: Install E2E test dependencies (macOS only)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          echo "📦 Installing E2E test dependencies for macOS..."
+          
+          # Install Node.js test dependencies (includes @crabnebula/tauri-driver)
+          echo "📦 Installing npm dependencies..."
+          yarn install
+          
+          echo "✅ E2E dependencies installed"
+
+      - name: Run E2E tests (macOS only)
+        if: startsWith(matrix.os, 'macos')
+        env:
+          CN_API_KEY: ${{ secrets.CN_API_KEY }}
+        run: |
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+          echo "🧪 E2E TESTS - Validating macOS .app bundle"
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+          
+          # Check if CN_API_KEY is configured
+          if [ -z "$CN_API_KEY" ]; then
+            echo "⚠️ CN_API_KEY not configured - skipping macOS E2E tests"
+            echo "   To enable macOS E2E tests, add CN_API_KEY to GitHub Secrets"
+            echo "   Get one at: https://crabnebula.cloud"
+            echo "🧪 ════════════════════════════════════════════════════════════════"
+            echo "🧪 ⏭️ E2E TESTS SKIPPED (macOS) - No CN_API_KEY"
+            echo "🧪 ════════════════════════════════════════════════════════════════"
+            exit 0
+          fi
+          
+          # Find the built .app bundle
+          APP_BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle/macos/Reachy Mini Control.app"
+          
+          if [ ! -d "$APP_BUNDLE" ]; then
+            echo "❌ App bundle not found: $APP_BUNDLE"
+            exit 1
+          fi
+          
+          echo "✅ App bundle found: $APP_BUNDLE"
+          
+          # Set the app binary path for E2E tests
+          export E2E_APP_BINARY="$APP_BUNDLE"
+          
+          # Run E2E tests
+          echo "🧪 Running E2E tests with CrabNebula WebDriver..."
+          yarn test:e2e
+          
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+          echo "🧪 ✅ E2E TESTS PASSED (macOS - ${{ matrix.target }})"
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+
       - name: Sign all binaries (macOS only)
         if: startsWith(matrix.os, 'macos')
         env:
