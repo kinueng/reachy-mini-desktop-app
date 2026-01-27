@@ -995,8 +995,99 @@ jobs:
           xvfb-run --auto-servernum yarn test:e2e
           
           echo "🧪 ════════════════════════════════════════════════════════════════"
-          echo "🧪 ✅ E2E TESTS PASSED"
+          echo "🧪 ✅ E2E TESTS PASSED (Linux)"
           echo "🧪 ════════════════════════════════════════════════════════════════"
+
+      # ===========================================
+      # E2E Tests - Run directly after Windows build
+      # ===========================================
+      - name: Install E2E test dependencies (Windows only)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Write-Host "📦 Installing E2E test dependencies for Windows..."
+          
+          # Install msedgedriver (must match Edge version on runner)
+          # msedgedriver-tool automatically detects and downloads the correct version
+          Write-Host "🌐 Installing msedgedriver-tool..."
+          cargo install --git https://github.com/chippers/msedgedriver-tool
+          
+          # Run msedgedriver-tool to download matching Edge driver
+          Write-Host "🌐 Downloading matching msedgedriver..."
+          & "$env:USERPROFILE\.cargo\bin\msedgedriver-tool.exe"
+          
+          # Add current directory to PATH (msedgedriver is downloaded here)
+          $env:PATH = "$PWD;$env:PATH"
+          [Environment]::SetEnvironmentVariable("PATH", "$PWD;$env:PATH", "Process")
+          
+          # Install tauri-driver 2.0.x for Tauri v2
+          Write-Host "🦀 Installing tauri-driver..."
+          cargo install tauri-driver --locked
+          
+          # Verify installations
+          Write-Host "✅ msedgedriver location: $PWD\msedgedriver.exe"
+          Write-Host "✅ tauri-driver installed"
+
+      - name: Install .msi and run E2E tests (Windows only)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Write-Host "🧪 ════════════════════════════════════════════════════════════════"
+          Write-Host "🧪 E2E TESTS - Validating Windows .msi package"
+          Write-Host "🧪 ════════════════════════════════════════════════════════════════"
+          
+          # Find and install the .msi
+          $MSI_DIR = "src-tauri/target/${{ matrix.target }}/release/bundle/msi"
+          $MSI_FILE = Get-ChildItem -Path $MSI_DIR -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+          
+          if (-not $MSI_FILE) {
+            Write-Error "❌ No .msi file found in: $MSI_DIR"
+            exit 1
+          }
+          
+          Write-Host "📦 Installing: $($MSI_FILE.FullName)"
+          
+          # Install MSI silently
+          $process = Start-Process msiexec.exe -ArgumentList "/i", "`"$($MSI_FILE.FullName)`"", "/quiet", "/norestart" -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            Write-Error "❌ MSI installation failed with exit code: $($process.ExitCode)"
+            exit 1
+          }
+          
+          # Find the installed application
+          $APP_PATH = "C:\Program Files\Reachy Mini Control\Reachy Mini Control.exe"
+          if (-not (Test-Path $APP_PATH)) {
+            # Try alternative path
+            $APP_PATH = "${env:ProgramFiles}\Reachy Mini Control\Reachy Mini Control.exe"
+          }
+          
+          if (-not (Test-Path $APP_PATH)) {
+            Write-Error "❌ Application not found after installation"
+            Write-Host "Searching for installed files..."
+            Get-ChildItem -Path "C:\Program Files" -Filter "*Reachy*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
+          
+          Write-Host "✅ Application installed at: $APP_PATH"
+          
+          # Update wdio.conf.js to use Windows path
+          # We need to set the APP_BINARY environment variable
+          $env:E2E_APP_BINARY = $APP_PATH
+          
+          # Ensure msedgedriver is in PATH
+          $env:PATH = "$PWD;$env:PATH"
+          
+          # Install Node.js test dependencies
+          Write-Host "📦 Installing test dependencies..."
+          yarn install --frozen-lockfile
+          
+          # Run E2E tests (no xvfb needed on Windows)
+          Write-Host "🧪 Running E2E tests..."
+          yarn test:e2e
+          
+          Write-Host "🧪 ════════════════════════════════════════════════════════════════"
+          Write-Host "🧪 ✅ E2E TESTS PASSED (Windows)"
+          Write-Host "🧪 ════════════════════════════════════════════════════════════════"
 
       - name: Sign all binaries (macOS only)
         if: startsWith(matrix.os, 'macos')
