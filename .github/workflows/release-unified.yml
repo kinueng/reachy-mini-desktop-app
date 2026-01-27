@@ -948,18 +948,20 @@ jobs:
             webkit2gtk-driver \
             at-spi2-core
           
-          # Install tauri-driver (Rust crate that wraps WebDriver for Tauri)
-          # IMPORTANT: Version 0.1.4 has a bug with capability matching
-          # See: https://github.com/tauri-apps/tauri/issues/8828
-          echo "🦀 Installing tauri-driver@0.1.3 (0.1.4 has capability bug)..."
-          cargo install tauri-driver --version 0.1.3 --locked
+          # Install tauri-driver 2.0.x for Tauri v2
+          # IMPORTANT: This project uses Tauri v2, so we need tauri-driver 2.0.x
+          # (tauri-driver 0.1.x was for Tauri v1)
+          echo "🦀 Installing tauri-driver (latest 2.0.x for Tauri v2)..."
+          cargo install tauri-driver --locked
           
           # Verify installation
-          tauri-driver --version || echo "tauri-driver installed"
           echo "✅ tauri-driver installed: $(which tauri-driver)"
 
       - name: Install .deb and run E2E tests (Linux only)
         if: matrix.os == 'ubuntu-22.04'
+        env:
+          # Disable DMA-BUF renderer to avoid WebKit crashes on headless CI systems
+          WEBKIT_DISABLE_DMABUF_RENDERER: 1
         run: |
           echo "🧪 ════════════════════════════════════════════════════════════════"
           echo "🧪 E2E TESTS - Validating Linux .deb package"
@@ -987,15 +989,10 @@ jobs:
           echo "📦 Installing test dependencies..."
           yarn install --frozen-lockfile
           
-          # Start xvfb (virtual display) for headless testing
-          echo "🖥️ Starting virtual display..."
-          export DISPLAY=:99
-          Xvfb :99 -screen 0 1920x1080x24 &
-          sleep 3
-          
-          # Run the E2E tests
-          echo "🧪 Running E2E tests..."
-          yarn test:e2e
+          # Run E2E tests with xvfb-run (official Tauri CI approach)
+          # xvfb-run creates a virtual display and runs the command within it
+          echo "🧪 Running E2E tests with xvfb-run..."
+          xvfb-run --auto-servernum yarn test:e2e
           
           echo "🧪 ════════════════════════════════════════════════════════════════"
           echo "🧪 ✅ E2E TESTS PASSED"

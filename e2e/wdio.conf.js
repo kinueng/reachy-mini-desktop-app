@@ -1,21 +1,19 @@
 /**
- * WebdriverIO Configuration for Tauri E2E Testing
+ * WebdriverIO Configuration for Tauri v2 E2E Testing
  *
- * Based on the official Tauri WebDriver example:
+ * Based on official Tauri v2 documentation:
  * https://v2.tauri.app/develop/tests/webdriver/example/webdriverio/
  *
- * IMPORTANT: tauri-driver 0.1.4 has a known bug with capability matching.
- * Use version 0.1.3: cargo install tauri-driver --version 0.1.3 --locked
- * See: https://github.com/tauri-apps/tauri/issues/8828
+ * IMPORTANT: This project uses Tauri v2, so we need tauri-driver 2.0.x
+ * Install with: cargo install tauri-driver --locked
  */
 
 import os from 'os';
 import path from 'path';
-import { spawn, spawnSync } from 'child_process';
+import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 // Path to the installed application (after dpkg -i)
 const APP_BINARY = '/usr/bin/reachy-mini-control';
@@ -29,7 +27,6 @@ export const config = {
   // ====================
   // Runner Configuration
   // ====================
-  // IMPORTANT: Must specify host explicitly for tauri-driver
   host: '127.0.0.1',
   port: 4444,
   runner: 'local',
@@ -82,15 +79,15 @@ export const config = {
   // =====
 
   /**
-   * Start tauri-driver before the session starts
-   * This is the official approach from Tauri documentation
+   * Start tauri-driver before each session
+   * Official pattern: spawn with NO arguments, tauri-driver uses default port 4444
    */
   beforeSession: () => {
     const tauriDriverPath = path.resolve(os.homedir(), '.cargo', 'bin', 'tauri-driver');
-    
+
     console.log('🚀 Starting tauri-driver...');
     console.log(`   Path: ${tauriDriverPath}`);
-    
+
     tauriDriver = spawn(tauriDriverPath, [], {
       stdio: [null, process.stdout, process.stderr],
     });
