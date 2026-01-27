@@ -1,15 +1,17 @@
 /**
  * WebdriverIO Configuration for Tauri E2E Testing
  *
- * This config is designed to test the installed .deb package on Linux CI.
- * It uses tauri-driver which wraps the native WebDriver (webkit2gtk-driver on Linux).
+ * Based on the official Tauri WebDriver example:
+ * https://v2.tauri.app/develop/tests/webdriver/example/webdriverio/
  *
- * @see https://tauri.app/develop/tests/webdriver/
- * @see https://v2.tauri.app/develop/tests/webdriver/ci/
+ * IMPORTANT: tauri-driver 0.1.4 has a known bug with capability matching.
+ * Use version 0.1.3: cargo install tauri-driver --version 0.1.3 --locked
+ * See: https://github.com/tauri-apps/tauri/issues/8828
  */
 
-import { spawn } from 'child_process';
+import os from 'os';
 import path from 'path';
+import { spawn, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -18,27 +20,24 @@ const __dirname = path.dirname(__filename);
 // Path to the installed application (after dpkg -i)
 const APP_BINARY = '/usr/bin/reachy-mini-control';
 
-// Timeout for app startup (daemon needs time to initialize)
-const APP_STARTUP_TIMEOUT = 30000;
-
-// WebDriver port
-const WEBDRIVER_PORT = 4444;
-
+// Keep track of the tauri-driver child process
 let tauriDriver;
+let exit = false;
 
 export const config = {
   //
   // ====================
   // Runner Configuration
   // ====================
+  // IMPORTANT: Must specify host explicitly for tauri-driver
+  host: '127.0.0.1',
+  port: 4444,
   runner: 'local',
-  port: WEBDRIVER_PORT,
 
   //
   // ==================
   // Specify Test Files
   // ==================
-  // Use absolute path to ensure specs are found regardless of working directory
   specs: [path.join(__dirname, 'specs', '**', '*.spec.js')],
   exclude: [],
 
@@ -46,15 +45,12 @@ export const config = {
   // ============
   // Capabilities
   // ============
-  maxInstances: 1, // Tauri apps can only run one instance at a time
+  maxInstances: 1,
   capabilities: [
     {
-      // Standard WebDriver capabilities
-      browserName: 'wry',
+      maxInstances: 1,
       'tauri:options': {
         application: APP_BINARY,
-        // Launch in simulation mode (no hardware required)
-        args: ['--', '--mockup-sim'],
       },
     },
   ],
@@ -70,89 +66,6 @@ export const config = {
   connectionRetryCount: 3,
 
   //
-  // =====
-  // Hooks
-  // =====
-
-  /**
-   * Gets executed once before all workers get launched.
-   * Start tauri-driver which wraps the native WebDriver
-   */
-  onPrepare: function () {
-    return new Promise((resolve, reject) => {
-      // Use tauri-driver which handles the WebDriver protocol for Tauri apps
-      // tauri-driver must be installed via: cargo install tauri-driver
-      const driverPath = process.env.TAURI_DRIVER_PATH || 'tauri-driver';
-
-      console.log(`🚀 Starting tauri-driver...`);
-      console.log(`   Driver: ${driverPath}`);
-      console.log(`   Port: ${WEBDRIVER_PORT}`);
-
-      tauriDriver = spawn(driverPath, ['--port', WEBDRIVER_PORT.toString()], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env },
-      });
-
-      let resolved = false;
-
-      tauriDriver.stdout.on('data', (data) => {
-        const output = data.toString();
-        console.log(`[tauri-driver] ${output.trim()}`);
-        // tauri-driver logs when it's ready
-        if (!resolved && (output.includes('Listening') || output.includes('listening'))) {
-          console.log('✅ tauri-driver is ready');
-          resolved = true;
-          resolve();
-        }
-      });
-
-      tauriDriver.stderr.on('data', (data) => {
-        const output = data.toString();
-        console.log(`[tauri-driver stderr] ${output.trim()}`);
-        // tauri-driver may log to stderr when ready
-        if (!resolved && (output.includes('Listening') || output.includes('listening'))) {
-          console.log('✅ tauri-driver is ready');
-          resolved = true;
-          resolve();
-        }
-      });
-
-      tauriDriver.on('error', (err) => {
-        console.error('❌ Failed to start tauri-driver:', err);
-        console.error('   Make sure tauri-driver is installed: cargo install tauri-driver');
-        reject(err);
-      });
-
-      tauriDriver.on('close', (code) => {
-        if (code !== 0 && code !== null && !resolved) {
-          console.error(`❌ tauri-driver exited with code ${code}`);
-          reject(new Error(`tauri-driver exited with code ${code}`));
-        }
-      });
-
-      // Give tauri-driver time to start, then assume it's ready
-      // (some versions don't log "Listening")
-      setTimeout(() => {
-        if (!resolved) {
-          console.log('⏳ Assuming tauri-driver is ready after timeout...');
-          resolved = true;
-          resolve();
-        }
-      }, 5000);
-    });
-  },
-
-  /**
-   * Gets executed after all workers got shut down and the process is about to exit.
-   */
-  onComplete: function () {
-    if (tauriDriver) {
-      console.log('🛑 Stopping tauri-driver...');
-      tauriDriver.kill();
-    }
-  },
-
-  //
   // ==============
   // Test Framework
   // ==============
@@ -160,6 +73,70 @@ export const config = {
   reporters: ['spec'],
   mochaOpts: {
     ui: 'bdd',
-    timeout: APP_STARTUP_TIMEOUT + 60000, // Extra time for tests
+    timeout: 60000,
+  },
+
+  //
+  // =====
+  // Hooks
+  // =====
+
+  /**
+   * Start tauri-driver before the session starts
+   * This is the official approach from Tauri documentation
+   */
+  beforeSession: () => {
+    const tauriDriverPath = path.resolve(os.homedir(), '.cargo', 'bin', 'tauri-driver');
+    
+    console.log('🚀 Starting tauri-driver...');
+    console.log(`   Path: ${tauriDriverPath}`);
+    
+    tauriDriver = spawn(tauriDriverPath, [], {
+      stdio: [null, process.stdout, process.stderr],
+    });
+
+    tauriDriver.on('error', (error) => {
+      console.error('❌ tauri-driver error:', error);
+      process.exit(1);
+    });
+
+    tauriDriver.on('exit', (code) => {
+      if (!exit) {
+        console.error('❌ tauri-driver exited with code:', code);
+        process.exit(1);
+      }
+    });
+  },
+
+  /**
+   * Clean up tauri-driver after session ends
+   */
+  afterSession: () => {
+    closeTauriDriver();
   },
 };
+
+function closeTauriDriver() {
+  exit = true;
+  tauriDriver?.kill();
+}
+
+function onShutdown(fn) {
+  const cleanup = () => {
+    try {
+      fn();
+    } finally {
+      process.exit();
+    }
+  };
+  process.on('exit', cleanup);
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+  process.on('SIGHUP', cleanup);
+  process.on('SIGBREAK', cleanup);
+}
+
+// Ensure tauri-driver is closed when the test process exits
+onShutdown(() => {
+  closeTauriDriver();
+});
