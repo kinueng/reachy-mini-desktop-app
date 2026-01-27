@@ -1078,8 +1078,9 @@ jobs:
           $env:PATH = "$PWD;$env:PATH"
           
           # Install Node.js test dependencies
+          # Note: Not using --frozen-lockfile here as E2E deps may have cross-platform differences
           Write-Host "📦 Installing test dependencies..."
-          yarn install --frozen-lockfile
+          yarn install
           
           # Run E2E tests (no xvfb needed on Windows)
           Write-Host "🧪 Running E2E tests..."
