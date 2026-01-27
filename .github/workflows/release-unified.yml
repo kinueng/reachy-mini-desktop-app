@@ -1317,9 +1317,7 @@ jobs:
   e2e-tests:
     needs: build-and-release
     runs-on: ubuntu-22.04
-    # Run E2E tests to validate the build before releasing
-    # Skip in dry_run mode to speed up testing
-    if: github.event.inputs.dry_run != 'true'
+    # Always run E2E tests (including in dry_run mode) to validate the build
 
     steps:
       - name: Checkout code
