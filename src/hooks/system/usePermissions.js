@@ -3,6 +3,40 @@ import { invoke } from '@tauri-apps/api/core';
 import { isMacOS } from '../../utils/platform';
 
 /**
+ * Check if we're running in E2E/automation mode
+ * This bypasses permission checks as CI runners can't grant macOS permissions
+ */
+function isE2EMode() {
+  // Check navigator.webdriver (set by some WebDrivers, but not CrabNebula)
+  if (typeof navigator !== 'undefined' && navigator.webdriver) {
+    console.log('[usePermissions] 🤖 E2E mode detected (navigator.webdriver)');
+    return true;
+  }
+  // Check for CI environment variable (passed via Vite at build time)
+  if (import.meta.env.VITE_E2E_MODE === 'true' || import.meta.env.VITE_CI === 'true') {
+    console.log('[usePermissions] 🤖 E2E mode detected (env variable)');
+    return true;
+  }
+  // Check localStorage flag (can be set by E2E tests)
+  if (typeof localStorage !== 'undefined') {
+    try {
+      if (localStorage.getItem('__E2E_MODE__') === 'true') {
+        console.log('[usePermissions] 🤖 E2E mode detected (localStorage)');
+        return true;
+      }
+    } catch (e) {
+      // localStorage might not be available
+    }
+  }
+  // Check window flag (can be set by E2E tests)
+  if (typeof window !== 'undefined' && window.__E2E_MODE__ === true) {
+    console.log('[usePermissions] 🤖 E2E mode detected (window.__E2E_MODE__)');
+    return true;
+  }
+  return false;
+}
+
+/**
  * Hook to check macOS permissions (camera, microphone, local network)
  * Uses tauri-plugin-macos-permissions plugin for camera/microphone
  * Uses custom Rust command for local network (macOS Sequoia+)
@@ -12,16 +46,24 @@ import { isMacOS } from '../../utils/platform';
  * On non-macOS platforms (Windows, Linux), permissions are automatically granted
  * as these platforms handle permissions at the browser/webview level.
  *
+ * In E2E mode (WebDriver), permissions are bypassed as CI runners can't grant them.
+ *
  * Uses a version counter to prevent race conditions where stale
  * API responses could overwrite more recent permission states.
  */
 export function usePermissions({ checkInterval = 2000 } = {}) {
   const isMac = isMacOS();
-  const [cameraGranted, setCameraGranted] = useState(!isMac); // Auto-grant on non-macOS
-  const [microphoneGranted, setMicrophoneGranted] = useState(!isMac); // Auto-grant on non-macOS
-  const [localNetworkGranted, setLocalNetworkGranted] = useState(!isMac); // Auto-grant on non-macOS
-  const [isChecking, setIsChecking] = useState(isMac); // Only check on macOS
-  const [hasChecked, setHasChecked] = useState(!isMac); // Already "checked" on non-macOS
+  const isE2E = isE2EMode();
+
+  // In E2E mode, bypass permission checks (auto-grant all)
+  const shouldBypassPermissions = isE2E;
+  // Auto-grant on non-macOS OR in E2E mode
+  const autoGrant = !isMac || shouldBypassPermissions;
+  const [cameraGranted, setCameraGranted] = useState(autoGrant);
+  const [microphoneGranted, setMicrophoneGranted] = useState(autoGrant);
+  const [localNetworkGranted, setLocalNetworkGranted] = useState(autoGrant);
+  const [isChecking, setIsChecking] = useState(!autoGrant); // Only check on macOS (non-E2E)
+  const [hasChecked, setHasChecked] = useState(autoGrant); // Already "checked" on non-macOS or E2E
 
   // Race condition protection: track the current check version
   const checkVersionRef = useRef(0);
@@ -31,8 +73,8 @@ export function usePermissions({ checkInterval = 2000 } = {}) {
   const previousStateRef = useRef({ camera: null, microphone: null, localNetwork: null });
 
   const checkPermissions = useCallback(async () => {
-    // Skip permission checks on non-macOS platforms
-    if (!isMac || !mountedRef.current) {
+    // Skip permission checks on non-macOS platforms or in E2E mode
+    if (!isMac || shouldBypassPermissions || !mountedRef.current) {
       return;
     }
 
@@ -122,7 +164,7 @@ export function usePermissions({ checkInterval = 2000 } = {}) {
         setIsChecking(false);
       }
     }
-  }, [isMac]);
+  }, [isMac, shouldBypassPermissions]);
 
   useEffect(() => {
     mountedRef.current = true;
