@@ -150,6 +150,10 @@ pub fn run() {
         builder
     };
 
+    // Add automation plugin for E2E testing (macOS requires CrabNebula driver)
+    // This plugin is only active when the app is launched via WebDriver
+    let builder = builder.plugin(tauri_plugin_automation::init());
+
     // Create shared local proxy state (proxy starts on-demand when WiFi target is set)
     let local_proxy_state = Arc::new(LocalProxyState::new());
 

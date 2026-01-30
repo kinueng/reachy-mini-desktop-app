@@ -230,6 +230,25 @@ If we implement E2E testing, these are the critical paths to validate:
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | Jan 2026 | Research phase | Evaluate options before implementation |
-| TBD | Contact CrabNebula | Determine macOS testing costs |
-| TBD | Implementation decision | Based on pricing and team capacity |
+| Jan 2026 | **Implemented Linux E2E** | Free WebDriver, validates core functionality |
+| Jan 2026 | Skip macOS E2E | CrabNebula subscription required, code is identical |
+| Jan 2026 | Integrated into release workflow | E2E must pass before release is published |
+
+## Implementation Status
+
+✅ **E2E Testing is now implemented!**
+
+- **Location**: `e2e/` directory
+- **Framework**: WebdriverIO with webkit2gtk-driver
+- **CI Integration**: `release-unified.yml` - E2E job blocks release if tests fail
+- **Documentation**: `e2e/README.md`
+
+### How it works
+
+1. Release workflow builds the Linux `.deb` package
+2. E2E job installs the `.deb` on Ubuntu
+3. App launches in simulation mode (`--mockup-sim`)
+4. WebdriverIO tests validate app startup, daemon health, and UI rendering
+5. If tests fail → release is blocked
+6. If tests pass → release proceeds
 
