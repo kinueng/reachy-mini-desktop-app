@@ -20,6 +20,7 @@ import {
   validateControllerType,
   validateExpressionType,
 } from './events';
+import { generateDiagnosticSnapshot } from '../diagnosticExport';
 
 // Re-export events for convenience
 export { EVENTS } from './events';
@@ -65,14 +66,35 @@ export const setTelemetryEnabled = enabled => {
 // ============================================================================
 
 /**
- * Get OS type (macOS, Windows, Linux)
+ * Get genuine OS information from Tauri OS plugin
+ * Returns detailed OS info instead of browser's fake userAgent
+ * @returns {Promise<{ type: string, version: string, arch: string }>}
  */
-const getOSType = () => {
-  const userAgent = navigator.userAgent.toLowerCase();
-  if (userAgent.includes('mac')) return 'macOS';
-  if (userAgent.includes('win')) return 'Windows';
-  if (userAgent.includes('linux')) return 'Linux';
-  return 'Unknown';
+const getOSInfo = async () => {
+  try {
+    // Use Tauri OS plugin for accurate system info
+    const { type, version, arch } = await import('@tauri-apps/plugin-os');
+
+    return {
+      type: await type(), // 'macos' | 'windows' | 'linux'
+      version: await version(), // e.g., '14.0' or '10.0.22000'
+      arch: await arch(), // e.g., 'aarch64' | 'x86_64'
+    };
+  } catch (error) {
+    // Fallback to navigator if Tauri plugin fails (e.g., dev mode in browser)
+    console.warn('[Telemetry] Failed to get OS from Tauri plugin, using fallback:', error);
+    const userAgent = navigator.userAgent.toLowerCase();
+    let type = 'unknown';
+    if (userAgent.includes('mac')) type = 'macos';
+    else if (userAgent.includes('win')) type = 'windows';
+    else if (userAgent.includes('linux')) type = 'linux';
+
+    return {
+      type,
+      version: 'unknown',
+      arch: 'unknown',
+    };
+  }
 };
 
 /**
@@ -80,7 +102,9 @@ const getOSType = () => {
  * This replaces PostHog.register() which is NOT available in tauri-plugin-posthog-api
  */
 let globalContext = {
-  os: getOSType(),
+  os_type: 'unknown',
+  os_version: 'unknown',
+  os_arch: 'unknown',
   app_version: 'unknown',
   daemon_version: 'unknown',
 };
@@ -92,8 +116,13 @@ let globalContext = {
  */
 export const initTelemetry = async context => {
   try {
+    // Get genuine OS info from Tauri plugin
+    const osInfo = await getOSInfo();
+
     globalContext = {
-      os: getOSType(),
+      os_type: osInfo.type, // 'macos' | 'windows' | 'linux'
+      os_version: osInfo.version, // e.g., '14.0' (Sonoma) or '26.2.0' (kernel)
+      os_arch: osInfo.arch, // 'aarch64' (Apple Silicon) | 'x86_64' (Intel/AMD)
       app_version: context.appVersion || 'unknown',
       daemon_version: context.daemonVersion || 'unknown',
     };
@@ -255,14 +284,32 @@ export const telemetry = {
   },
 
   /**
-   * Track connection error
+   * Track connection error with diagnostic snapshot
+   * Automatically includes robot state, recent error logs, and session info
+   * for better debugging in PostHog
+   *
    * @param {{ mode?: string, error_type?: string, error_message?: string }} props
    */
   connectionError: (props = {}) => {
+    // Generate diagnostic snapshot for debugging context
+    let diagnostic = null;
+    try {
+      diagnostic = generateDiagnosticSnapshot();
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn('[Telemetry] Failed to generate diagnostic snapshot:', error);
+      }
+    }
+
     track(EVENTS.CONNECTION_ERROR, {
       mode: validateConnectionMode(props.mode),
       error_type: props.error_type,
       error_message: props.error_message, // Optional: truncated error message for debugging
+      // Diagnostic snapshot for debugging
+      diagnostic_robot: diagnostic?.robot || null,
+      diagnostic_logs: diagnostic?.logs || null,
+      diagnostic_installed_apps: diagnostic?.installed_apps || null,
+      diagnostic_session: diagnostic?.session || null,
     });
   },
 
