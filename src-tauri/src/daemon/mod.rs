@@ -431,7 +431,8 @@ pub fn spawn_and_monitor_sidecar(
         .shell()
         .sidecar("uv-trampoline")
         .map_err(|e| e.to_string())?
-        .args(daemon_args_refs);
+        .args(daemon_args_refs)
+        .env("PYTHONIOENCODING", "utf-8");
 
     let (mut rx, child) = sidecar_command.spawn().map_err(|e| e.to_string())?;
 

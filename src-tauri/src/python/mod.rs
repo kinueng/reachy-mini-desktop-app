@@ -29,7 +29,7 @@ pub fn build_daemon_args(sim_mode: bool) -> Result<Vec<String>, String> {
     // Common daemon arguments
     args.push("--desktop-app-daemon".to_string());
     args.push("--no-wake-up-on-start".to_string()); // Robot starts sleeping, toggle controls wake
-    args.push("--preload-datasets".to_string()); // Pre-download emotions/dances at startup
+    // args.push("--preload-datasets".to_string()); // Pre-download emotions/dances at startup (requires newer reachy-mini)
 
     if sim_mode {
         // Use --mockup-sim for mockup simulation (no MuJoCo required)
