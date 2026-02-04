@@ -4,114 +4,14 @@
  * Scans for available robots via USB and WiFi in parallel.
  * Used by FindingRobotView to detect and list connection options.
  *
- * Uses Tauri HTTP plugin for WiFi discovery to bypass WebView restrictions.
+ * V2: Uses native Rust discovery (mDNS, cache, static peers) for reliability.
+ * Replaces the old tauriFetch-based approach with proper mDNS discovery.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import useAppStore from '../../store/useAppStore';
 import { DAEMON_CONFIG } from '../../config/daemon';
-
-// WiFi hosts to check (try multiple in parallel)
-// mDNS (.home) doesn't work in WebView, so we also try common IPs
-const WIFI_HOSTS_TO_CHECK = [
-  'reachy-mini.home', // mDNS (works in some cases)
-  'reachy-mini.local', // mDNS alternative
-  '192.168.1.18', // Common static IP for Reachy
-  // Add more IPs here if needed
-];
-const WIFI_CHECK_TIMEOUT = 10000; // 10s timeout per host (needs to be long after WiFi inactivity: mDNS cache expiry + Pi WiFi wake)
-
-// Track last logged WiFi host to avoid repetitive logs
-let lastLoggedWifiHost = null;
-
-/**
- * Check if a WiFi robot is available at a single host
- * Uses Tauri HTTP plugin to bypass WebView network restrictions
- * @param {string} host - Hostname or IP to check
- * @returns {Promise<{available: boolean, host: string, error?: string}>}
- */
-async function checkSingleHost(host) {
-  try {
-    // Use Tauri fetch which runs in Rust (bypasses WebView restrictions)
-    const response = await tauriFetch(`http://${host}:8000/api/daemon/status`, {
-      method: 'GET',
-      connectTimeout: WIFI_CHECK_TIMEOUT,
-    });
-
-    if (response.ok) {
-      return { available: true, host };
-    }
-    return { available: false, host, error: `HTTP ${response.status}` };
-  } catch (e) {
-    // Network error or timeout
-    return { available: false, host, error: e.message };
-  }
-}
-
-import { isReachyHotspot } from '../../constants/wifi';
-
-/**
- * Check if the computer is currently connected to a Reachy hotspot
- * @returns {Promise<boolean>}
- */
-async function isOnReachyHotspot() {
-  try {
-    const currentSsid = await invoke('get_current_wifi_ssid');
-    return isReachyHotspot(currentSsid);
-  } catch (e) {
-    console.warn('Failed to get current WiFi SSID:', e);
-    return false;
-  }
-}
-
-/**
- * Check multiple WiFi hosts in parallel and return the first one that responds
- * @param {Function} isRobotBlacklisted - Function to check if a robot host is blacklisted
- * @returns {Promise<{available: boolean, host: string | null}>}
- */
-async function checkWifiRobot(isRobotBlacklisted) {
-  // First check if we're on the Reachy hotspot - if so, WiFi mode is not available
-  const onHotspot = await isOnReachyHotspot();
-  if (onHotspot) {
-    if (lastLoggedWifiHost !== 'hotspot-blocked') {
-      lastLoggedWifiHost = 'hotspot-blocked';
-    }
-    return { available: false, host: null, onHotspot: true };
-  }
-
-  // Check all hosts in parallel
-  const results = await Promise.all(WIFI_HOSTS_TO_CHECK.map(host => checkSingleHost(host)));
-
-  // Return the first available host (but filter out blacklisted ones)
-  const available = results.find(r => r.available && !isRobotBlacklisted(r.host));
-  if (available) {
-    // Only log when host changes (found new robot or different host)
-    if (lastLoggedWifiHost !== available.host) {
-      lastLoggedWifiHost = available.host;
-    }
-    return { available: true, host: available.host };
-  }
-
-  // Check if all available hosts are blacklisted
-  const hasBlacklistedRobots = results.some(r => r.available && isRobotBlacklisted(r.host));
-  if (hasBlacklistedRobots && lastLoggedWifiHost !== 'blacklisted') {
-    lastLoggedWifiHost = 'blacklisted';
-  }
-
-  // Log when robot is lost (was found before, now gone)
-  if (
-    lastLoggedWifiHost &&
-    lastLoggedWifiHost !== 'hotspot-blocked' &&
-    lastLoggedWifiHost !== 'blacklisted' &&
-    !hasBlacklistedRobots
-  ) {
-    lastLoggedWifiHost = null;
-  }
-
-  return { available: false, host: null };
-}
 
 /**
  * Check if a USB robot is connected
@@ -128,6 +28,36 @@ async function checkUsbRobot() {
 }
 
 /**
+ * Discover WiFi robots using the native Rust discovery system
+ * Uses cache → static peers → mDNS in order for speed
+ * @returns {Promise<{available: boolean, host: string | null}>}
+ */
+async function checkWifiRobotV2() {
+  try {
+    // Use the new Rust-native discovery (cache + static peers + mDNS)
+    const robots = await invoke('discover_robots');
+
+    if (robots && robots.length > 0) {
+      const robot = robots[0]; // Take the first discovered robot
+      console.log(`[Discovery] ✅ Found robot via ${robot.discovery_method}: ${robot.ip}`);
+
+      // Return hostname if available (e.g., "reachy-mini.home"), otherwise IP
+      const host = robot.hostname
+        ? robot.hostname.replace(/\.$/, '') // Remove trailing dot from mDNS hostname
+        : robot.ip;
+
+      return { available: true, host };
+    }
+
+    console.log('[Discovery] 📭 No robots found via automatic discovery');
+    return { available: false, host: null };
+  } catch (e) {
+    console.error('[Discovery] ❌ Discovery error:', e);
+    return { available: false, host: null };
+  }
+}
+
+/**
  * Robot Discovery Hook
  *
  * Scans for USB and WiFi robots in parallel.
@@ -137,7 +67,6 @@ export function useRobotDiscovery() {
   const isFirstCheck = useAppStore(state => state.isFirstCheck);
   const setIsFirstCheck = useAppStore(state => state.setIsFirstCheck);
   const cleanupBlacklist = useAppStore(state => state.cleanupBlacklist);
-  const isRobotBlacklisted = useAppStore(state => state.isRobotBlacklisted);
 
   // Discovery state
   const [isScanning, setIsScanning] = useState(true);
@@ -171,10 +100,10 @@ export function useRobotDiscovery() {
     const startTime = Date.now();
 
     try {
-      // Scan USB and WiFi in parallel, but don't let WiFi block USB results
-      // USB check is fast, WiFi can take up to 10s per host
+      // Scan USB and WiFi in parallel
+      // USB check is fast, WiFi discovery may take up to 5-10s
       const usbPromise = checkUsbRobot();
-      const wifiPromise = checkWifiRobot(isRobotBlacklisted);
+      const wifiPromise = checkWifiRobotV2();
 
       // Get USB result first (it's fast)
       const usbResult = await usbPromise;
@@ -184,7 +113,7 @@ export function useRobotDiscovery() {
         setUsbRobot(usbResult);
       }
 
-      // Wait for WiFi (may be slow)
+      // Wait for WiFi (may be slow on first discovery, fast with cache)
       const wifiResult = await wifiPromise;
 
       // Ensure minimum delay on first check for smooth UX
@@ -207,7 +136,7 @@ export function useRobotDiscovery() {
     } finally {
       isScanningRef.current = false;
     }
-  }, [isFirstCheck, setIsFirstCheck, isRobotBlacklisted]);
+  }, [isFirstCheck, setIsFirstCheck]);
 
   /**
    * Start continuous scanning
@@ -223,7 +152,7 @@ export function useRobotDiscovery() {
     // Perform initial scan immediately
     performScan();
 
-    // Then scan periodically
+    // Then scan periodically (longer interval since mDNS discovery is more reliable)
     scanIntervalRef.current = setInterval(() => {
       if (isMountedRef.current) {
         performScan();
