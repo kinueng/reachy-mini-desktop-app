@@ -398,12 +398,10 @@ macro_rules! spawn_sidecar_monitor {
     }};
 }
 
-/// Spawn and monitor the embedded daemon sidecar
+/// Spawn and monitor the embedded daemon sidecar with graceful fallback
 ///
-/// # Arguments
-/// * `app_handle` - Tauri app handle
-/// * `state` - Daemon state
-/// * `sim_mode` - If true, launch daemon in simulation mode (mockup-sim) with --mockup-sim flag
+/// Uses --preload-datasets for new daemon versions, falls back gracefully
+/// for old versions that don't support it.
 pub fn spawn_and_monitor_sidecar(
     app_handle: tauri::AppHandle,
     state: &State<DaemonState>,
@@ -419,7 +417,8 @@ pub fn spawn_and_monitor_sidecar(
     }
     drop(process_lock);
 
-    let daemon_args = build_daemon_args(sim_mode)?;
+    let daemon_args = build_daemon_args(sim_mode, true)?;
+    log::info!("[tauri] Launching daemon with --preload-datasets");
 
     if sim_mode {
         log::info!("[tauri] Launching daemon in simulation mode (mockup-sim)");
@@ -447,8 +446,198 @@ pub fn spawn_and_monitor_sidecar(
     *process_lock = Some(child);
     drop(process_lock);
 
-    // Spawn async task to monitor sidecar output
-    crate::spawn_sidecar_monitor!(rx, app_handle, None::<String>, generation);
+    let app_handle_clone = app_handle.clone();
+    let captured_generation: u64 = generation;
+
+    // Spawn monitoring task with --preload-datasets fallback support
+    tauri::async_runtime::spawn(async move {
+        use tauri::Emitter;
+        use tauri::Manager;
+        use tauri_plugin_shell::process::CommandEvent;
+
+        log::info!(
+            "[tauri] Starting sidecar output monitoring (gen {})...",
+            captured_generation
+        );
+
+        let mut has_argument_error = false;
+
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(line_bytes) => {
+                    let line = String::from_utf8_lossy(&line_bytes);
+                    log::info!("Sidecar stdout: {}", line);
+                    let _ = app_handle_clone.emit("sidecar-stdout", line.to_string());
+                }
+                CommandEvent::Stderr(line_bytes) => {
+                    let line = String::from_utf8_lossy(&line_bytes);
+                    log::warn!("Sidecar stderr: {}", line);
+                    let _ = app_handle_clone.emit("sidecar-stderr", line.to_string());
+
+                    let line_lower = line.to_lowercase();
+                    if line_lower.contains("unrecognised argument")
+                        || line_lower.contains("unrecognized argument")
+                        || line_lower.contains("invalid choice")
+                    {
+                        has_argument_error = true;
+                        log::warn!(
+                            "[tauri] Detected unsupported --preload-datasets argument"
+                        );
+                    }
+                }
+                CommandEvent::Terminated(status) => {
+                    log::info!(
+                        "[tauri] Sidecar process terminated with status: {:?}",
+                        status
+                    );
+
+                    let daemon_state =
+                        app_handle_clone.state::<crate::daemon::DaemonState>();
+                    let current_gen = *daemon_state
+                        .generation
+                        .lock()
+                        .expect("generation mutex poisoned");
+
+                    if captured_generation != current_gen {
+                        log::info!(
+                            "[daemon] Ignoring terminated event for old daemon (gen {} vs current {})",
+                            captured_generation, current_gen
+                        );
+                        continue;
+                    }
+
+                    if has_argument_error {
+                        log::info!(
+                            "[tauri] Retrying without --preload-datasets..."
+                        );
+
+                        daemon_state
+                            .process
+                            .lock()
+                            .expect("process mutex poisoned")
+                            .take();
+
+                        tokio::time::sleep(tokio::time::Duration::from_millis(500))
+                            .await;
+
+                        use crate::python::build_daemon_args;
+                        use tauri_plugin_shell::ShellExt;
+
+                        let daemon_args = match build_daemon_args(sim_mode, false) {
+                            Ok(args) => args,
+                            Err(e) => {
+                                log::error!(
+                                    "[tauri] Failed to build daemon args: {}",
+                                    e
+                                );
+                                let _ = crate::daemon::transition_and_emit(
+                                    &daemon_state,
+                                    crate::daemon::DaemonStatus::Crashed,
+                                    &app_handle_clone,
+                                );
+                                continue;
+                            }
+                        };
+
+                        let daemon_args_refs: Vec<&str> =
+                            daemon_args.iter().map(|s| s.as_str()).collect();
+
+                        let sidecar_cmd = match app_handle_clone
+                            .shell()
+                            .sidecar("uv-trampoline")
+                        {
+                            Ok(cmd) => cmd,
+                            Err(e) => {
+                                log::error!(
+                                    "[tauri] Failed to get sidecar: {}",
+                                    e
+                                );
+                                let _ = crate::daemon::transition_and_emit(
+                                    &daemon_state,
+                                    crate::daemon::DaemonStatus::Crashed,
+                                    &app_handle_clone,
+                                );
+                                continue;
+                            }
+                        };
+
+                        match sidecar_cmd
+                            .args(daemon_args_refs)
+                            .env("PYTHONIOENCODING", "utf-8")
+                            .spawn()
+                        {
+                            Ok((mut new_rx, new_child)) => {
+                                let new_gen = {
+                                    let mut gen = daemon_state
+                                        .generation
+                                        .lock()
+                                        .expect("generation mutex poisoned");
+                                    *gen += 1;
+                                    *gen
+                                };
+
+                                let mut process_lock = daemon_state
+                                    .process
+                                    .lock()
+                                    .expect("process mutex poisoned");
+                                *process_lock = Some(new_child);
+                                drop(process_lock);
+
+                                let app_handle_ref = app_handle_clone.clone();
+                                crate::spawn_sidecar_monitor!(
+                                    new_rx,
+                                    app_handle_ref,
+                                    None::<String>,
+                                    new_gen
+                                );
+                            }
+                            Err(e) => {
+                                log::error!(
+                                    "[tauri] Failed to spawn fallback daemon: {}",
+                                    e
+                                );
+                                let _ = crate::daemon::transition_and_emit(
+                                    &daemon_state,
+                                    crate::daemon::DaemonStatus::Crashed,
+                                    &app_handle_clone,
+                                );
+                            }
+                        }
+                    } else {
+                        daemon_state
+                            .process
+                            .lock()
+                            .expect("process mutex poisoned")
+                            .take();
+
+                        let current_status = *daemon_state
+                            .status
+                            .lock()
+                            .expect("status mutex poisoned");
+                        let target = match current_status {
+                            crate::daemon::DaemonStatus::Stopping => {
+                                crate::daemon::DaemonStatus::Idle
+                            }
+                            crate::daemon::DaemonStatus::Running
+                            | crate::daemon::DaemonStatus::Starting => {
+                                crate::daemon::DaemonStatus::Crashed
+                            }
+                            _ => current_status,
+                        };
+
+                        if target != current_status {
+                            let _ = crate::daemon::transition_and_emit(
+                                &daemon_state,
+                                target,
+                                &app_handle_clone,
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    });
 
     Ok(())
 }
