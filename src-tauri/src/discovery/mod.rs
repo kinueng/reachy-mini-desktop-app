@@ -38,7 +38,11 @@ impl DiscoveryState {
         Self {
             last_known_ip: Arc::new(RwLock::new(None)),
             static_peers: Arc::new(RwLock::new(vec![
-                "192.168.1.18".to_string(), // Common Reachy IP
+                // mDNS/DNS hostnames (resolved by router or Bonjour)
+                "reachy-mini.home".to_string(),  // Router DNS (.home TLD)
+                "reachy-mini.local".to_string(), // Bonjour/mDNS (.local TLD)
+                // Common static IPs
+                "192.168.1.18".to_string(),      // Default Reachy IP
             ])),
         }
     }
