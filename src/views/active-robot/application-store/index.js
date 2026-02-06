@@ -2,6 +2,5 @@
 export { default } from './ApplicationStore';
 // Named export for explicit imports
 export { default as ApplicationStore } from './ApplicationStore';
-// Utilities and hooks
-export { fetchHuggingFaceAppList, HUGGINGFACE_APP_LIST_URL } from '@utils/huggingFaceApi';
+// Hooks
 export { useAppHandlers } from './hooks';

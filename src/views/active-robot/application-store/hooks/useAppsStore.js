@@ -3,7 +3,6 @@ import useAppStore from '@store/useAppStore';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '@config/daemon';
 import { useLogger } from '@utils/logging';
 import { useAppFetching } from './useAppFetching';
-import { useAppEnrichment } from './useAppEnrichment';
 import { useAppJobs } from './useAppJobs';
 
 /**
@@ -86,8 +85,7 @@ export function useAppsStore(isActive) {
   }, [activeJobsObj]);
 
   // Specialized hooks
-  const { fetchOfficialApps, fetchAllAppsFromDaemon, fetchInstalledApps } = useAppFetching();
-  const { enrichApps } = useAppEnrichment();
+  const { fetchAppsFromWebsite, fetchInstalledApps } = useAppFetching();
 
   // Track if we're currently fetching to avoid duplicate fetches
   const isFetchingRef = useRef(false);
@@ -96,9 +94,9 @@ export function useAppsStore(isActive) {
   const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
   /**
-   * Fetch ALL available apps (official + community) in a single request
+   * Fetch ALL available apps from website API (single request)
+   * Website API provides pre-enriched data with official/community flags
    * Uses cache if available and valid (1 day)
-   * Filtering by official/community is done client-side in useAppFiltering
    * @param {boolean} forceRefresh - Force refresh even if cache is valid
    */
   const fetchAvailableApps = useCallback(
@@ -108,23 +106,19 @@ export function useAppsStore(isActive) {
         return useAppStore.getState().availableApps;
       }
 
-      // ✅ Read current state DIRECTLY from store (avoid stale closure issues)
+      // Read current state DIRECTLY from store (avoid stale closure issues)
       const storeState = useAppStore.getState();
       const currentAvailableApps = storeState.availableApps;
       const currentInstalledApps = storeState.installedApps;
       const currentCacheValid = storeState.appsCacheValid;
       const currentLastFetch = storeState.appsLastFetch;
 
-      // ✅ Check cache validity using fresh store values
+      // Check cache validity using fresh store values
       const isCacheFresh =
         currentCacheValid && currentLastFetch && Date.now() - currentLastFetch < CACHE_DURATION;
 
       // Use cache if valid and not forcing refresh
       if (!forceRefresh && isCacheFresh && currentAvailableApps.length > 0) {
-        const remainingTime = Math.round(
-          (CACHE_DURATION - (Date.now() - currentLastFetch)) / 1000 / 60 / 60
-        );
-
         // Re-check network status
         if (!navigator.onLine && currentInstalledApps.length > 0) {
           setAppsError(
@@ -139,48 +133,23 @@ export function useAppsStore(isActive) {
         return currentAvailableApps;
       }
 
-      // Force refresh if cache is empty
-      if (!forceRefresh && isCacheFresh && currentAvailableApps.length === 0) {
-      }
-
       try {
         isFetchingRef.current = true;
         setAppsLoading(true);
         setAppsError(null);
 
         // ========================================
-        // STEP 1: Fetch ALL apps (official + community) in parallel
+        // STEP 1: Fetch ALL apps from website API (single request!)
         // ========================================
-
-        let officialApps = [];
-        let communityApps = [];
+        let availableAppsFromWebsite = [];
         let fetchError = null;
 
-        // Fetch both in parallel for speed
-        const [officialResult, communityResult] = await Promise.allSettled([
-          fetchOfficialApps(),
-          fetchAllAppsFromDaemon(),
-        ]);
-
-        if (officialResult.status === 'fulfilled') {
-          officialApps = officialResult.value || [];
-        } else {
-          fetchError = officialResult.reason;
-          console.error(`❌ Failed to fetch official apps:`, officialResult.reason);
+        try {
+          availableAppsFromWebsite = await fetchAppsFromWebsite();
+        } catch (err) {
+          fetchError = err;
+          console.error('❌ Failed to fetch apps from website:', err.message);
         }
-
-        if (communityResult.status === 'fulfilled') {
-          communityApps = communityResult.value || [];
-        } else {
-          console.warn(`⚠️ Failed to fetch community apps:`, communityResult.reason);
-        }
-
-        // Mark apps with isOfficial flag
-        officialApps = officialApps.map(app => ({ ...app, isOfficial: true }));
-        communityApps = communityApps.map(app => ({ ...app, isOfficial: false }));
-
-        // Merge all apps (official first, then community)
-        let availableAppsFromSource = [...officialApps, ...communityApps];
 
         // ========================================
         // STEP 2: Fetch installed apps from daemon
@@ -194,7 +163,7 @@ export function useAppsStore(isActive) {
 
         // Check for network issues
         const hasNetworkIssue =
-          availableAppsFromSource.length === 0 && (fetchError || !navigator.onLine);
+          availableAppsFromWebsite.length === 0 && (fetchError || !navigator.onLine);
 
         if (hasNetworkIssue) {
           if (installedAppsFromDaemon.length === 0) {
@@ -214,7 +183,7 @@ export function useAppsStore(isActive) {
         }
 
         // ========================================
-        // STEP 3: Create lookup structures for installed apps
+        // STEP 3: Create lookup for installed apps
         // ========================================
         const installedAppNames = new Set(
           installedAppsFromDaemon.map(app => app.name?.toLowerCase()).filter(Boolean)
@@ -227,7 +196,7 @@ export function useAppsStore(isActive) {
         // STEP 4: Merge local-only installed apps
         // ========================================
         const availableAppNames = new Set(
-          availableAppsFromSource.map(app => app.name?.toLowerCase())
+          availableAppsFromWebsite.map(app => app.name?.toLowerCase())
         );
 
         const localOnlyApps = installedAppsFromDaemon
@@ -235,34 +204,41 @@ export function useAppsStore(isActive) {
           .map(app => ({
             ...app,
             source_kind: app.source_kind || 'local',
-            isOfficial: false, // Local apps are not official
+            isOfficial: false,
           }));
 
-        if (localOnlyApps.length > 0) {
-          availableAppsFromSource = [...availableAppsFromSource, ...localOnlyApps];
-        }
+        const allApps = [...availableAppsFromWebsite, ...localOnlyApps];
 
         // ========================================
-        // STEP 5: Enrich apps with metadata
+        // STEP 5: Mark installed apps and merge custom_app_url
         // ========================================
-        const { enrichedApps, installed } = await enrichApps(
-          availableAppsFromSource,
-          installedAppNames,
-          installedAppsMap,
-          officialApps // Use official apps for enrichment
-        );
+        const enrichedApps = allApps.map(app => {
+          const appNameLower = app.name?.toLowerCase();
+          const isInstalled = installedAppNames.has(appNameLower);
+          const installedAppData = installedAppsMap.get(appNameLower);
 
-        // Preserve isOfficial flag after enrichment
-        const enrichedAppsWithFlag = enrichedApps.map(app => {
-          const original = availableAppsFromSource.find(a => a.name === app.name);
-          return { ...app, isOfficial: original?.isOfficial ?? false };
+          return {
+            ...app,
+            isInstalled,
+            // Merge custom_app_url from daemon (only daemon knows this)
+            ...(isInstalled &&
+              installedAppData?.extra?.custom_app_url && {
+                extra: {
+                  ...app.extra,
+                  custom_app_url: installedAppData.extra.custom_app_url,
+                },
+              }),
+          };
         });
 
-        setAvailableApps(enrichedAppsWithFlag);
+        // Build installed apps list
+        const installed = enrichedApps.filter(app => app.isInstalled);
+
+        setAvailableApps(enrichedApps);
         setInstalledApps(installed);
         setAppsLoading(false);
 
-        return enrichedAppsWithFlag;
+        return enrichedApps;
       } catch (err) {
         console.error('❌ Failed to fetch apps:', err);
         setAppsError(err.message);
@@ -273,10 +249,8 @@ export function useAppsStore(isActive) {
       }
     },
     [
-      fetchOfficialApps,
-      fetchAllAppsFromDaemon,
+      fetchAppsFromWebsite,
       fetchInstalledApps,
-      enrichApps,
       setAvailableApps,
       setInstalledApps,
       setAppsLoading,
