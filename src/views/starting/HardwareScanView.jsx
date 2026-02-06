@@ -9,7 +9,7 @@ import { useDaemonStartupLogs } from '../../hooks/daemon/useDaemonStartupLogs';
 import LogConsole from '@components/LogConsole';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '../../config/daemon';
 import { detectMovementChanges } from '../../utils/movementDetection';
-import { useAppFetching, useAppEnrichment } from '../active-robot/application-store/hooks';
+import { useAppFetching } from '../active-robot/application-store/hooks';
 import { ScanErrorDisplay, ScanStepsIndicator, TipsCarousel } from './components';
 import { calculatePassiveJointsAsync } from '../../utils/kinematics-wasm/useKinematicsWasm';
 
@@ -145,8 +145,7 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
   } = useAppStore();
 
   // ✅ App fetching hooks for pre-loading apps before transition
-  const { fetchOfficialApps, fetchAllAppsFromDaemon, fetchInstalledApps } = useAppFetching();
-  const { enrichApps } = useAppEnrichment();
+  const { fetchAppsFromWebsite, fetchInstalledApps } = useAppFetching();
   const isStarting = robotStatus === 'starting';
   const {
     logs: startupLogs,
@@ -577,28 +576,30 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
               try {
                 setAppsLoading(true);
 
-                // Fetch all apps in parallel (official + community + installed)
-                const [officialResult, communityResult, installedResult] = await Promise.allSettled(
-                  [fetchOfficialApps(), fetchAllAppsFromDaemon(), fetchInstalledApps()]
-                );
+                // Fetch apps from website API + installed from daemon (2 requests only!)
+                const [websiteResult, installedResult] = await Promise.allSettled([
+                  fetchAppsFromWebsite(),
+                  fetchInstalledApps(),
+                ]);
 
                 // Extract results
-                let officialApps =
-                  officialResult.status === 'fulfilled' ? officialResult.value || [] : [];
-                let communityApps =
-                  communityResult.status === 'fulfilled' ? communityResult.value || [] : [];
+                const availableAppsFromWebsite =
+                  websiteResult.status === 'fulfilled' ? websiteResult.value || [] : [];
                 const installedAppsFromDaemon =
                   installedResult.status === 'fulfilled' ? installedResult.value?.apps || [] : [];
 
-                // Mark apps with isOfficial flag
-                officialApps = officialApps.map(app => ({ ...app, isOfficial: true }));
-                communityApps = communityApps.map(app => ({ ...app, isOfficial: false }));
-
-                // Merge all apps
-                let allApps = [...officialApps, ...communityApps];
+                // Create lookup for installed apps
+                const installedAppNames = new Set(
+                  installedAppsFromDaemon.map(app => app.name?.toLowerCase()).filter(Boolean)
+                );
+                const installedAppsMap = new Map(
+                  installedAppsFromDaemon.map(app => [app.name?.toLowerCase(), app])
+                );
 
                 // Add local-only installed apps
-                const availableAppNames = new Set(allApps.map(app => app.name?.toLowerCase()));
+                const availableAppNames = new Set(
+                  availableAppsFromWebsite.map(app => app.name?.toLowerCase())
+                );
                 const localOnlyApps = installedAppsFromDaemon
                   .filter(app => !availableAppNames.has(app.name?.toLowerCase()))
                   .map(app => ({
@@ -607,34 +608,32 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
                     isOfficial: false,
                   }));
 
-                if (localOnlyApps.length > 0) {
-                  allApps = [...allApps, ...localOnlyApps];
-                }
+                const allApps = [...availableAppsFromWebsite, ...localOnlyApps];
 
-                // Create lookup structures for installed apps
-                const installedAppNames = new Set(
-                  installedAppsFromDaemon.map(app => app.name?.toLowerCase()).filter(Boolean)
-                );
-                const installedAppsMap = new Map(
-                  installedAppsFromDaemon.map(app => [app.name?.toLowerCase(), app])
-                );
+                // Mark installed apps and merge custom_app_url
+                const enrichedApps = allApps.map(app => {
+                  const appNameLower = app.name?.toLowerCase();
+                  const isInstalled = installedAppNames.has(appNameLower);
+                  const installedAppData = installedAppsMap.get(appNameLower);
 
-                // Enrich apps with metadata
-                const { enrichedApps, installed } = await enrichApps(
-                  allApps,
-                  installedAppNames,
-                  installedAppsMap,
-                  officialApps
-                );
-
-                // Preserve isOfficial flag after enrichment
-                const enrichedAppsWithFlag = enrichedApps.map(app => {
-                  const original = allApps.find(a => a.name === app.name);
-                  return { ...app, isOfficial: original?.isOfficial ?? false };
+                  return {
+                    ...app,
+                    isInstalled,
+                    ...(isInstalled &&
+                      installedAppData?.extra?.custom_app_url && {
+                        extra: {
+                          ...app.extra,
+                          custom_app_url: installedAppData.extra.custom_app_url,
+                        },
+                      }),
+                  };
                 });
 
+                // Build installed apps list
+                const installed = enrichedApps.filter(app => app.isInstalled);
+
                 // Store in global store (will be used immediately by ActiveRobotView)
-                setAvailableApps(enrichedAppsWithFlag);
+                setAvailableApps(enrichedApps);
                 setInstalledApps(installed);
               } catch (err) {
                 console.warn(
@@ -725,10 +724,8 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
     clearAllIntervals,
     setHardwareError,
     setShouldStreamRobotState, // 🎯 Start WebSocket early
-    fetchOfficialApps,
-    fetchAllAppsFromDaemon,
+    fetchAppsFromWebsite,
     fetchInstalledApps,
-    enrichApps,
     setAvailableApps,
     setInstalledApps,
     setAppsLoading,
