@@ -466,7 +466,8 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
           includeStoreLogs={true}
           compact={true}
           showTimestamp={false}
-          lines={3}
+          lines={2}
+          emptyMessage="Waiting for logs..."
           sx={{
             bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
             border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,

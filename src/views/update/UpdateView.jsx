@@ -6,6 +6,7 @@ import useAppStore from '../../store/useAppStore';
 import { DAEMON_CONFIG } from '../../config/daemon';
 import { useInternetHealthcheck } from './hooks';
 import PulseButton from '@components/PulseButton';
+import LogConsole from '@components/LogConsole';
 
 /**
  * Update view component
@@ -365,13 +366,47 @@ export default function UpdateView({
         ) : null}
       </Box>
 
+      {/* ✅ LogConsole - fixed at the bottom, always visible with final height */}
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)',
+          maxWidth: '420px',
+          zIndex: 1000,
+          opacity: 0.2, // Very subtle by default
+          transition: 'opacity 0.3s ease-in-out',
+          '&:hover': {
+            opacity: 1, // Full opacity on hover
+          },
+        }}
+      >
+        <LogConsole
+          logs={[]}
+          darkMode={darkMode}
+          includeStoreLogs={true}
+          compact={true}
+          showTimestamp={false}
+          lines={2}
+          emptyMessage="Waiting for logs..."
+          sx={{
+            bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
+            border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+          }}
+        />
+      </Box>
+
       {/* Internet connectivity indicator - discrete pastille above logs */}
       {/* Only display during initial check, hide when update is being downloaded */}
       {hasInternetChecked && !updateAvailable && !isDownloading && (
         <Box
           sx={{
             position: 'absolute',
-            bottom: 180, // Above logs console
+            bottom: 80, // Above logs console
             left: '50%',
             transform: 'translateX(-50%)',
             display: 'flex',
