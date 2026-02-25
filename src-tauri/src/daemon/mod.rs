@@ -1,7 +1,18 @@
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::State;
 use tauri_plugin_shell::process::CommandChild;
+
+/// When true, cleanup_system_daemons() and kill_daemon() skip killing system
+/// processes. This prevents the app from killing an externally-managed daemon
+/// on close. Uses a static because the signal handler thread cannot access
+/// Tauri managed state.
+static EXTERNAL_DAEMON_MODE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_external_mode(external: bool) {
+    EXTERNAL_DAEMON_MODE.store(external, Ordering::Relaxed);
+}
 
 // ============================================================================
 // DAEMON STATUS - Process lifecycle state machine (USB/Simulation only)
@@ -86,7 +97,6 @@ pub fn transition_and_emit(
 // ============================================================================
 // STATE
 // ============================================================================
-
 pub struct DaemonState {
     pub process: Mutex<Option<CommandChild>>,
     pub logs: Mutex<VecDeque<String>>,
@@ -148,7 +158,13 @@ pub fn kill_processes_on_port(port: u16, signal: Option<&str>) {
 }
 
 /// Clean up all daemon processes running on the system (via port 8000)
+/// Skipped entirely when connected to an external daemon.
 pub fn cleanup_system_daemons() {
+    if EXTERNAL_DAEMON_MODE.load(Ordering::Relaxed) {
+        println!("[tauri] External daemon mode - skipping system daemon cleanup");
+        return;
+    }
+
     #[cfg(not(target_os = "windows"))]
     {
         use std::process::Command;

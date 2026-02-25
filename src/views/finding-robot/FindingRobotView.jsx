@@ -9,6 +9,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import useAppStore from '../../store/useAppStore';
 import { useRobotDiscovery } from '../../hooks/system';
 import { useConnection, ConnectionMode } from '../../hooks/useConnection';
+import { fetchWithTimeout, DAEMON_CONFIG } from '../../config/daemon';
 import reachyBuste from '../../assets/reachy-buste.png';
 
 // LocalStorage key for persisting last connection mode
@@ -232,6 +233,7 @@ export default function FindingRobotView() {
   const { connect, isConnecting, isDisconnecting } = useConnection();
   const [selectedMode, setSelectedMode] = useState(null);
   const [dots, setDots] = useState('');
+  const [externalDaemonAvailable, setExternalDaemonAvailable] = useState(false);
   const hasRestoredFromStorage = useRef(false);
 
   // Block interactions during connection state changes
@@ -244,6 +246,29 @@ export default function FindingRobotView() {
     }, 500);
     return () => clearInterval(interval);
   }, []);
+
+  // Detect external daemon running on localhost:8000
+  useEffect(() => {
+    if (isBusy) return;
+
+    const checkExternalDaemon = async () => {
+      try {
+        const response = await fetchWithTimeout(
+          'http://localhost:8000/api/daemon/status',
+          {},
+          1500,
+          { silent: true }
+        );
+        setExternalDaemonAvailable(response.ok);
+      } catch {
+        setExternalDaemonAvailable(false);
+      }
+    };
+
+    checkExternalDaemon();
+    const interval = setInterval(checkExternalDaemon, DAEMON_CONFIG.INTERVALS.USB_CHECK);
+    return () => clearInterval(interval);
+  }, [isBusy]);
 
   // Restore last selected mode from localStorage on mount
   // Only run once, and only pre-select if that mode is currently available
@@ -416,6 +441,59 @@ export default function FindingRobotView() {
               ? 'Choose how to connect'
               : 'No robot detected'}
         </Typography>
+
+        {/* External daemon banner */}
+        {externalDaemonAvailable && !isBusy && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              maxWidth: 380,
+              mb: 1.5,
+              px: 2,
+              py: 1,
+              borderRadius: '10px',
+              bgcolor: darkMode ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.05)',
+              border: '1px solid',
+              borderColor: darkMode ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.2)',
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: darkMode ? '#c4c6f7' : '#5b5fc7',
+              }}
+            >
+              External daemon detected on localhost:8000
+            </Typography>
+            <Box
+              component="button"
+              onClick={() => connect(ConnectionMode.EXTERNAL)}
+              sx={{
+                ml: 1.5,
+                px: 1.5,
+                py: 0.5,
+                borderRadius: '6px',
+                border: '1px solid',
+                borderColor: 'primary.main',
+                bgcolor: 'transparent',
+                color: 'primary.main',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                '&:hover': {
+                  bgcolor: darkMode ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+                },
+              }}
+            >
+              Connect
+            </Box>
+          </Box>
+        )}
 
         {/* Connection options - 3 cards */}
         <Box
