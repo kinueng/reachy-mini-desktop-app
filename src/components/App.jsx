@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 
 import { useDaemon, useDaemonHealthCheck } from '../hooks/daemon';
-import { telemetry, initTelemetry, updateTelemetryContext } from '../utils/telemetry';
+import {
+  telemetry,
+  initTelemetry,
+  updateTelemetryContext,
+  setupGlobalErrorHandlers,
+  checkPreviousCrash,
+} from '../utils/telemetry';
 import {
   useUsbDetection,
   useLogs,
@@ -67,7 +73,7 @@ function App() {
   // 🍞 Global toast for deep link feedback
   const { toast, toastProgress, showToast, handleCloseToast } = useToast();
 
-  // 📊 Telemetry: Initialize and track app lifecycle
+  // 📊 Telemetry: Initialize, track app lifecycle, and install crash handlers
   useEffect(() => {
     const init = async () => {
       // eslint-disable-next-line no-undef
@@ -75,6 +81,12 @@ function App() {
 
       // Initialize telemetry with super properties (OS, versions)
       await initTelemetry({ appVersion });
+
+      // Catch uncaught JS errors and send them to PostHog
+      setupGlobalErrorHandlers();
+
+      // Check for a previous Rust-side crash and report it
+      await checkPreviousCrash();
 
       // Track app started
       telemetry.appStarted({ version: appVersion });

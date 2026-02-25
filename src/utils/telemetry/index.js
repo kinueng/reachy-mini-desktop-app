@@ -473,6 +473,95 @@ export const telemetry = {
       success: props.success,
     });
   },
+
+  // --------------------------------------------------------------------------
+  // Crash Reporting
+  // --------------------------------------------------------------------------
+
+  /**
+   * Track an uncaught JS error or unhandled promise rejection (real-time)
+   * @param {{ error_type: string, error_message?: string, filename?: string, line?: number, col?: number, stack?: string }} props
+   */
+  appCrash: (props = {}) => {
+    track(EVENTS.APP_CRASH, {
+      error_type: props.error_type,
+      error_message: props.error_message?.slice(0, 500),
+      filename: props.filename,
+      line: props.line,
+      col: props.col,
+      stack: props.stack?.slice(0, 1000),
+    });
+  },
+
+  /**
+   * Track a previous Rust-side crash detected on startup (via .crash_marker)
+   * @param {{ panic_info?: string, log_tail?: string }} props
+   */
+  appCrashReport: (props = {}) => {
+    track(EVENTS.APP_CRASH_REPORT, {
+      panic_info: props.panic_info?.slice(0, 1000),
+      log_tail: props.log_tail?.slice(0, 2000),
+    });
+  },
+};
+
+// ============================================================================
+// GLOBAL ERROR HANDLERS
+// ============================================================================
+
+let globalErrorHandlersInstalled = false;
+
+/**
+ * Install global error handlers to catch uncaught JS errors and unhandled
+ * promise rejections, then send them to telemetry.
+ * Safe to call multiple times (idempotent).
+ */
+export const setupGlobalErrorHandlers = () => {
+  if (globalErrorHandlersInstalled) return;
+  globalErrorHandlersInstalled = true;
+
+  window.addEventListener('error', event => {
+    telemetry.appCrash({
+      error_type: 'uncaught_error',
+      error_message: event.message,
+      filename: event.filename,
+      line: event.lineno,
+      col: event.colno,
+      stack: event.error?.stack,
+    });
+  });
+
+  window.addEventListener('unhandledrejection', event => {
+    telemetry.appCrash({
+      error_type: 'unhandled_rejection',
+      error_message: String(event.reason),
+      stack: event.reason?.stack,
+    });
+  });
+};
+
+// ============================================================================
+// STARTUP CRASH DETECTION
+// ============================================================================
+
+/**
+ * Check for a previous Rust-side crash (.crash_marker) and send it to telemetry.
+ * The marker is written by the custom panic hook in lib.rs.
+ * This should be called once at app startup.
+ */
+export const checkPreviousCrash = async () => {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const result = await invoke('check_crash_marker');
+    if (result) {
+      telemetry.appCrashReport({
+        panic_info: result.panic_info,
+        log_tail: result.log_tail,
+      });
+    }
+  } catch {
+    // Not critical – silently ignore if the command doesn't exist or fails
+  }
 };
 
 // ============================================================================

@@ -52,8 +52,8 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
             .join("binaries");
 
         if program_files_dir.join(".venv").exists() {
-            println!(
-                "[update] ✅ Using Program Files venv: {:?}",
+            log::info!(
+                "[update] Using Program Files venv: {:?}",
                 program_files_dir
             );
             return Ok(program_files_dir);
@@ -67,7 +67,7 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
         let binaries_dir = resource_dir.join("binaries");
 
         if binaries_dir.join(".venv").exists() {
-            println!("[update] ✅ Using dev venv: {:?}", binaries_dir);
+            log::info!("[update] Using dev venv: {:?}", binaries_dir);
             return Ok(binaries_dir);
         }
 
@@ -87,7 +87,7 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
             .parent()
             .ok_or_else(|| "Failed to get exe parent directory".to_string())?;
 
-        println!("[update] Executable directory: {:?}", exe_dir);
+        log::info!("[update] Executable directory: {:?}", exe_dir);
 
         // In development, the executable is in target/debug/
         // The source venv is in src-tauri/binaries/.venv
@@ -107,7 +107,7 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
             };
 
             if binaries_dir.join(".venv").exists() {
-                println!("[update] ✅ Using dev venv: {:?}", binaries_dir);
+                log::info!("[update] Using dev venv: {:?}", binaries_dir);
                 return Ok(binaries_dir);
             } else {
                 return Err(format!(
@@ -127,7 +127,7 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
                 // Contents/
                 let resources_dir = macos_dir.join("Resources").join("binaries");
                 if resources_dir.join(".venv").exists() {
-                    println!("[update] ✅ Using production venv: {:?}", resources_dir);
+                    log::info!("[update] Using production venv: {:?}", resources_dir);
                     return Ok(resources_dir);
                 }
             }
@@ -141,7 +141,7 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
         let binaries_dir = resource_dir.join("binaries");
 
         if binaries_dir.join(".venv").exists() {
-            println!("[update] ✅ Using resource_dir venv: {:?}", binaries_dir);
+            log::info!("[update] Using resource_dir venv: {:?}", binaries_dir);
             Ok(binaries_dir)
         } else {
             Err(format!(
@@ -202,7 +202,7 @@ fn get_local_daemon_version(venv_path: &Path) -> Result<String, String> {
 async fn get_pypi_version(package_name: &str, pre_release: bool) -> Result<String, String> {
     let url = format!("https://pypi.org/pypi/{}/json", package_name);
 
-    println!("[update] Fetching PyPI info from: {}", url);
+    log::info!("[update] Fetching PyPI info from: {}", url);
 
     let response = reqwest::get(&url)
         .await
@@ -223,7 +223,7 @@ async fn get_pypi_version(package_name: &str, pre_release: bool) -> Result<Strin
         versions.sort_by(|a, b| compare_semver(a, b));
 
         if let Some(latest) = versions.last() {
-            println!(
+            log::info!(
                 "[update] Latest version (including pre-release): {}",
                 latest
             );
@@ -233,7 +233,7 @@ async fn get_pypi_version(package_name: &str, pre_release: bool) -> Result<Strin
         }
     } else {
         // Return the stable version from info
-        println!("[update] Latest stable version: {}", data.info.version);
+        log::info!("[update] Latest stable version: {}", data.info.version);
         Ok(data.info.version)
     }
 }
@@ -327,7 +327,7 @@ pub async fn check_daemon_update(
     app_handle: AppHandle,
     pre_release: bool,
 ) -> Result<DaemonUpdateInfo, String> {
-    println!(
+    log::info!(
         "[update] Checking for daemon updates (pre_release: {})",
         pre_release
     );
@@ -335,15 +335,15 @@ pub async fn check_daemon_update(
     // 1. Get local version
     let venv_path = get_local_venv_path(&app_handle)?;
     let current_version = get_local_daemon_version(&venv_path)?;
-    println!("[update] Current version: {}", current_version);
+    log::info!("[update] Current version: {}", current_version);
 
     // 2. Get PyPI version
     let available_version = get_pypi_version("reachy-mini", pre_release).await?;
-    println!("[update] Available version: {}", available_version);
+    log::info!("[update] Available version: {}", available_version);
 
     // 3. Compare versions
     let is_available = is_update_available(&current_version, &available_version)?;
-    println!("[update] Update available: {}", is_available);
+    log::info!("[update] Update available: {}", is_available);
 
     Ok(DaemonUpdateInfo {
         current_version,
@@ -359,13 +359,13 @@ pub async fn update_daemon(
     state: State<'_, DaemonState>,
     pre_release: bool,
 ) -> Result<String, String> {
-    println!(
+    log::info!(
         "[update] Starting daemon update (pre_release: {})",
         pre_release
     );
 
     // 1. Stop the daemon gracefully
-    println!("[update] Stopping daemon...");
+    log::info!("[update] Stopping daemon...");
     crate::stop_daemon(app_handle.clone(), state.clone())?;
 
     // Wait a bit for the daemon to stop completely
@@ -384,7 +384,7 @@ pub async fn update_daemon(
         return Err(format!("pip not found at {:?}", pip_path));
     }
 
-    println!("[update] Using pip at: {:?}", pip_path);
+    log::info!("[update] Using pip at: {:?}", pip_path);
 
     // 3. Build pip command
     // Note: No [mujoco] extra for desktop app (USB mode only, no simulation)
@@ -393,7 +393,7 @@ pub async fn update_daemon(
         args.push("--pre");
     }
 
-    println!("[update] Running: {:?} {:?}", pip_path, args);
+    log::info!("[update] Running: {:?} {:?}", pip_path, args);
 
     // 4. Execute pip install
     let output = std::process::Command::new(&pip_path)
@@ -406,10 +406,10 @@ pub async fn update_daemon(
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     if !stdout.is_empty() {
-        println!("[update] pip stdout:\n{}", stdout);
+        log::info!("[update] pip stdout:\n{}", stdout);
     }
     if !stderr.is_empty() {
-        println!("[update] pip stderr:\n{}", stderr);
+        log::info!("[update] pip stderr:\n{}", stderr);
     }
 
     if !output.status.success() {
@@ -420,9 +420,9 @@ pub async fn update_daemon(
         ));
     }
 
-    println!("[update] Daemon updated successfully!");
-    println!("[update] ⚠️  The updated venv will be used on next connection");
-    println!("[update] ⚠️  uv-trampoline will copy the new venv when daemon starts again");
+    log::info!("[update] Daemon updated successfully!");
+    log::info!("[update] The updated venv will be used on next connection");
+    log::info!("[update] uv-trampoline will copy the new venv when daemon starts again");
 
     // 5. DON'T restart daemon here
     // Let the user reconnect - uv-trampoline will copy the updated venv at next launch

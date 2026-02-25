@@ -98,7 +98,7 @@ async fn discover_via_mdns(timeout: Duration) -> Result<Vec<RobotInfo>, String> 
     let mut seen_ips = std::collections::HashSet::new();
     let start = Instant::now();
     
-    println!("[discovery] 🔍 mDNS discovery started (timeout: {:?})", timeout);
+    log::info!("[discovery] mDNS discovery started (timeout: {:?})", timeout);
     
     while start.elapsed() < timeout {
         // Check for new service events with a short timeout
@@ -122,8 +122,8 @@ async fn discover_via_mdns(timeout: Duration) -> Result<Vec<RobotInfo>, String> 
                                 if !seen_ips.contains(&ip) {
                                     seen_ips.insert(ip.clone());
                                     
-                                    println!(
-                                        "[discovery] ✅ mDNS found: {} at {}:{}",
+                                    log::info!(
+                                        "[discovery] mDNS found: {} at {}:{}",
                                         hostname,
                                         ip,
                                         info.get_port()
@@ -141,7 +141,7 @@ async fn discover_via_mdns(timeout: Duration) -> Result<Vec<RobotInfo>, String> 
                         }
                     }
                     ServiceEvent::SearchStarted(_) => {
-                        println!("[discovery] 🔍 mDNS search started");
+                        log::info!("[discovery] mDNS search started");
                     }
                     _ => {}
                 }
@@ -152,8 +152,8 @@ async fn discover_via_mdns(timeout: Duration) -> Result<Vec<RobotInfo>, String> 
         }
     }
     
-    println!(
-        "[discovery] 🏁 mDNS discovery finished ({} robots found)",
+    log::info!(
+        "[discovery] mDNS discovery finished ({} robots found)",
         robots.len()
     );
     
@@ -168,21 +168,21 @@ pub async fn discover_robots(
     let mut robots = Vec::new();
     let port = 8000; // Default Reachy daemon port
     
-    println!("[discovery] 🚀 Starting robot discovery");
+    log::info!("[discovery] Starting robot discovery");
     
     // STEP 1: Check cache (last known IP) - Ultra fast path
     {
         let last_ip = state.last_known_ip.read().await;
         if let Some(ip) = last_ip.as_ref() {
-            println!("[discovery] 📦 Checking cached IP: {}", ip);
+            log::info!("[discovery] Checking cached IP: {}", ip);
             match check_robot_at_ip(ip, port, 2).await {
                 Ok(mut robot) => {
                     robot.discovery_method = "cache".to_string();
-                    println!("[discovery] ⚡ Cache hit! Robot found at {}", ip);
+                    log::info!("[discovery] Cache hit! Robot found at {}", ip);
                     return Ok(vec![robot]);
                 }
                 Err(e) => {
-                    println!("[discovery] ❌ Cache miss: {}", e);
+                    log::error!("[discovery] Cache miss: {}", e);
                 }
             }
         }
@@ -191,13 +191,13 @@ pub async fn discover_robots(
     // STEP 2: Check static peers (user-configured IPs)
     {
         let peers = state.static_peers.read().await;
-        println!("[discovery] 🔍 Checking {} static peer(s)", peers.len());
+        log::info!("[discovery] Checking {} static peer(s)", peers.len());
         
         for ip in peers.iter() {
             match check_robot_at_ip(ip, port, 3).await {
                 Ok(mut robot) => {
                     robot.discovery_method = "static".to_string();
-                    println!("[discovery] ✅ Static peer found at {}", ip);
+                    log::info!("[discovery] Static peer found at {}", ip);
                     
                     // Update cache
                     *state.last_known_ip.write().await = Some(ip.clone());
@@ -207,18 +207,18 @@ pub async fn discover_robots(
                     return Ok(robots);
                 }
                 Err(e) => {
-                    println!("[discovery] ⏭️  Static peer {} not available: {}", ip, e);
+                    log::info!("[discovery] Static peer {} not available: {}", ip, e);
                 }
             }
         }
     }
     
     // STEP 3: mDNS discovery (automatic, works on LAN without VPN)
-    println!("[discovery] 🔍 Starting mDNS discovery");
+    log::info!("[discovery] Starting mDNS discovery");
     match discover_via_mdns(Duration::from_secs(5)).await {
         Ok(mdns_robots) => {
             if !mdns_robots.is_empty() {
-                println!("[discovery] ✅ mDNS found {} robot(s)", mdns_robots.len());
+                log::info!("[discovery] mDNS found {} robot(s)", mdns_robots.len());
                 
                 // Update cache with first robot
                 if let Some(robot) = mdns_robots.first() {
@@ -228,18 +228,18 @@ pub async fn discover_robots(
                 robots.extend(mdns_robots);
                 return Ok(robots);
             } else {
-                println!("[discovery] 📭 mDNS found no robots");
+                log::info!("[discovery] mDNS found no robots");
             }
         }
         Err(e) => {
-            println!("[discovery] ⚠️  mDNS discovery failed: {}", e);
+            log::warn!("[discovery] mDNS discovery failed: {}", e);
         }
     }
     
     // No robots found via any automatic method
     if robots.is_empty() {
-        println!("[discovery] ❌ No robots found via automatic discovery");
-        println!("[discovery] 💡 Hint: Use manual IP connection mode");
+        log::error!("[discovery] No robots found via automatic discovery");
+        log::info!("[discovery] Hint: Use manual IP connection mode");
     }
     
     Ok(robots)
@@ -253,12 +253,12 @@ pub async fn connect_to_ip(
 ) -> Result<RobotInfo, String> {
     let port = 8000;
     
-    println!("[discovery] 🎯 Manual connection to IP: {}", ip);
+    log::info!("[discovery] Manual connection to IP: {}", ip);
     
     match check_robot_at_ip(&ip, port, 5).await {
         Ok(mut robot) => {
             robot.discovery_method = "manual".to_string();
-            println!("[discovery] ✅ Manual connection successful: {}", ip);
+            log::info!("[discovery] Manual connection successful: {}", ip);
             
             // Save to cache and static peers
             *state.last_known_ip.write().await = Some(ip.clone());
@@ -275,7 +275,7 @@ pub async fn connect_to_ip(
             Ok(robot)
         }
         Err(e) => {
-            println!("[discovery] ❌ Manual connection failed: {}", e);
+            log::error!("[discovery] Manual connection failed: {}", e);
             Err(format!("Could not connect to {}: {}", ip, e))
         }
     }
@@ -291,7 +291,7 @@ pub async fn add_static_peer(
     
     if !peers.contains(&ip) {
         peers.push(ip.clone());
-        println!("[discovery] ➕ Added static peer: {}", ip);
+        log::info!("[discovery] Added static peer: {}", ip);
         Ok(())
     } else {
         Err("IP already in static peers".to_string())
@@ -308,7 +308,7 @@ pub async fn remove_static_peer(
     
     if let Some(pos) = peers.iter().position(|x| x == &ip) {
         peers.remove(pos);
-        println!("[discovery] ➖ Removed static peer: {}", ip);
+        log::info!("[discovery] Removed static peer: {}", ip);
         Ok(())
     } else {
         Err("IP not found in static peers".to_string())
@@ -330,6 +330,6 @@ pub async fn clear_discovery_cache(
     state: tauri::State<'_, DiscoveryState>,
 ) -> Result<(), String> {
     *state.last_known_ip.write().await = None;
-    println!("[discovery] 🧹 Discovery cache cleared");
+    log::info!("[discovery] Discovery cache cleared");
     Ok(())
 }

@@ -23,6 +23,7 @@ use discovery::DiscoveryState;
 use local_proxy::LocalProxyState;
 use std::sync::Arc;
 use tauri::{Manager, State};
+use tauri_plugin_log::{Target, TargetKind};
 
 #[cfg(not(windows))]
 use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
@@ -94,6 +95,76 @@ fn get_logs(state: State<DaemonState>) -> Vec<String> {
 }
 
 // ============================================================================
+// CRASH MARKER COMMANDS
+// ============================================================================
+
+/// Read and delete the crash marker left by the panic hook.
+/// Returns `{ panic_info, log_tail }` if a marker was found, or null.
+#[tauri::command]
+fn check_crash_marker(app_handle: tauri::AppHandle) -> Option<serde_json::Value> {
+    let marker_path = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(std::path::PathBuf::from)?
+        .join("Library")
+        .join("Logs")
+        .join("com.pollen-robotics.reachy-mini")
+        .join(".crash_marker");
+
+    if !marker_path.exists() {
+        return None;
+    }
+
+    let panic_info = std::fs::read_to_string(&marker_path).unwrap_or_default();
+    let _ = std::fs::remove_file(&marker_path);
+
+    // Try to read the last 100 lines of the most recent log file
+    let log_tail = app_handle
+        .path()
+        .app_log_dir()
+        .ok()
+        .and_then(|log_dir| {
+            let mut entries: Vec<_> = std::fs::read_dir(&log_dir)
+                .ok()?
+                .filter_map(|e| e.ok())
+                .filter(|e| {
+                    e.path()
+                        .extension()
+                        .map(|ext| ext == "log")
+                        .unwrap_or(false)
+                })
+                .collect();
+            entries.sort_by_key(|e| {
+                std::cmp::Reverse(
+                    e.metadata()
+                        .and_then(|m| m.modified())
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+                )
+            });
+            entries.first().map(|e| e.path())
+        })
+        .and_then(|path| std::fs::read_to_string(&path).ok())
+        .map(|content| {
+            content
+                .lines()
+                .rev()
+                .take(100)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default();
+
+    log::info!("Previous crash detected, reporting to telemetry");
+
+    Some(serde_json::json!({
+        "panic_info": panic_info,
+        "log_tail": log_tail,
+    }))
+}
+
+// ============================================================================
 // LOCAL PROXY COMMANDS
 // ============================================================================
 
@@ -118,6 +189,25 @@ async fn clear_local_proxy_target(state: State<'_, Arc<LocalProxyState>>) -> Res
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Custom panic hook: log the panic and write a crash marker for next-startup detection
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!("PANIC: {}", info);
+        if let Some(dir) = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(std::path::PathBuf::from)
+        {
+            let marker = dir
+                .join("Library")
+                .join("Logs")
+                .join("com.pollen-robotics.reachy-mini")
+                .join(".crash_marker");
+            let _ = std::fs::create_dir_all(marker.parent().unwrap());
+            let _ = std::fs::write(&marker, format!("{}", info));
+        }
+        default_hook(info);
+    }));
+
     // Setup signal handler for brutal kill (SIGTERM, SIGINT, etc.) - Unix only
     #[cfg(not(windows))]
     {
@@ -125,7 +215,7 @@ pub fn run() {
             let mut signals =
                 Signals::new(TERM_SIGNALS).expect("Failed to register signal handlers");
             if let Some(sig) = signals.forever().next() {
-                eprintln!("🔴 Signal {:?} received - cleaning up daemon", sig);
+                log::error!("Signal {:?} received - cleaning up daemon", sig);
                 cleanup_system_daemons();
                 std::process::exit(0);
             }
@@ -139,6 +229,18 @@ pub fn run() {
     let posthog_host = option_env!("POSTHOG_HOST").unwrap_or("https://eu.i.posthog.com");
 
     let builder = tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::LogDir { file_name: None }),
+                    Target::new(TargetKind::Webview),
+                ])
+                .max_file_size(5_000_000) // 5 MB per log file
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_posthog::init(
             tauri_plugin_posthog::PostHogConfig {
                 api_key: posthog_key.to_string(),
@@ -184,7 +286,7 @@ pub fn run() {
             move |#[cfg(target_os = "macos")] app, #[cfg(not(target_os = "macos"))] _app| {
                 // 🔌 Start USB device monitor (Windows: event-driven, no polling, no terminal flicker)
                 if let Err(e) = usb::start_monitor() {
-                    eprintln!("⚠️ Failed to start USB monitor: {}", e);
+                    log::warn!("Failed to start USB monitor: {}", e);
                 }
 
                 #[cfg(target_os = "macos")]
@@ -218,6 +320,7 @@ pub fn run() {
             stop_daemon,
             get_daemon_status,
             get_logs,
+            check_crash_marker,
             usb::check_usb_robot,
             window::apply_transparent_titlebar,
             window::close_window,
@@ -250,7 +353,7 @@ pub fn run() {
             match event {
                 tauri::WindowEvent::CloseRequested { .. } => {
                     if window.label() == "main" {
-                        println!("[tauri] Main window close requested - killing daemon");
+                        log::info!("[tauri] Main window close requested - killing daemon");
                         let state: tauri::State<DaemonState> = window.state();
                         let _ = transition_status(&state.status, DaemonStatus::Stopping);
                         kill_daemon(&state);
@@ -259,7 +362,7 @@ pub fn run() {
                 }
                 tauri::WindowEvent::Destroyed => {
                     if window.label() == "main" {
-                        println!("[tauri] Main window destroyed - final cleanup");
+                        log::info!("[tauri] Main window destroyed - final cleanup");
                         cleanup_system_daemons();
                     }
                 }
@@ -273,12 +376,12 @@ pub fn run() {
                 tauri::RunEvent::ExitRequested { .. } => {
                     // ⌘Q (Cmd+Q) on macOS triggers this event
                     // Kill daemon via port 8000 + process name (reliable cleanup)
-                    println!("🔴 ExitRequested (Cmd+Q) - killing daemon");
+                    log::info!("ExitRequested (Cmd+Q) - killing daemon");
                     cleanup_system_daemons();
                 }
                 tauri::RunEvent::Exit => {
                     // Final cleanup when app is about to exit
-                    println!("🔴 Exit event - final cleanup");
+                    log::info!("Exit event - final cleanup");
                     cleanup_system_daemons();
                 }
                 _ => {}

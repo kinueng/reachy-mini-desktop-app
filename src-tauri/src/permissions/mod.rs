@@ -7,21 +7,18 @@
 /// Log configured permissions at app startup (macOS only)
 #[cfg(target_os = "macos")]
 pub fn request_all_permissions() {
-    println!("🔐 macOS permissions configured:");
-    println!("   📷 Camera: NSCameraUsageDescription declared in Info.plist");
-    println!("   🎤 Microphone: NSMicrophoneUsageDescription declared in Info.plist");
-    println!("   📁 Filesystem: Entitlements configured");
-    println!("   🔌 USB: Entitlements configured");
-    println!();
-    println!("✅ Permissions will be requested automatically when needed:");
-    println!("   - Camera/microphone: macOS will show dialog when first accessed by apps");
-    println!("   - Filesystem/USB: Already granted via entitlements");
-    println!();
-    println!("ℹ️  Note: Permissions granted to the main app will propagate to child processes");
-    println!("   (Python daemon and its apps)");
-    println!();
-    println!(
-        "ℹ️  Note: App will appear in System Settings > Privacy after first permission request"
+    log::info!("macOS permissions configured:");
+    log::info!("   Camera: NSCameraUsageDescription declared in Info.plist");
+    log::info!("   Microphone: NSMicrophoneUsageDescription declared in Info.plist");
+    log::info!("   Filesystem: Entitlements configured");
+    log::info!("   USB: Entitlements configured");
+    log::info!("Permissions will be requested automatically when needed:");
+    log::info!("   - Camera/microphone: macOS will show dialog when first accessed by apps");
+    log::info!("   - Filesystem/USB: Already granted via entitlements");
+    log::info!("Note: Permissions granted to the main app will propagate to child processes");
+    log::info!("   (Python daemon and its apps)");
+    log::info!(
+        "Note: App will appear in System Settings > Privacy after first permission request"
     );
 }
 
@@ -29,7 +26,7 @@ pub fn request_all_permissions() {
 #[allow(dead_code)]
 pub fn request_all_permissions() {
     // No-op on non-macOS platforms
-    println!("ℹ️  Permission requests are only needed on macOS");
+    log::info!("Permission requests are only needed on macOS");
 }
 
 /// Open System Settings to Privacy & Security > Camera (macOS)

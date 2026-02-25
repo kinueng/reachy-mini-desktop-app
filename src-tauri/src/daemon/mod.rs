@@ -54,7 +54,7 @@ pub fn transition_status(
     }
 
     *status = new_status;
-    println!(
+    log::info!(
         "[daemon] Status transition: {:?} -> {:?}",
         old, new_status
     );
@@ -172,7 +172,7 @@ pub fn cleanup_system_daemons() {
     }
     #[cfg(target_os = "windows")]
     {
-        println!("Cleaning up system daemons on Windows...");
+        log::info!("Cleaning up system daemons on Windows...");
         use std::process::Command;
 
         // Windows: Use netstat and taskkill to find and kill processes on port 8000
@@ -191,7 +191,7 @@ pub fn cleanup_system_daemons() {
                 }
             }
             for pid_str in pids {
-                println!("Killing process with PID: {}", pid_str);
+                log::info!("Killing process with PID: {}", pid_str);
                 let _ = Command::new("taskkill")
                     .args(&["/PID", &pid_str, "/F"])
                     .output();
@@ -234,9 +234,9 @@ macro_rules! spawn_sidecar_monitor {
             use tauri_plugin_shell::process::CommandEvent;
 
             if let Some(ref p) = prefix {
-                println!("[tauri] Starting sidecar output monitoring ({})...", p);
+                log::info!("[tauri] Starting sidecar output monitoring ({})...", p);
             } else {
-                println!(
+                log::info!(
                     "[tauri] Starting sidecar output monitoring (gen {})...",
                     captured_generation
                 );
@@ -250,7 +250,7 @@ macro_rules! spawn_sidecar_monitor {
                             .as_ref()
                             .map(|p| format!("[{}] {}", p, line))
                             .unwrap_or_else(|| line.to_string());
-                        println!("Sidecar stdout: {}", prefixed_line);
+                        log::info!("Sidecar stdout: {}", prefixed_line);
                         let _ = app_handle_clone.emit("sidecar-stdout", prefixed_line.clone());
                     }
                     CommandEvent::Stderr(line_bytes) => {
@@ -259,17 +259,17 @@ macro_rules! spawn_sidecar_monitor {
                             .as_ref()
                             .map(|p| format!("[{}] {}", p, line))
                             .unwrap_or_else(|| line.to_string());
-                        eprintln!("Sidecar stderr: {}", prefixed_line);
+                        log::warn!("Sidecar stderr: {}", prefixed_line);
                         let _ = app_handle_clone.emit("sidecar-stderr", prefixed_line.clone());
                     }
                     CommandEvent::Terminated(status) => {
                         if let Some(ref p) = prefix {
-                            println!(
+                            log::info!(
                                 "[tauri] [{}] Process terminated with status: {:?}",
                                 p, status
                             );
                         } else {
-                            println!(
+                            log::info!(
                                 "[tauri] Sidecar process terminated with status: {:?}",
                                 status
                             );
@@ -303,7 +303,7 @@ macro_rules! spawn_sidecar_monitor {
                                     );
                                 }
                             } else {
-                                println!(
+                                log::info!(
                                     "[daemon] Ignoring terminated event for old daemon (gen {} vs current {})",
                                     captured_generation, current_gen
                                 );
@@ -338,7 +338,7 @@ pub fn spawn_and_monitor_sidecar(
     // Check if a sidecar process already exists
     let process_lock = state.process.lock().unwrap();
     if process_lock.is_some() {
-        println!("[tauri] Sidecar is already running. Skipping spawn.");
+        log::info!("[tauri] Sidecar is already running. Skipping spawn.");
         return Ok(());
     }
     drop(process_lock);
@@ -346,7 +346,7 @@ pub fn spawn_and_monitor_sidecar(
     let daemon_args = build_daemon_args(sim_mode)?;
 
     if sim_mode {
-        println!("[tauri] Launching daemon in simulation mode (mockup-sim)");
+        log::info!("[tauri] Launching daemon in simulation mode (mockup-sim)");
     }
 
     let daemon_args_refs: Vec<&str> = daemon_args.iter().map(|s| s.as_str()).collect();
