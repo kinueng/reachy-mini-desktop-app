@@ -123,9 +123,7 @@ export function useDaemonStartupLogs(isStarting) {
         } else {
           unlistenStderr();
         }
-      } catch (error) {
-        console.error('Failed to setup startup log listeners:', error);
-      }
+      } catch {}
     };
 
     setupListeners();

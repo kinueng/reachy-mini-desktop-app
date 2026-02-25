@@ -56,7 +56,7 @@ export function useRobotDiscoveryV2() {
           );
         }
       } catch (error) {
-        console.error('Failed to detect VPN:', error);
+        // VPN detection failed
       } finally {
         setLoadingNetwork(false);
       }
@@ -73,9 +73,7 @@ export function useRobotDiscoveryV2() {
       try {
         const peers = await invoke('get_static_peers');
         setStaticPeers(peers);
-      } catch (error) {
-        console.error('Failed to load static peers:', error);
-      }
+      } catch (error) {}
     };
 
     loadPeers();
@@ -102,7 +100,6 @@ export function useRobotDiscoveryV2() {
 
       return foundRobots;
     } catch (error) {
-      console.error('Discovery error:', error);
       showToast(`❌ Erreur de découverte : ${error}`, 'error');
       return [];
     } finally {
@@ -135,7 +132,6 @@ export function useRobotDiscoveryV2() {
 
         return robot;
       } catch (error) {
-        console.error('Manual connection error:', error);
         showToast(`❌ Impossible de se connecter à ${ip} : ${error}`, 'error');
         return null;
       } finally {
@@ -156,7 +152,6 @@ export function useRobotDiscoveryV2() {
         setStaticPeers(peers);
         showToast(`✅ IP ${ip} ajoutée aux favoris`, 'success');
       } catch (error) {
-        console.error('Failed to add static peer:', error);
         showToast(`❌ ${error}`, 'error');
       }
     },
@@ -174,7 +169,6 @@ export function useRobotDiscoveryV2() {
         setStaticPeers(peers);
         showToast(`✅ IP ${ip} retirée des favoris`, 'success');
       } catch (error) {
-        console.error('Failed to remove static peer:', error);
         showToast(`❌ ${error}`, 'error');
       }
     },
@@ -188,9 +182,7 @@ export function useRobotDiscoveryV2() {
     try {
       await invoke('clear_discovery_cache');
       showToast('🧹 Cache effacé', 'info');
-    } catch (error) {
-      console.error('Failed to clear cache:', error);
-    }
+    } catch (error) {}
   }, [showToast]);
 
   return {

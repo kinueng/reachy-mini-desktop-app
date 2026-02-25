@@ -115,7 +115,6 @@ export function usePermissions({ checkInterval = 2000 } = {}) {
         }
       } catch (e) {
         // If the command fails (e.g., Swift not available), assume granted
-        console.warn('[usePermissions] Local network check failed, assuming granted:', e);
         localNetworkStatus = true;
       }
 
@@ -153,7 +152,6 @@ export function usePermissions({ checkInterval = 2000 } = {}) {
         return;
       }
 
-      console.error('[usePermissions] ❌ Error checking permissions:', error);
       setCameraGranted(false);
       setMicrophoneGranted(false);
       setLocalNetworkGranted(false);

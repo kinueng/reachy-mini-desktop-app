@@ -61,24 +61,21 @@ const createJob = (jobId, jobType, appName, appInfo, setActiveJobs, startJobPoll
  * All components should use this hook instead of useApps directly.
  */
 export function useAppsStore(isActive) {
-  const appStore = useAppStore();
   const logger = useLogger();
-  const {
-    availableApps,
-    installedApps,
-    currentApp,
-    activeJobs: activeJobsObj, // Store uses Object, we convert to Map for convenience
-    appsLoading,
-    appsError,
-    isStoppingApp,
-    setAvailableApps,
-    setInstalledApps,
-    setCurrentApp,
-    setActiveJobs,
-    setAppsLoading,
-    setAppsError,
-    invalidateAppsCache,
-  } = appStore;
+  const availableApps = useAppStore(s => s.availableApps);
+  const installedApps = useAppStore(s => s.installedApps);
+  const currentApp = useAppStore(s => s.currentApp);
+  const activeJobsObj = useAppStore(s => s.activeJobs);
+  const appsLoading = useAppStore(s => s.appsLoading);
+  const appsError = useAppStore(s => s.appsError);
+  const isStoppingApp = useAppStore(s => s.isStoppingApp);
+  const setAvailableApps = useAppStore(s => s.setAvailableApps);
+  const setInstalledApps = useAppStore(s => s.setInstalledApps);
+  const setCurrentApp = useAppStore(s => s.setCurrentApp);
+  const setActiveJobs = useAppStore(s => s.setActiveJobs);
+  const setAppsLoading = useAppStore(s => s.setAppsLoading);
+  const setAppsError = useAppStore(s => s.setAppsError);
+  const invalidateAppsCache = useAppStore(s => s.invalidateAppsCache);
 
   // ✅ OPTIMIZED: Convert activeJobs Object to Map with useMemo to avoid re-creation on every render
   const activeJobs = useMemo(() => {

@@ -137,7 +137,6 @@ export function useRobotStateWebSocket(isActive) {
     }
 
     if (isDaemonCrashed) {
-      console.warn('[RobotState WS] Daemon crashed, not connecting');
       if (wsRef.current) {
         wsRef.current.close(1000);
         wsRef.current = null;
@@ -152,7 +151,6 @@ export function useRobotStateWebSocket(isActive) {
         : WS_MAX_RECONNECT_ATTEMPTS;
 
       if (reconnectAttemptsRef.current >= maxAttempts) {
-        console.warn(`[RobotState WS] Max reconnection attempts (${maxAttempts}) reached`);
         return;
       }
 
@@ -172,7 +170,6 @@ export function useRobotStateWebSocket(isActive) {
 
         ws.onopen = () => {
           reconnectAttemptsRef.current = 0;
-          console.log('[RobotState WS] Connected');
         };
 
         ws.onmessage = event => {
@@ -181,9 +178,7 @@ export function useRobotStateWebSocket(isActive) {
           try {
             const data = JSON.parse(event.data);
             processData(data);
-          } catch (err) {
-            console.warn('[RobotState WS] Failed to parse message:', err);
-          }
+          } catch (err) {}
         };
 
         ws.onerror = () => {};
@@ -206,9 +201,7 @@ export function useRobotStateWebSocket(isActive) {
         };
 
         wsRef.current = ws;
-      } catch (err) {
-        console.error('[RobotState WS] Failed to connect:', err);
-      }
+      } catch (err) {}
     };
 
     connectWebSocket();

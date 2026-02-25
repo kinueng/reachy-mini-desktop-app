@@ -157,9 +157,7 @@ export const useDaemon = () => {
         } else {
           unlisten();
         }
-      } catch (error) {
-        console.error('[Daemon] Failed to setup daemon-status-changed listener:', error);
-      }
+      } catch {}
     };
 
     setup();
@@ -216,9 +214,7 @@ export const useDaemon = () => {
         } else {
           unlisten();
         }
-      } catch (error) {
-        console.error('[Daemon] Failed to setup stderr listener:', error);
-      }
+      } catch {}
     };
 
     setupStderrListener();
@@ -281,9 +277,7 @@ export const useDaemon = () => {
         } else {
           unlisten();
         }
-      } catch (error) {
-        console.error('[Daemon] Failed to setup stdout listener:', error);
-      }
+      } catch {}
     };
 
     setupStdoutListener();
@@ -322,7 +316,6 @@ export const useDaemon = () => {
 
         eventBus.emit('daemon:start:success', { existing: true, external: true });
       } catch (e) {
-        console.error('[Daemon] External daemon not reachable:', e.message);
         eventBus.emit('daemon:start:error', new Error(`External daemon error: ${e.message}`));
         resetAll();
       }
@@ -372,7 +365,6 @@ export const useDaemon = () => {
 
         eventBus.emit('daemon:start:success', { existing: true, wifi: true });
       } catch (e) {
-        console.error('[Daemon] WiFi connection failed:', e.message);
         // ⚠️ IMPORTANT: Emit error BEFORE resetAll() so telemetry captures the connectionMode
         eventBus.emit('daemon:start:error', new Error(`WiFi daemon error: ${e.message}`));
         resetAll();
@@ -406,8 +398,9 @@ export const useDaemon = () => {
       }
 
       const simMode = isSimulationMode();
+      const { connectionMode } = useAppStore.getState();
 
-      invoke('start_daemon', { simMode: simMode })
+      invoke('start_daemon', { simMode, connectionMode })
         .then(() => {
           eventBus.emit('daemon:start:success', { existing: false, simMode });
         })
@@ -506,7 +499,6 @@ export const useDaemon = () => {
         resetAll();
       }, DAEMON_CONFIG.ANIMATIONS.STOP_DAEMON_DELAY);
     } catch (e) {
-      console.error('[Daemon] Stop failed:', e.message);
       resetAll();
     }
   }, [clearStartupTimeout, resetAll, transitionTo]);

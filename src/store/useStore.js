@@ -163,4 +163,29 @@ if (typeof window !== 'undefined') {
   setupSystemPreferenceListener(useStore.getState, useStore.setState);
 }
 
+// ============================================================================
+// HMR STATE PRESERVATION (dev only)
+// Keeps store data intact across Vite hot-module replacement so the app
+// doesn't reset to the connection screen on every code change.
+// ============================================================================
+if (import.meta.hot) {
+  if (import.meta.hot.data?.storeState) {
+    const saved = import.meta.hot.data.storeState;
+    const dataOnly = {};
+    for (const [key, value] of Object.entries(saved)) {
+      if (typeof value !== 'function') {
+        dataOnly[key] = value;
+      }
+    }
+    useStore.setState(dataOnly);
+    console.log('[HMR] Store state restored');
+  }
+
+  import.meta.hot.dispose(data => {
+    data.storeState = useStore.getState();
+  });
+
+  import.meta.hot.accept();
+}
+
 export default useStore;

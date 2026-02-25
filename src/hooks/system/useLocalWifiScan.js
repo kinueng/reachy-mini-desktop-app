@@ -54,7 +54,6 @@ export function useLocalWifiScan({ autoScan = false, scanInterval = 0 } = {}) {
 
       return result;
     } catch (err) {
-      console.error('[useLocalWifiScan] Scan failed:', err);
       setError(typeof err === 'string' ? err : err.message || 'Failed to scan WiFi networks');
       return [];
     } finally {

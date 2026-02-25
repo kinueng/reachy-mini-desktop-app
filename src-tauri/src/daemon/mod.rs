@@ -109,6 +109,9 @@ pub struct DaemonState {
     pub status: Mutex<DaemonStatus>,
     /// Incremented on each spawn to distinguish old vs new daemon Terminated events
     pub generation: Mutex<u64>,
+    /// Tracks how the frontend connected (usb/wifi/simulation/external).
+    /// Set by start_daemon, cleared on stop. Used for HMR/boot reconciliation.
+    pub connection_mode: Mutex<Option<String>>,
 }
 
 pub const MAX_LOGS: usize = 50;
@@ -590,6 +593,7 @@ mod tests {
             logs: Mutex::new(VecDeque::new()),
             status: Mutex::new(DaemonStatus::Idle),
             generation: Mutex::new(0),
+            connection_mode: Mutex::new(None),
         };
         assert_eq!(*state.generation.lock().unwrap(), 0);
     }
@@ -601,6 +605,7 @@ mod tests {
             logs: Mutex::new(VecDeque::new()),
             status: Mutex::new(DaemonStatus::Running),
             generation: Mutex::new(1),
+            connection_mode: Mutex::new(None),
         };
 
         // Simulate daemon restart: new generation
@@ -631,6 +636,7 @@ mod tests {
             logs: Mutex::new(VecDeque::new()),
             status: Mutex::new(DaemonStatus::Running),
             generation: Mutex::new(3),
+            connection_mode: Mutex::new(None),
         };
 
         let captured_gen = 3u64;
@@ -681,6 +687,7 @@ mod tests {
             logs: Mutex::new(VecDeque::new()),
             status: Mutex::new(DaemonStatus::Idle),
             generation: Mutex::new(0),
+            connection_mode: Mutex::new(None),
         };
 
         for i in 1..=5 {

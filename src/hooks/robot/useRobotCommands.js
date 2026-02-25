@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import useAppStore from '../../store/useAppStore';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '../../config/daemon';
-import { logWarning } from '../../utils/logging/logger';
 
 export const useRobotCommands = () => {
   const { isActive, isCommandRunning, robotStatus, isAppRunning, isInstalling } = useAppStore();
@@ -14,7 +13,6 @@ export const useRobotCommands = () => {
       silent = false
     ) => {
       if (!isActive) {
-        console.warn(`❌ Cannot send ${label || endpoint}: daemon not active`);
         return;
       }
 
@@ -28,16 +26,6 @@ export const useRobotCommands = () => {
         state.isInstalling;
 
       if (isBusy) {
-        const currentAppName = state.currentAppName;
-        if (currentAppName) {
-          const message = `Command ${label || endpoint} ignored: ${currentAppName} app is running`;
-          console.warn(`⚠️ ${message}`);
-          logWarning(message);
-        } else {
-          const message = `Command ${label || endpoint} ignored: another command is running`;
-          console.warn(`⚠️ ${message}`);
-          logWarning(message);
-        }
         return;
       }
 
@@ -58,13 +46,7 @@ export const useRobotCommands = () => {
         DAEMON_CONFIG.TIMEOUTS.COMMAND,
         { label, silent } // ⚡ Label will be used in automatic log if not silent
       )
-        .catch(e => {
-          // Silently ignore AbortError (expected when component unmounts or dependencies change)
-          // fetchWithTimeout already logs errors, so we don't need to log again here
-          if (e.name !== 'AbortError' && process.env.NODE_ENV === 'development') {
-            console.error(`❌ ${label} ERROR:`, e.message);
-          }
-        })
+        .catch(() => {})
         .finally(() => {
           // Unlock commands after lock duration
           setTimeout(() => {

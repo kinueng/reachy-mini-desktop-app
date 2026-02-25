@@ -22,7 +22,6 @@ async function checkUsbRobot() {
     const portName = await invoke('check_usb_robot');
     return { available: portName !== null, portName };
   } catch (e) {
-    console.error('USB check error:', e);
     return { available: false, portName: null };
   }
 }
@@ -39,7 +38,6 @@ async function checkWifiRobotV2() {
 
     if (robots && robots.length > 0) {
       const robot = robots[0]; // Take the first discovered robot
-      console.log(`[Discovery] ✅ Found robot via ${robot.discovery_method}: ${robot.ip}`);
 
       // Return hostname if available (e.g., "reachy-mini.home"), otherwise IP
       const host = robot.hostname
@@ -49,10 +47,8 @@ async function checkWifiRobotV2() {
       return { available: true, host };
     }
 
-    console.log('[Discovery] 📭 No robots found via automatic discovery');
     return { available: false, host: null };
   } catch (e) {
-    console.error('[Discovery] ❌ Discovery error:', e);
     return { available: false, host: null };
   }
 }
