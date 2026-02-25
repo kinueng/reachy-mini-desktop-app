@@ -108,6 +108,7 @@ export const robotInitialState = {
   startupError: null,
   hardwareError: null,
   consecutiveTimeouts: 0,
+  healthFailureReasons: [],
   startupTimeoutId: null,
 
   // Robot connection state
@@ -147,6 +148,40 @@ export const robotInitialState = {
   // 🚫 Blacklist for robots temporarily hidden (e.g., after clearing WiFi networks)
   robotBlacklist: {}, // { 'reachy-mini.local': expiryTimestamp }
 };
+
+// ============================================================================
+// HEALTH FAILURE CLASSIFICATION
+// ============================================================================
+
+/**
+ * Derive a specific crash error_type from the accumulated health check failures.
+ *
+ * Possible return values:
+ *   crash_health_timeout        – daemon alive but too slow (overloaded / blocking)
+ *   crash_health_network        – daemon unreachable (process dead, network down, cable unplugged)
+ *   crash_health_backend_error  – daemon up but backend reports error (USB/serial lost)
+ *   crash_health_http_error     – daemon up but returning HTTP errors
+ *   crash_health_unknown        – unclassified failures
+ *   crash_health_mixed          – no single dominant failure type
+ */
+function classifyHealthFailures(reasons) {
+  if (!reasons.length) return 'crash_health_unknown';
+
+  const counts = {};
+  for (const r of reasons) {
+    counts[r] = (counts[r] || 0) + 1;
+  }
+
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const [dominantType, dominantCount] = sorted[0];
+
+  // Single dominant type (strict majority)
+  if (dominantCount > reasons.length / 2) {
+    return `crash_health_${dominantType}`;
+  }
+
+  return 'crash_health_mixed';
+}
 
 // ============================================================================
 // SLICE CREATOR
@@ -357,11 +392,11 @@ export const createRobotSlice = (set, get) => ({
       const state = get();
       logCrash();
 
-      // 📊 Télémétrie - Track crash détecté via health check (3 timeouts consécutifs)
+      const errorType = classifyHealthFailures(state.healthFailureReasons);
       telemetry.connectionError({
         mode: state.connectionMode,
-        error_type: 'crash_health_timeout',
-        error_message: `Daemon unresponsive after ${state.consecutiveTimeouts} consecutive health check failures`,
+        error_type: errorType,
+        error_message: `Daemon unresponsive after ${state.consecutiveTimeouts} consecutive health check failures (${state.healthFailureReasons.join(', ')})`,
       });
 
       set({
@@ -486,6 +521,7 @@ export const createRobotSlice = (set, get) => ({
       shouldStreamRobotState: false, // 🎯 Reset WebSocket streaming flag
       activeMoves: [],
       consecutiveTimeouts: 0,
+      healthFailureReasons: [],
     });
   },
 
@@ -509,6 +545,7 @@ export const createRobotSlice = (set, get) => ({
       hardwareError: null,
       startupError: null,
       consecutiveTimeouts: 0,
+      healthFailureReasons: [],
       robotStateFull: { data: null, lastUpdate: null, error: null },
       shouldStreamRobotState: false, // 🎯 Reset WebSocket streaming flag
       activeMoves: [],
@@ -551,19 +588,32 @@ export const createRobotSlice = (set, get) => ({
   // TIMEOUT/CRASH MANAGEMENT
   // ============================================================================
 
-  incrementTimeouts: () => {
+  incrementTimeouts: (failureType = 'unknown') => {
     const state = get();
     const newCount = state.consecutiveTimeouts + 1;
-    const shouldCrash = newCount >= 3;
+    const newReasons = [...state.healthFailureReasons, failureType];
+    const maxTimeouts = 4;
+    const shouldCrash = newCount >= maxTimeouts;
+
+    set({ consecutiveTimeouts: newCount, healthFailureReasons: newReasons });
 
     if (shouldCrash && state.robotStatus !== 'crashed') {
       state.transitionTo.crashed();
     }
-
-    set({ consecutiveTimeouts: newCount });
   },
 
-  resetTimeouts: () => set({ consecutiveTimeouts: 0, isDaemonCrashed: false }),
+  resetTimeouts: () => {
+    // Only reset consecutiveTimeouts counter.
+    // isDaemonCrashed is derived from robotStatus via transitionTo - don't set it directly
+    // to avoid state desync between isDaemonCrashed and robotStatus.
+    const state = get();
+    if (state.robotStatus === 'crashed') {
+      // If already crashed, don't just reset the counter - a proper reconnect
+      // flow (via resetAll / startConnection) should handle the transition
+      return;
+    }
+    set({ consecutiveTimeouts: 0, healthFailureReasons: [] });
+  },
 
   markDaemonCrashed: () => {
     get().transitionTo.crashed();

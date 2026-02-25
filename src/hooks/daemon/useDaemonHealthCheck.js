@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import useAppStore from '../../store/useAppStore';
-import { DAEMON_CONFIG, fetchWithTimeoutSkipInstall, buildApiUrl } from '../../config/daemon';
+import {
+  DAEMON_CONFIG,
+  fetchWithTimeoutSkipInstall,
+  buildApiUrl,
+  isWiFiMode,
+} from '../../config/daemon';
 import { useDaemonEventBus } from './useDaemonEventBus';
 
 /**
  * 🎯 Centralized hook for daemon health checking
  *
  * Responsibilities (SINGLE RESPONSIBILITY):
- * 1. GET /api/daemon/status every 2.5s when isActive=true
- * 2. Health check: count consecutive timeouts → trigger crash if 3+ failures
+ * 1. GET /api/daemon/status periodically when isActive=true
+ * 2. Health check: count consecutive timeouts → trigger crash if 4+ failures
  * 3. Emit health events to the event bus
  *
  * NOT responsible for:
@@ -23,12 +28,13 @@ import { useDaemonEventBus } from './useDaemonEventBus';
  * - /health-check only exists if --timeout-health-check is passed (not our case)
  * - /api/daemon/status is always available and very lightweight
  * - 10x lighter than /api/state/full (~200 bytes vs ~2-5KB)
- * - Faster detection of crashes (7.5s vs 15s)
- * - Better for WiFi connections
  * - Separation of concerns (health ≠ data)
  *
- * ⚡ IMPORTANT: Polling interval (2.5s) > timeout (1.33s) to avoid accumulation!
- * If interval = timeout, slow responses cause avalanche timeouts and false crashes.
+ * 🌐 WiFi-aware timings:
+ * - USB: timeout 2s, polling 3s → crash detection in ~12s (4 × 3s)
+ * - WiFi: timeout 3.5s, polling 5s → crash detection in ~20s (4 × 5s)
+ *
+ * ⚡ IMPORTANT: Polling interval > timeout to avoid request accumulation!
  *
  * 🎯 MULTI-LAYER PROTECTION:
  * - macOS 14+: backgroundThrottling disabled in tauri.conf.json (native)
@@ -54,6 +60,9 @@ export function useDaemonHealthCheck(isActive) {
   const wasPausedRef = useRef(false);
 
   // 👁️ Listen to visibility changes (tab hidden, window minimized, etc.)
+  // ⚠️ Only use visibilitychange, NOT blur/focus. Blur fires on every window switch
+  // (e.g. clicking DevTools, another app) which is too aggressive and masks real issues.
+  // Visibility API only fires when the page is actually hidden (minimized, tab switched).
   useEffect(() => {
     const handleVisibilityChange = () => {
       const visible = document.visibilityState === 'visible';
@@ -70,33 +79,10 @@ export function useDaemonHealthCheck(isActive) {
       }
     };
 
-    // Also listen to window focus/blur as backup (some edge cases)
-    const handleWindowBlur = () => {
-      // Only pause if visibility API didn't catch it
-      if (document.visibilityState === 'visible') {
-        wasPausedRef.current = true;
-        setIsWindowVisible(false);
-        console.log('👁️ Window blur - pausing health check');
-      }
-    };
-
-    const handleWindowFocus = () => {
-      if (!isWindowVisible) {
-        console.log('👁️ Window focus - resuming health check, resetting timeout counter');
-        resetTimeouts();
-        wasPausedRef.current = false;
-        setIsWindowVisible(true);
-      }
-    };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleWindowBlur);
-    window.addEventListener('focus', handleWindowFocus);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleWindowBlur);
-      window.removeEventListener('focus', handleWindowFocus);
     };
   }, [isWindowVisible, resetTimeouts]);
 
@@ -136,13 +122,29 @@ export function useDaemonHealthCheck(isActive) {
       return;
     }
 
+    // 🌐 WiFi-aware timeouts: higher latency on wireless connections
+    const wifi = isWiFiMode();
+    const healthTimeout = wifi
+      ? DAEMON_CONFIG.TIMEOUTS.HEALTHCHECK_WIFI
+      : DAEMON_CONFIG.TIMEOUTS.HEALTHCHECK;
+    const pollingInterval = wifi
+      ? DAEMON_CONFIG.INTERVALS.HEALTHCHECK_POLLING_WIFI
+      : DAEMON_CONFIG.INTERVALS.HEALTHCHECK_POLLING;
+
+    // 🎯 Dedicated AbortController for cleanup (unmount / dependency change)
+    // This lets us distinguish cleanup aborts from timeout aborts in fetchWithTimeout
+    const cleanupController = new AbortController();
+
     const performHealthCheck = async () => {
+      // Don't run if cleanup has been triggered
+      if (cleanupController.signal.aborted) return;
+
       try {
         const response = await fetchWithTimeoutSkipInstall(
           buildApiUrl('/api/daemon/status'),
-          {},
-          DAEMON_CONFIG.TIMEOUTS.HEALTHCHECK, // 1333ms
-          { silent: true } // ⚡ Don't log (polling every 1.33s)
+          { signal: cleanupController.signal },
+          healthTimeout,
+          { silent: true }
         );
 
         if (response.ok) {
@@ -152,7 +154,7 @@ export function useDaemonHealthCheck(isActive) {
           // Check if backend has an error (USB disconnected, serial port error, etc.)
           if (data.backend_status?.error) {
             console.warn('⚠️ Backend error detected:', data.backend_status.error);
-            incrementTimeouts();
+            incrementTimeouts('backend_error');
             eventBus.emit('daemon:health:failure', {
               error: data.backend_status.error,
               type: 'backend_error',
@@ -167,7 +169,7 @@ export function useDaemonHealthCheck(isActive) {
         } else {
           // Response but not OK → not a timeout, but still increment
           console.warn('⚠️ Health check responded but not OK:', response.status);
-          incrementTimeouts();
+          incrementTimeouts('http_error');
           eventBus.emit('daemon:health:failure', {
             error: `HTTP ${response.status}`,
             type: 'http_error',
@@ -179,14 +181,17 @@ export function useDaemonHealthCheck(isActive) {
           return;
         }
 
-        // Silently ignore AbortError (expected when component unmounts or dependencies change)
-        if (error.name === 'AbortError') {
+        // ✅ Only ignore AbortError caused by cleanup (unmount / dependency change)
+        // Timeout-caused AbortErrors must still increment the counter!
+        if (cleanupController.signal.aborted) {
           return;
         }
 
-        // ❌ Network error → increment counter for crash detection
-        // This includes: TimeoutError, "Load failed", "Could not connect", etc.
-        const isNetworkError =
+        // ❌ Timeout or network error → increment counter for crash detection
+        // AbortError from fetchWithTimeout = fetch timed out (daemon too slow)
+        // TimeoutError, "Load failed", "Could not connect" = network failure
+        const isTimeoutOrNetworkError =
+          error.name === 'AbortError' ||
           error.name === 'TimeoutError' ||
           error.message?.includes('timed out') ||
           error.message?.includes('Load failed') ||
@@ -194,19 +199,18 @@ export function useDaemonHealthCheck(isActive) {
           error.message?.includes('NetworkError') ||
           error.message?.includes('Failed to fetch');
 
-        if (isNetworkError) {
-          console.warn('⚠️ Health check failed (network error), incrementing counter');
-          incrementTimeouts();
-          // ✅ Emit health failure event to bus
+        if (isTimeoutOrNetworkError) {
+          const failureType = error.name === 'AbortError' ? 'timeout' : 'network';
+          console.warn(`⚠️ Health check failed (${failureType}), incrementing counter`);
+          incrementTimeouts(failureType);
           eventBus.emit('daemon:health:failure', {
-            error: error.message || 'Network error',
-            type: 'network',
+            error: error.message || error.name || 'Network error',
+            type: failureType,
           });
         } else {
           // Other error (not network related) - still increment for safety
           console.warn('⚠️ Health check error:', error.message);
-          incrementTimeouts();
-          // ✅ Emit health failure event to bus
+          incrementTimeouts('unknown');
           eventBus.emit('daemon:health:failure', {
             error: error.message,
             type: 'error',
@@ -218,11 +222,12 @@ export function useDaemonHealthCheck(isActive) {
     // Perform initial health check
     performHealthCheck();
 
-    // ✅ Poll every 2.5s (HEALTHCHECK_POLLING interval)
-    // ⚡ IMPORTANT: Must be LONGER than HEALTHCHECK timeout (1.33s) to avoid accumulation
-    const interval = setInterval(performHealthCheck, DAEMON_CONFIG.INTERVALS.HEALTHCHECK_POLLING);
+    // ✅ Poll at WiFi-aware interval (USB: 3s, WiFi: 5s)
+    // ⚡ IMPORTANT: Must be LONGER than timeout to avoid request accumulation
+    const interval = setInterval(performHealthCheck, pollingInterval);
 
     return () => {
+      cleanupController.abort();
       clearInterval(interval);
     };
   }, [isActive, isDaemonCrashed, isWakeSleepTransitioning, isWindowVisible]); // Removed setters from deps - Zustand setters are stable
