@@ -21,26 +21,24 @@ A modern desktop application for controlling and monitoring your Reachy Mini rob
 
 This desktop application provides a unified interface to manage your Reachy Mini robot. It handles the robot daemon lifecycle, offers real-time 3D visualization of the robot's state, and includes an integrated app store to discover and install applications from Hugging Face Spaces. The app automatically detects USB-connected robots and provides direct access to audio controls, camera feeds, and robot choreographies.
 
-![Desktop Application Screenshot](src/assets/desktop-app-screenshot.jpg)
-
 ## ✨ Features
 
 - 🤖 **Robot Control** - Start, stop, and monitor your Reachy Mini daemon
-- 📊 **Real-time Monitoring** - Live 3D visualization of robot state
+- 📊 **Real-time 3D Visualization** - Live robot state via WebSocket at 20Hz with URDF model, X-ray effects
 - 🏪 **Application Store** - Discover, install, and manage apps from Hugging Face Spaces
   - Browse official and community apps
   - Search and filter by categories
-  - One-click installation and removal
+  - One-click installation and removal via deep links or UI
   - Start and stop apps directly from the interface
 - 📚 **Create Your Own Apps** - Tutorials and guides to build custom applications
-  - Learn how to interact with the daemon API
-  - Build apps with the Python SDK
-  - Deploy and share on Hugging Face Spaces
+- 📹 **Camera & Audio** - Live WebRTC camera feed with Direction of Arrival (DoA) audio visualization
+- 🎮 **Robot Controller** - 2D joystick and sliders for real-time robot position control
 - 🔄 **Auto Updates** - Seamless automatic updates with progress tracking
-- 🎨 **Modern UI** - Clean, intuitive interface built with Material-UI
-  - Dark mode support
-  - Responsive design
+- 🎨 **Modern UI** - Clean, intuitive interface built with Material-UI and Framer Motion
 - 🔌 **USB Detection** - Automatic detection of Reachy Mini via USB
+- 📶 **WiFi Discovery** - mDNS-based robot discovery with local proxy for Private Network Access
+- 🖥️ **Multi-window** - Synchronized state across Tauri windows
+- 📊 **Anonymous Telemetry** - Opt-in usage analytics via PostHog EU (see [Telemetry docs](./docs/TELEMETRY.md))
 - 📱 **Cross-platform** - Works on macOS, Windows, and Linux
 
 ## 🚀 Quick Start
@@ -106,17 +104,20 @@ By default, the `reachy-mini` package is installed from PyPI (latest stable rele
 
 Examples to build the sidecar with different sources:
 ```bash
-# Build with develop branch
+# macOS - Build with a specific branch
 REACHY_MINI_SOURCE=develop bash ./scripts/build/build-sidecar-unix.sh
-
-# Build with main branch
 REACHY_MINI_SOURCE=main bash ./scripts/build/build-sidecar-unix.sh
-
-# Build with any other branch
 REACHY_MINI_SOURCE=feature/my-feature bash ./scripts/build/build-sidecar-unix.sh
+
+# Linux - Uses PyInstaller pipeline
+REACHY_MINI_SOURCE=develop bash ./scripts/build/build-daemon-pyinstaller.sh
 ```
 
+> **Note**: macOS uses `build-sidecar-unix.sh` while Linux uses `build-daemon-pyinstaller.sh` for packaging. See [PyInstaller README](./scripts/build/README_PYINSTALLER.md) for details on the Linux pipeline.
+
 ## 📖 Documentation
+
+### Guides
 
 - [Linux Setup Guide](./docs/LINUX_SETUP.md) - Linux installation and configuration
 - [Linux Packaging Strategy](./docs/LINUX_PACKAGING_STRATEGY.md) - Linux distribution strategy and solutions
@@ -125,6 +126,10 @@ REACHY_MINI_SOURCE=feature/my-feature bash ./scripts/build/build-sidecar-unix.sh
 - [Update System](./docs/README.md) - Auto-updater and GitHub Pages deployment
 - [Technical Context](./CONTEXT.md) - Hardware specs, streaming, and technical reference
 - [Kinematics WASM](./kinematics-wasm/README.md) - WebAssembly kinematics module
+- [Telemetry](./docs/TELEMETRY.md) - Anonymous analytics events and opt-out
+- [Key Rotation](./KEY_ROTATION.md) - Code signing key rotation procedures
+- [Avast SSL Fix](./docs/AVAST_SSL_FIX.md) - Fix for Avast Antivirus SSL issues on Windows
+- [E2E Tests](./e2e/README.md) - End-to-end testing with WebdriverIO
 
 ### Application Store
 
@@ -133,9 +138,18 @@ The application includes a built-in store for discovering and installing apps:
 - **Discover Apps**: Browse apps from Hugging Face Spaces tagged with `reachy_mini`
 - **Install & Manage**: Install, uninstall, start, and stop apps with a simple interface
 - **Search & Filter**: Find apps by name or filter by categories
+- **Deep Links**: Install apps directly via `reachymini://` deep links
 - **Create Apps**: Access tutorials to learn how to build your own Reachy Mini applications
 
 Apps are managed through the FastAPI daemon API, which handles installation and execution.
+
+### Running Modes
+
+| Mode | Entry Point | Description |
+|------|-------------|-------------|
+| **Desktop (Tauri)** | `App.jsx` | Full desktop app with native features (USB, daemon management, updates) |
+| **Web Dashboard** | `WebApp.jsx` | Standalone web version for daemon control (build with `yarn build:web`) |
+| **Dev Playground** | `DevPlayground.jsx` | Component playground accessible at `/#dev` in development mode |
 
 ## 🛠️ Development
 
@@ -145,18 +159,21 @@ Apps are managed through the FastAPI daemon API, which handles installation and 
 ```bash
 yarn dev                    # Start Vite dev server only
 yarn tauri:dev              # Run Tauri app in dev mode
+yarn tauri:dev:fresh        # Kill daemon, clean, rebuild sidecar, then dev
 ```
 
 **Building:**
 ```bash
 # Build sidecar (required before tauri:build)
-yarn build:sidecar-macos              # macOS (PyPI)
-yarn build:sidecar-linux              # Linux (PyPI)
+yarn build:sidecar-macos              # macOS (PyPI, uses build-sidecar-unix.sh)
+yarn build:sidecar-linux              # Linux (PyPI, uses build-daemon-pyinstaller.sh)
 yarn build:sidecar-windows            # Windows (PyPI)
 
 # Build sidecar with specific branch
 yarn build:sidecar-macos:develop      # macOS with develop branch
+yarn build:sidecar-linux:develop      # Linux with develop branch
 yarn build:sidecar-macos:main         # macOS with main branch
+yarn build:sidecar-linux:main         # Linux with main branch
 yarn build:sidecar:branch             # Interactive branch selection
 
 # Build application
@@ -180,7 +197,16 @@ yarn test:sidecar           # Test the sidecar build
 yarn test:app               # Test the complete application
 yarn test:updater           # Test the update system
 yarn test:update-prod       # Test production updates
-yarn test:all               # Run all tests
+yarn test:all               # Run sidecar + app + updater tests (excludes update-prod)
+yarn test:e2e               # Run end-to-end tests with WebdriverIO
+```
+
+**Code Quality:**
+```bash
+yarn lint                   # Run ESLint on src/
+yarn lint:fix               # Run ESLint with auto-fix
+yarn format                 # Format all files with Prettier
+yarn format:check           # Check formatting without writing
 ```
 
 **Utilities:**
@@ -228,19 +254,27 @@ reachy_mini_desktop_app/
 │   ├── components/                   # Reusable React components
 │   │   ├── viewer3d/                # 3D robot visualization (README.md)
 │   │   ├── emoji-grid/              # Emotion wheel and emoji display
-│   │   ├── camera/                  # Camera components
+│   │   ├── camera/                  # Camera components (standalone CameraStream)
 │   │   ├── LogConsole/              # Log display components
 │   │   ├── Toast/                   # Toast notifications
 │   │   ├── wifi/                    # WiFi configuration components
-│   │   ├── App.jsx                  # Main application component
-│   │   └── AppTopBar.jsx            # Top bar with controls
+│   │   ├── ui/                      # Generic UI primitives (StepsProgressIndicator)
+│   │   ├── App.jsx                  # Main Tauri application entry
+│   │   ├── WebApp.jsx               # Web-only entry (daemon dashboard v2)
+│   │   ├── DevPlayground.jsx        # Development playground (/#dev)
+│   │   ├── AppTopBar.jsx            # Top bar with controls
+│   │   ├── FullscreenOverlay.jsx    # Fullscreen overlay component
+│   │   ├── ReachiesCarousel.jsx     # Robot carousel display
+│   │   ├── PulseButton.jsx          # Animated pulse button
+│   │   └── FPSMeter.jsx             # Performance monitor
 │   ├── hooks/                        # Custom React hooks (organized by domain)
 │   │   ├── audio/                   # Audio hooks (useDoA)
 │   │   ├── daemon/                  # Daemon lifecycle hooks
 │   │   │   ├── useDaemon.js         # Start/stop daemon
 │   │   │   ├── useDaemonHealthCheck.js  # Health monitoring
 │   │   │   ├── useDaemonEventBus.js # Event bus for daemon events
-│   │   │   └── useStartupStages.js  # Startup stage tracking
+│   │   │   ├── useStartupStages.js  # Startup stage tracking
+│   │   │   └── useDaemonStartupLogs.js  # Daemon startup log streaming
 │   │   ├── media/                   # Media hooks
 │   │   │   ├── useAudioAnalyser.js  # Audio analysis
 │   │   │   └── useWebRTCStream.js   # WebRTC streaming
@@ -248,52 +282,86 @@ reachy_mini_desktop_app/
 │   │   │   ├── useRobotStateWebSocket.js  # Centralized WebSocket streaming (20Hz)
 │   │   │   ├── useRobotCommands.js  # Robot command execution
 │   │   │   └── useActiveMoves.js    # Active moves tracking
-│   │   └── system/                  # System hooks
-│   │       ├── useUpdater.js        # Auto-update management
-│   │       ├── useUsbDetection.js   # USB robot detection
-│   │       ├── usePermissions.js    # macOS permissions
-│   │       ├── useViewRouter.jsx    # View state machine
-│   │       ├── useRobotDiscovery.js # Robot discovery (WiFi/mDNS)
-│   │       └── useNetworkStatus.js  # Network connectivity
+│   │   ├── system/                  # System hooks
+│   │   │   ├── useViewRouter.jsx    # View state machine (priority-based routing)
+│   │   │   ├── useUpdater.js        # Auto-update management
+│   │   │   ├── useUsbDetection.js   # USB robot detection
+│   │   │   ├── usePermissions.js    # macOS permissions
+│   │   │   ├── useRobotDiscovery.js # Robot discovery (WiFi/mDNS)
+│   │   │   ├── useRobotDiscoveryV2.js # Robot discovery v2
+│   │   │   ├── useNetworkStatus.js  # Network connectivity
+│   │   │   ├── useLocalWifiScan.js  # Local WiFi network scanning
+│   │   │   ├── useDeepLink.js       # Deep link handling (reachymini://)
+│   │   │   ├── useUpdateViewState.js # Update view state management
+│   │   │   ├── useWindowResize.js   # Window resize handling
+│   │   │   ├── useUsbCheckTiming.js # USB check timing logic
+│   │   │   └── useLogs.js           # Log management
+│   │   ├── useConnection.js         # Connection mode management (USB/WiFi/Simulation)
+│   │   ├── useActiveRobotAdapter.js # Adapter for ActiveRobot context (Tauri)
+│   │   ├── useWebActiveRobotAdapter.js # Adapter for ActiveRobot context (Web)
+│   │   ├── useToast.js              # Toast notification hook
+│   │   └── useResizeObserver.js     # Element resize observer
 │   ├── views/                        # Main application views
 │   │   ├── update/                  # Update checking view
 │   │   ├── permissions-required/    # Permissions view (macOS)
 │   │   ├── finding-robot/           # Connection selection view
-│   │   ├── first-time-wifi-setup/   # WiFi setup wizard
+│   │   ├── first-time-wifi-setup/   # WiFi setup wizard (5 steps)
 │   │   ├── bluetooth-support/       # Bluetooth help view
-│   │   ├── starting/                # Hardware scan view
+│   │   ├── starting/                # Hardware scan view (3D animation)
 │   │   ├── closing/                 # Shutdown view
-│   │   ├── windows/                 # Multi-window management
+│   │   ├── windows/                 # Multi-window sync (useWindowSync, useWindowFocus)
 │   │   └── active-robot/            # Active robot view
 │   │       ├── application-store/   # App store (README.md)
 │   │       ├── controller/          # Robot controller (README.md)
-│   │       ├── audio/               # Audio controls
-│   │       ├── camera/              # Camera feed
-│   │       ├── right-panel/         # Right panel sections
-│   │       └── context/             # Active robot context
+│   │       ├── audio/               # Audio controls & DoA indicator
+│   │       ├── camera/              # Camera feed (WebRTC via context)
+│   │       ├── right-panel/         # Right panel (expressions, controller, apps)
+│   │       ├── controls/            # Power & sleep buttons
+│   │       ├── layout/              # ViewportSwapper
+│   │       ├── context/             # ActiveRobotContext
+│   │       └── hooks/               # View-specific hooks (wake/sleep, power state)
+│   ├── contexts/                     # React contexts
+│   │   └── WebRTCStreamContext.jsx  # Shared WebRTC stream (avoids duplicate connections)
 │   ├── store/                        # State management (Zustand)
 │   │   ├── slices/                  # Store slices (apps, logs, robot, ui)
-│   │   ├── middleware/              # Store middleware (windowSync)
-│   │   ├── useAppStore.js           # Composite store (legacy alias)
+│   │   ├── middleware/              # Store middleware (windowSync across Tauri windows)
 │   │   ├── useStore.js              # Main unified store
-│   │   └── index.js                 # Store exports
+│   │   ├── useAppStore.js           # Alias for useStore (backward compat)
+│   │   └── storeLogger.js          # Store debug logger
 │   ├── utils/                        # Utility functions
-│   ├── config/                       # Centralized configuration
-│   └── constants/                    # Shared constants
+│   │   ├── telemetry/               # PostHog analytics integration
+│   │   ├── kinematics-wasm/         # WASM bindings for passive joints
+│   │   ├── logging/                 # Logging utilities
+│   │   ├── viewer3d/                # 3D viewer helpers
+│   │   ├── robotModelCache.js       # URDF model caching
+│   │   ├── diagnosticExport.js      # Diagnostic report generation
+│   │   └── simulationMode.js        # Simulation mode utilities
+│   ├── config/                       # Centralized configuration (daemon URLs, timeouts)
+│   └── constants/                    # Shared constants (WiFi, robot status, choreographies)
 ├── src-tauri/                        # Rust backend
 │   ├── src/
-│   │   ├── lib.rs                   # Main entry point
-│   │   ├── daemon/                  # Daemon management
-│   │   ├── usb/                     # USB detection
+│   │   ├── lib.rs                   # Main entry point & Tauri command registration
+│   │   ├── main.rs                  # Tauri bootstrap
+│   │   ├── daemon/                  # Daemon process management
+│   │   ├── discovery/               # Robot discovery (mDNS, network scan)
+│   │   ├── network/                 # Network utilities
+│   │   ├── wifi/                    # WiFi operations
+│   │   ├── usb/                     # USB detection (mod.rs + monitor.rs)
+│   │   ├── update/                  # Update management
+│   │   ├── local_proxy.rs           # TCP/UDP proxy for Private Network Access bypass
 │   │   ├── permissions/             # macOS permissions
 │   │   ├── signing/                 # Code signing
-│   │   ├── python/                  # Python environment
+│   │   ├── python/                  # Python/UV environment management
 │   │   └── window/                  # Window management
-│   ├── tauri.conf.json              # Tauri configuration
-│   └── capabilities/                # Security capabilities
+│   ├── tauri.conf.json              # Base Tauri configuration
+│   ├── tauri.macos.conf.json        # macOS-specific config
+│   ├── tauri.windows.conf.json      # Windows-specific config
+│   ├── tauri.linux.conf.json        # Linux-specific config
+│   └── capabilities/                # Security capabilities (permissions)
 ├── kinematics-wasm/                  # WASM kinematics module (README.md)
-├── uv-wrapper/                       # UV wrapper (Rust) for Python
+├── uv-wrapper/                       # UV wrapper (Rust) for Python env
 ├── scripts/                          # Build and utility scripts (README.md)
+├── e2e/                              # End-to-end tests (WebdriverIO)
 └── docs/                             # Additional documentation
 ```
 
@@ -311,6 +379,8 @@ Each major module has its own README with detailed documentation:
 | **Scripts** | [`scripts/README.md`](./scripts/README.md) | Build, test, and utility scripts |
 | **DMG Assets** | [`src-tauri/dmg-assets/README.md`](./src-tauri/dmg-assets/README.md) | macOS DMG customization guide |
 | **Updates** | [`docs/README.md`](./docs/README.md) | Update system documentation |
+| **E2E Tests** | [`e2e/README.md`](./e2e/README.md) | End-to-end testing setup |
+| **Telemetry** | [`docs/TELEMETRY.md`](./docs/TELEMETRY.md) | Anonymous analytics events |
 | **Technical Context** | [`CONTEXT.md`](./CONTEXT.md) | Hardware specs, streaming protocols |
 
 ### Architecture Overview
@@ -321,13 +391,15 @@ flowchart TB
         App["App.jsx"]
         ViewRouter["useViewRouter"]
         Views["Views"]
-        Store["Zustand Store"]
+        Store["Zustand Store<br/>(robot, logs, ui, apps)"]
         Hooks["Custom Hooks"]
+        WebRTC["WebRTCStreamContext"]
     end
     
     subgraph Backend["Backend (Tauri/Rust)"]
         Commands["Tauri Commands"]
-        Modules["Rust Modules<br/>(daemon, usb, permissions)"]
+        Modules["Rust Modules<br/>(daemon, usb, discovery,<br/>network, wifi, update)"]
+        Proxy["Local Proxy<br/>(PNA bypass)"]
     end
     
     subgraph Sidecar["Python Sidecar"]
@@ -338,6 +410,7 @@ flowchart TB
     subgraph External["External"]
         HF["Hugging Face Spaces"]
         GH["GitHub Pages<br/>(Updates)"]
+        PH["PostHog EU<br/>(Telemetry)"]
     end
     
     subgraph Hardware["Hardware"]
@@ -354,18 +427,25 @@ flowchart TB
     Modules --> UV
     UV --> Daemon
     
-    Hooks <-->|WebSocket/REST| Daemon
-    Daemon <-->|Serial| Robot
+    Hooks <-->|WebSocket 20Hz| Daemon
+    Hooks <-->|REST| Daemon
+    WebRTC <-->|WebRTC :8443| Daemon
+    Proxy -.->|TCP/UDP forwarding| Daemon
+    Daemon <-->|Serial/USB| Robot
     
     Hooks -.-> HF
     Hooks -.-> GH
+    Hooks -.-> PH
 ```
 
 **Key Architecture Points:**
 - **Hooks** are organized by domain (daemon, robot, system, media, audio) for better maintainability
 - **Views** are organized in dedicated folders with their associated components
-- **Store** uses a unified Zustand store with slices (robot, logs, ui, apps)
+- **Store** uses a unified Zustand store with slices (robot, logs, ui, apps) and cross-window sync middleware
 - **WebSocket** centralizes robot state streaming at 20Hz via `useRobotStateWebSocket`
+- **WebRTC** streams camera via a shared `WebRTCStreamContext` to avoid duplicate connections
+- **Local Proxy** (Rust) forwards TCP/UDP traffic to bypass browser Private Network Access restrictions in WiFi mode
+- **Adapters** (`useActiveRobotAdapter` / `useWebActiveRobotAdapter`) inject platform-specific behavior into the ActiveRobot context
 - **Config** centralizes all configuration constants (timeouts, intervals, etc.)
 
 ### View Router State Machine
@@ -374,10 +454,10 @@ The application uses a priority-based view router that determines which screen t
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PermissionsRequired: App Launch (macOS)
-    [*] --> UpdateView: App Launch (Win/Linux)
+    [*] --> PermissionsRequired: App Launch
+    note right of PermissionsRequired: macOS only (always granted on Win/Linux)
     
-    PermissionsRequired --> UpdateView: Permissions Granted
+    PermissionsRequired --> UpdateView: permissionsGranted
     PermissionsRequired --> Restarting: Grant & Restart
     Restarting --> [*]: Relaunch App
     
@@ -400,15 +480,18 @@ stateDiagram-v2
     Closing --> FindingRobot: Daemon Stopped
 ```
 
-**Priority order (highest to lowest):**
-0. 🔐 **PermissionsRequired** (macOS only) - Blocks until camera/microphone granted
-1. 🔄 **UpdateView** - Check and download updates
-2. 📶 **FirstTimeWifiSetup** - Guided WiFi configuration wizard
-3. 📱 **BluetoothSupport** - Links to external Bluetooth reset tool (for unresponsive robots)
-4. 🔍 **FindingRobot** - Connection selection (USB/WiFi/Simulation)
-5. ⚙️ **Starting** - Hardware scan and daemon startup
-6. 🛑 **Closing** - Shutdown sequence
-7. 🤖 **ActiveRobot** - Full control interface
+The view router (`useViewRouter`) uses a priority-based system. The first matching condition wins:
+
+| Priority | View | Condition |
+|----------|------|-----------|
+| 0 | **PermissionsRequired** | `!permissionsGranted` (macOS only, auto-granted on Win/Linux) |
+| 1 | **UpdateView** | `shouldShowUpdateView` |
+| 2 | **FirstTimeWifiSetup** | `showFirstTimeWifiSetup` (from Zustand store) |
+| 2.5 | **BluetoothSupport** | `showBluetoothSupportView` (from Zustand store) |
+| 3 | **FindingRobot** | `shouldShowUsbCheck \|\| !connectionMode` |
+| 4 | **Starting** | `isStarting \|\| hardwareError` |
+| 5 | **Closing** | `isStopping` |
+| 6 | **ActiveRobot** | Default (handles its own loading state) |
 
 ## 🔄 Updates
 
@@ -419,7 +502,7 @@ The application includes automatic update functionality:
 - **Production**: Updates are automatically built, signed, and deployed to GitHub Pages via GitHub Actions
 - **Update Endpoint**: `https://pollen-robotics.github.io/reachy-mini-desktop-app/latest.json`
 
-See [UPDATE_PIPELINES.md](./docs/UPDATE_PIPELINES.md) for detailed information.
+See the [Update System docs](./docs/README.md) for detailed information on auto-updater and GitHub Pages deployment.
 
 ## 🤝 Contributing
 
