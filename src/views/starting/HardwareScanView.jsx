@@ -9,7 +9,7 @@ import { useDaemonStartupLogs } from '../../hooks/daemon/useDaemonStartupLogs';
 import LogConsole from '@components/LogConsole';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '../../config/daemon';
 import { detectMovementChanges } from '../../utils/movementDetection';
-import { useAppFetching } from '../active-robot/application-store/hooks';
+import { useAppFetching, mergeAppsData } from '../active-robot/application-store/hooks';
 import { ScanErrorDisplay, ScanStepsIndicator, TipsCarousel } from './components';
 import { calculatePassiveJointsAsync } from '../../utils/kinematics-wasm/useKinematicsWasm';
 
@@ -582,57 +582,16 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
                   fetchInstalledApps(),
                 ]);
 
-                // Extract results
                 const availableAppsFromWebsite =
                   websiteResult.status === 'fulfilled' ? websiteResult.value || [] : [];
                 const installedAppsFromDaemon =
                   installedResult.status === 'fulfilled' ? installedResult.value?.apps || [] : [];
 
-                // Create lookup for installed apps
-                const installedAppNames = new Set(
-                  installedAppsFromDaemon.map(app => app.name?.toLowerCase()).filter(Boolean)
-                );
-                const installedAppsMap = new Map(
-                  installedAppsFromDaemon.map(app => [app.name?.toLowerCase(), app])
+                const { enrichedApps, installedApps: installed } = mergeAppsData(
+                  availableAppsFromWebsite,
+                  installedAppsFromDaemon
                 );
 
-                // Add local-only installed apps
-                const availableAppNames = new Set(
-                  availableAppsFromWebsite.map(app => app.name?.toLowerCase())
-                );
-                const localOnlyApps = installedAppsFromDaemon
-                  .filter(app => !availableAppNames.has(app.name?.toLowerCase()))
-                  .map(app => ({
-                    ...app,
-                    source_kind: app.source_kind || 'local',
-                    isOfficial: false,
-                  }));
-
-                const allApps = [...availableAppsFromWebsite, ...localOnlyApps];
-
-                // Mark installed apps and merge custom_app_url
-                const enrichedApps = allApps.map(app => {
-                  const appNameLower = app.name?.toLowerCase();
-                  const isInstalled = installedAppNames.has(appNameLower);
-                  const installedAppData = installedAppsMap.get(appNameLower);
-
-                  return {
-                    ...app,
-                    isInstalled,
-                    ...(isInstalled &&
-                      installedAppData?.extra?.custom_app_url && {
-                        extra: {
-                          ...app.extra,
-                          custom_app_url: installedAppData.extra.custom_app_url,
-                        },
-                      }),
-                  };
-                });
-
-                // Build installed apps list
-                const installed = enrichedApps.filter(app => app.isInstalled);
-
-                // Store in global store (will be used immediately by ActiveRobotView)
                 setAvailableApps(enrichedApps);
                 setInstalledApps(installed);
               } catch (err) {
@@ -953,41 +912,39 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
         )}
       </Box>
 
-      {/* ✅ Daemon startup logs - fixed at the bottom, visible, scrollable */}
-      {/* Always show logs if available, even if not starting (error state) */}
-      {startupLogs.length > 0 && (
-        <Box
+      {/* ✅ Daemon startup logs - fixed at the bottom, always visible with final height */}
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)',
+          maxWidth: '420px',
+          zIndex: 1000,
+          opacity: 0.2, // Very subtle by default
+          transition: 'opacity 0.3s ease-in-out',
+          '&:hover': {
+            opacity: 1, // Full opacity on hover
+          },
+        }}
+      >
+        <LogConsole
+          logs={startupLogs}
+          darkMode={darkMode}
+          includeStoreLogs={true}
+          compact={true}
+          showTimestamp={false}
+          lines={2}
+          emptyMessage="Waiting for logs..."
           sx={{
-            position: 'fixed',
-            bottom: 16,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: 'calc(100% - 32px)',
-            maxWidth: '420px',
-            zIndex: 1000,
-            opacity: 0.2, // Very subtle by default
-            transition: 'opacity 0.3s ease-in-out',
-            '&:hover': {
-              opacity: 1, // Full opacity on hover
-            },
+            bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
+            border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
           }}
-        >
-          <LogConsole
-            logs={startupLogs}
-            darkMode={darkMode}
-            includeStoreLogs={true}
-            compact={true}
-            showTimestamp={false}
-            lines={3}
-            sx={{
-              bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
-              border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-            }}
-          />
-        </Box>
-      )}
+        />
+      </Box>
     </Box>
   );
 }

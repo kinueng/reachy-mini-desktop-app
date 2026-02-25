@@ -2,7 +2,55 @@ import { useCallback } from 'react';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl, fetchExternal } from '@config/daemon';
 
 // Website API URL - centralized app store with 24h cache
-const WEBSITE_API_URL = 'https://pollen-robotics.hf.space/api/apps';
+const WEBSITE_API_URL = 'https://pollen-robotics-reachy-mini.hf.space/api/apps';
+
+/**
+ * Merge website catalog apps with daemon-installed apps into a unified list.
+ * Pure function, no side effects — used by both useAppsStore and HardwareScanView.
+ *
+ * @param {Array} websiteApps - Apps from the website API (may be empty if offline)
+ * @param {Array} daemonApps - Installed apps from the local daemon
+ * @returns {{ enrichedApps: Array, installedApps: Array }}
+ */
+export function mergeAppsData(websiteApps, daemonApps) {
+  const installedAppNames = new Set(daemonApps.map(app => app.name?.toLowerCase()).filter(Boolean));
+  const installedAppsMap = new Map(daemonApps.map(app => [app.name?.toLowerCase(), app]));
+
+  // Apps installed locally but not in the website catalog
+  const availableAppNames = new Set(websiteApps.map(app => app.name?.toLowerCase()));
+  const localOnlyApps = daemonApps
+    .filter(app => !availableAppNames.has(app.name?.toLowerCase()))
+    .map(app => ({
+      ...app,
+      source_kind: app.source_kind || 'local',
+      isOfficial: false,
+    }));
+
+  const allApps = [...websiteApps, ...localOnlyApps];
+
+  const enrichedApps = allApps.map(app => {
+    const appNameLower = app.name?.toLowerCase();
+    const isInstalled = installedAppNames.has(appNameLower);
+    const installedAppData = installedAppsMap.get(appNameLower);
+
+    return {
+      ...app,
+      isInstalled,
+      // custom_app_url is only known by the daemon (local runtime info)
+      ...(isInstalled &&
+        installedAppData?.extra?.custom_app_url && {
+          extra: {
+            ...app.extra,
+            custom_app_url: installedAppData.extra.custom_app_url,
+          },
+        }),
+    };
+  });
+
+  const installedApps = enrichedApps.filter(app => app.isInstalled);
+
+  return { enrichedApps, installedApps };
+}
 
 /**
  * Hook for fetching apps from different sources

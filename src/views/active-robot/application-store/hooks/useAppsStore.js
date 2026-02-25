@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef, useMemo } from 'react';
 import useAppStore from '@store/useAppStore';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '@config/daemon';
 import { useLogger } from '@utils/logging';
-import { useAppFetching } from './useAppFetching';
+import { useAppFetching, mergeAppsData } from './useAppFetching';
 import { useAppJobs } from './useAppJobs';
 
 /**
@@ -183,56 +183,12 @@ export function useAppsStore(isActive) {
         }
 
         // ========================================
-        // STEP 3: Create lookup for installed apps
+        // STEP 3: Merge website + daemon apps
         // ========================================
-        const installedAppNames = new Set(
-          installedAppsFromDaemon.map(app => app.name?.toLowerCase()).filter(Boolean)
+        const { enrichedApps, installedApps: installed } = mergeAppsData(
+          availableAppsFromWebsite,
+          installedAppsFromDaemon
         );
-        const installedAppsMap = new Map(
-          installedAppsFromDaemon.map(app => [app.name?.toLowerCase(), app])
-        );
-
-        // ========================================
-        // STEP 4: Merge local-only installed apps
-        // ========================================
-        const availableAppNames = new Set(
-          availableAppsFromWebsite.map(app => app.name?.toLowerCase())
-        );
-
-        const localOnlyApps = installedAppsFromDaemon
-          .filter(app => !availableAppNames.has(app.name?.toLowerCase()))
-          .map(app => ({
-            ...app,
-            source_kind: app.source_kind || 'local',
-            isOfficial: false,
-          }));
-
-        const allApps = [...availableAppsFromWebsite, ...localOnlyApps];
-
-        // ========================================
-        // STEP 5: Mark installed apps and merge custom_app_url
-        // ========================================
-        const enrichedApps = allApps.map(app => {
-          const appNameLower = app.name?.toLowerCase();
-          const isInstalled = installedAppNames.has(appNameLower);
-          const installedAppData = installedAppsMap.get(appNameLower);
-
-          return {
-            ...app,
-            isInstalled,
-            // Merge custom_app_url from daemon (only daemon knows this)
-            ...(isInstalled &&
-              installedAppData?.extra?.custom_app_url && {
-                extra: {
-                  ...app.extra,
-                  custom_app_url: installedAppData.extra.custom_app_url,
-                },
-              }),
-          };
-        });
-
-        // Build installed apps list
-        const installed = enrichedApps.filter(app => app.isInstalled);
 
         setAvailableApps(enrichedApps);
         setInstalledApps(installed);
