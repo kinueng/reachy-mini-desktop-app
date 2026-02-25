@@ -3,6 +3,10 @@
 //! This module provides event-driven USB device detection using Windows WM_DEVICECHANGE messages.
 //! This completely eliminates the need for polling, preventing terminal flicker issues on Windows.
 
+/// Reachy Mini CH340 USB-to-serial adapter identifiers
+const REACHY_USB_VID: u16 = 0x1a86;
+const REACHY_USB_PID: u16 = 0x55d3;
+
 #[cfg(target_os = "windows")]
 use std::sync::{Arc, Mutex};
 
@@ -36,10 +40,9 @@ impl UsbMonitorState {
             Ok(ports) => {
                 self.available_ports = ports.clone();
 
-                // Find Reachy Mini port (VID:PID = 1a86:55d3 - CH340 USB-to-serial)
                 self.reachy_port = ports.iter().find_map(|port| {
                     if let serialport::SerialPortType::UsbPort(usb_info) = &port.port_type {
-                        if usb_info.vid == 0x1a86 && usb_info.pid == 0x55d3 {
+                        if usb_info.vid == REACHY_USB_VID && usb_info.pid == REACHY_USB_PID {
                             return Some(port.port_name.clone());
                         }
                     }
@@ -75,8 +78,7 @@ pub fn get_reachy_port() -> Option<String> {
         match serialport::available_ports() {
             Ok(ports) => ports.iter().find_map(|port| {
                 if let serialport::SerialPortType::UsbPort(usb_info) = &port.port_type {
-                    // Reachy Mini uses CH340 USB-to-serial (VID:PID = 1a86:55d3)
-                    if usb_info.vid == 0x1a86 && usb_info.pid == 0x55d3 {
+                    if usb_info.vid == REACHY_USB_VID && usb_info.pid == REACHY_USB_PID {
                         return Some(port.port_name.clone());
                     }
                 }
@@ -84,14 +86,6 @@ pub fn get_reachy_port() -> Option<String> {
             }),
             Err(_) => None,
         }
-    }
-}
-
-/// Force an immediate update of the USB device list
-#[cfg(target_os = "windows")]
-pub fn force_update() {
-    if let Ok(mut state) = USB_MONITOR.lock() {
-        state.update();
     }
 }
 

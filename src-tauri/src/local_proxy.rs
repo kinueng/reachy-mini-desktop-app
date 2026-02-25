@@ -304,14 +304,19 @@ async fn handle_tcp_connection(
             Some(h) => h.clone(),
             None => {
                 log::error!("[proxy] No target host configured");
-                let response = "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 23\r\n\r\nNo target host configured";
+                let body = "No target host configured";
+                let response = format!(
+                    "HTTP/1.1 502 Bad Gateway\r\nContent-Length: {}\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
                 stream.write_all(response.as_bytes()).await?;
                 return Ok(());
             }
         }
     };
 
-    // Peek at the first bytes to read the HTTP request
+    // Peek at the first bytes to detect the request type
     let mut buf = vec![0u8; 8192];
     let n = stream.peek(&mut buf).await?;
     let request_str = String::from_utf8_lossy(&buf[..n]);

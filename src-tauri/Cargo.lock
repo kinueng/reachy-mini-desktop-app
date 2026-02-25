@@ -4033,6 +4033,7 @@ dependencies = [
  "block",
  "cocoa",
  "default-net",
+ "dirs",
  "futures-util",
  "lazy_static",
  "log",

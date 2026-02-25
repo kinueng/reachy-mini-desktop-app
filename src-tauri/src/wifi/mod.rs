@@ -168,6 +168,21 @@ fn is_reachy_hotspot(ssid: &str) -> bool {
         || ssid_lower.contains("reachymini")
 }
 
+/// Sort networks: Reachy hotspots first, then by descending signal strength.
+fn sort_networks(networks: &mut Vec<WifiNetwork>) {
+    networks.sort_by(|a, b| {
+        if a.is_reachy_hotspot != b.is_reachy_hotspot {
+            return b.is_reachy_hotspot.cmp(&a.is_reachy_hotspot);
+        }
+        match (&a.signal_strength, &b.signal_strength) {
+            (Some(a_sig), Some(b_sig)) => b_sig.cmp(a_sig),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+    });
+}
+
 // ============================================================================
 // macOS Implementation
 // ============================================================================
@@ -285,20 +300,7 @@ fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
         }
     }
 
-    // Sort: Reachy hotspots first, then by signal strength
-    networks.sort_by(|a, b| {
-        if a.is_reachy_hotspot != b.is_reachy_hotspot {
-            return b.is_reachy_hotspot.cmp(&a.is_reachy_hotspot);
-        }
-        // Higher signal (less negative) is better
-        match (&a.signal_strength, &b.signal_strength) {
-            (Some(a_sig), Some(b_sig)) => b_sig.cmp(a_sig), // -50 > -70
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => std::cmp::Ordering::Equal,
-        }
-    });
-
+    sort_networks(&mut networks);
     Ok(networks)
 }
 
@@ -369,17 +371,7 @@ fn scan_windows() -> Result<Vec<WifiNetwork>, String> {
         }
     }
 
-    // Sort: Reachy hotspots first, then by signal
-    networks.sort_by(|a, b| {
-        if a.is_reachy_hotspot != b.is_reachy_hotspot {
-            return b.is_reachy_hotspot.cmp(&a.is_reachy_hotspot);
-        }
-        match (&b.signal_strength, &a.signal_strength) {
-            (Some(b_sig), Some(a_sig)) => b_sig.cmp(a_sig),
-            _ => std::cmp::Ordering::Equal,
-        }
-    });
-
+    sort_networks(&mut networks);
     Ok(networks)
 }
 
@@ -427,9 +419,7 @@ fn scan_linux() -> Result<Vec<WifiNetwork>, String> {
                 }
             }
 
-            // Sort: Reachy hotspots first
-            networks.sort_by(|a, b| b.is_reachy_hotspot.cmp(&a.is_reachy_hotspot));
-
+            sort_networks(&mut networks);
             return Ok(networks);
         }
         _ => {}
@@ -492,8 +482,6 @@ fn scan_linux() -> Result<Vec<WifiNetwork>, String> {
         });
     }
 
-    // Sort: Reachy hotspots first
-    networks.sort_by(|a, b| b.is_reachy_hotspot.cmp(&a.is_reachy_hotspot));
-
+    sort_networks(&mut networks);
     Ok(networks)
 }

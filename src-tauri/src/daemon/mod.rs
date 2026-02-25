@@ -4,6 +4,12 @@ use std::sync::Mutex;
 use tauri::State;
 use tauri_plugin_shell::process::CommandChild;
 
+/// Port used by the Python daemon's HTTP API
+pub const DAEMON_PORT: u16 = 8000;
+
+/// Process name pattern for pkill fallback (Python module entrypoint)
+const DAEMON_PROCESS_PATTERN: &str = "reachy_mini.daemon.app.main";
+
 /// When true, cleanup_system_daemons() and kill_daemon() skip killing system
 /// processes. This prevents the app from killing an externally-managed daemon
 /// on close. Uses a static because the signal handler thread cannot access
@@ -50,7 +56,7 @@ pub fn transition_status(
     status_lock: &Mutex<DaemonStatus>,
     new_status: DaemonStatus,
 ) -> Result<DaemonStatus, String> {
-    let mut status = status_lock.lock().unwrap();
+    let mut status = status_lock.lock().expect("daemon status mutex poisoned");
     let old = *status;
 
     if old == new_status {
@@ -123,7 +129,7 @@ pub fn add_log(state: &State<DaemonState>, message: String) {
     // Format: "TIMESTAMP|MESSAGE" - will be parsed by frontend
     let timestamped_message = format!("{}|{}", timestamp, message);
 
-    let mut logs = state.logs.lock().unwrap();
+    let mut logs = state.logs.lock().expect("daemon logs mutex poisoned");
     logs.push_back(timestamped_message);
     if logs.len() > MAX_LOGS {
         logs.pop_front();
@@ -134,98 +140,153 @@ pub fn add_log(state: &State<DaemonState>, message: String) {
 // DAEMON LIFECYCLE MANAGEMENT
 // ============================================================================
 
-/// Kill processes listening on a specific port
-#[cfg(not(target_os = "windows"))]
-pub fn kill_processes_on_port(port: u16, signal: Option<&str>) {
+/// Find PIDs of processes LISTENING on a given port (never includes our own PID).
+fn find_listener_pids(port: u16) -> Vec<String> {
+    use std::process::Command;
+    let own_pid = std::process::id().to_string();
+
+    let raw_pids = {
+        #[cfg(not(target_os = "windows"))]
+        {
+            // -sTCP:LISTEN only matches listeners, not outgoing connections
+            Command::new("lsof")
+                .args(["-ti", &format!("TCP:{}", port), "-sTCP:LISTEN"])
+                .output()
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+                .unwrap_or_default()
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let output = Command::new("netstat")
+                .args(["-ano"])
+                .output()
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+                .unwrap_or_default();
+
+            let port_str = format!(":{}", port);
+            output
+                .lines()
+                .filter(|l| l.contains(&port_str) && l.contains("LISTENING"))
+                .filter_map(|l| l.split_whitespace().last())
+                .filter(|pid| *pid != "0")
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+    };
+
+    raw_pids
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|pid| {
+            if pid.is_empty() {
+                return false;
+            }
+            if *pid == own_pid {
+                log::warn!("[daemon] Skipping self-kill (PID {} on port {})", pid, port);
+                return false;
+            }
+            true
+        })
+        .collect()
+}
+
+/// Send a signal to a list of PIDs.
+fn kill_pids(pids: &[String], force: bool) {
     use std::process::Command;
 
-    let output = Command::new("lsof").arg(format!("-ti:{}", port)).output();
+    for pid in pids {
+        log::info!(
+            "[daemon] Killing PID {} (force={})",
+            pid,
+            force
+        );
 
-    if let Ok(output) = output {
-        let pids = String::from_utf8_lossy(&output.stdout);
-        for pid in pids.lines() {
-            let pid = pid.trim();
-            if !pid.is_empty() {
-                let mut cmd = Command::new("kill");
-                if let Some(sig) = signal {
-                    cmd.arg(sig);
-                }
-                cmd.arg(pid);
-                let _ = cmd.output();
+        #[cfg(not(target_os = "windows"))]
+        {
+            let mut cmd = Command::new("kill");
+            if force {
+                cmd.arg("-9");
             }
+            cmd.arg(pid);
+            let _ = cmd.output();
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let _ = Command::new("taskkill")
+                .args(if force {
+                    vec!["/PID", pid, "/F"]
+                } else {
+                    vec!["/PID", pid]
+                })
+                .output();
         }
     }
 }
 
-/// Clean up all daemon processes running on the system (via port 8000)
+/// Kill orphaned daemon processes from previous sessions.
+/// Uses port scanning + process name matching as a safety net.
 /// Skipped entirely when connected to an external daemon.
 pub fn cleanup_system_daemons() {
     if EXTERNAL_DAEMON_MODE.load(Ordering::Relaxed) {
-        println!("[tauri] External daemon mode - skipping system daemon cleanup");
+        log::info!("[daemon] External daemon mode - skipping system daemon cleanup");
         return;
+    }
+
+    let pids = find_listener_pids(DAEMON_PORT);
+    if !pids.is_empty() {
+        kill_pids(&pids, false);
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let remaining = find_listener_pids(DAEMON_PORT);
+        if !remaining.is_empty() {
+            kill_pids(&remaining, true);
+        }
     }
 
     #[cfg(not(target_os = "windows"))]
     {
         use std::process::Command;
-
-        // Method 1: Kill via port 8000 (more reliable)
-        // Try SIGTERM first (graceful shutdown)
-        kill_processes_on_port(8000, None);
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        // Force kill if still there
-        kill_processes_on_port(8000, Some("-9"));
-
-        // Method 2: Kill by process name (fallback)
         let _ = Command::new("pkill")
-            .arg("-9")
-            .arg("-f")
-            .arg("reachy_mini.daemon.app.main")
+            .args(["-9", "-f", DAEMON_PROCESS_PATTERN])
             .output();
-
-        std::thread::sleep(std::time::Duration::from_millis(300));
     }
     #[cfg(target_os = "windows")]
     {
-        log::info!("Cleaning up system daemons on Windows...");
         use std::process::Command;
-
-        // Windows: Use netstat and taskkill to find and kill processes on port 8000
-        let output = Command::new("netstat").args(&["-ano"]).output();
-
+        // Kill Python processes matching the daemon module name in their command line
+        let output = Command::new("wmic")
+            .args(["process", "where", &format!("CommandLine like '%{}%'", DAEMON_PROCESS_PATTERN), "get", "ProcessId"])
+            .output();
         if let Ok(output) = output {
-            let output_str = String::from_utf8_lossy(&output.stdout);
-            let mut pids = Vec::new();
-            for line in output_str.lines() {
-                if line.contains(":8000") && line.contains("LISTENING") {
-                    let parts: Vec<&str> = line.split_whitespace().collect();
-                    let pid = parts.last().unwrap().to_string();
-                    if pid != "0" && !pids.contains(&pid) {
-                        pids.push(pid);
-                    }
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let own_pid = std::process::id().to_string();
+            for line in stdout.lines().skip(1) {
+                let pid = line.trim();
+                if !pid.is_empty() && pid != own_pid && pid.chars().all(|c| c.is_ascii_digit()) {
+                    log::info!("[daemon] Killing orphan Python daemon (PID {})", pid);
+                    let _ = Command::new("taskkill").args(["/F", "/PID", pid]).output();
                 }
-            }
-            for pid_str in pids {
-                log::info!("Killing process with PID: {}", pid_str);
-                let _ = Command::new("taskkill")
-                    .args(&["/PID", &pid_str, "/F"])
-                    .output();
             }
         }
     }
+
+    std::thread::sleep(std::time::Duration::from_millis(300));
 }
 
-/// Kill daemon completely (local sidecar process + system)
+/// Kill daemon: first the tracked sidecar process, then orphan cleanup as safety net.
 pub fn kill_daemon(state: &State<DaemonState>) {
-    // Clear the stored process reference
-    // Note: CommandChild doesn't expose kill() method, so we rely on cleanup_system_daemons()
-    // which kills processes via port 8000 (more reliable)
-    let mut process_lock = state.process.lock().unwrap();
-    process_lock.take();
-    drop(process_lock);
+    let child = state.process.lock().expect("daemon process mutex poisoned").take();
 
-    // Clean up system processes (kills via port 8000 and process name)
+    if let Some(child) = child {
+        let pid = child.pid();
+        log::info!("[daemon] Killing tracked sidecar (PID {})", pid);
+        if let Err(e) = child.kill() {
+            log::warn!("[daemon] Sidecar kill failed (PID {}): {} — falling back to port cleanup", pid, e);
+        }
+    }
+
     cleanup_system_daemons();
 }
 
@@ -293,13 +354,13 @@ macro_rules! spawn_sidecar_monitor {
                             let daemon_state =
                                 app_handle_clone.state::<crate::daemon::DaemonState>();
                             let current_gen =
-                                *daemon_state.generation.lock().unwrap();
+                                *daemon_state.generation.lock().expect("generation mutex poisoned");
 
                             if captured_generation == current_gen {
-                                daemon_state.process.lock().unwrap().take();
+                                daemon_state.process.lock().expect("process mutex poisoned").take();
 
                                 let current_status =
-                                    *daemon_state.status.lock().unwrap();
+                                    *daemon_state.status.lock().expect("status mutex poisoned");
                                 let target = match current_status {
                                     crate::daemon::DaemonStatus::Stopping => {
                                         crate::daemon::DaemonStatus::Idle
@@ -325,9 +386,6 @@ macro_rules! spawn_sidecar_monitor {
                                 );
                             }
 
-                            let status_str = format!("{:?}", status);
-                            let _ =
-                                app_handle_clone.emit("sidecar-terminated", status_str);
                         }
                     }
                     _ => {}
@@ -351,8 +409,7 @@ pub fn spawn_and_monitor_sidecar(
     use crate::python::build_daemon_args;
     use tauri_plugin_shell::ShellExt;
 
-    // Check if a sidecar process already exists
-    let process_lock = state.process.lock().unwrap();
+    let process_lock = state.process.lock().expect("daemon process mutex poisoned");
     if process_lock.is_some() {
         log::info!("[tauri] Sidecar is already running. Skipping spawn.");
         return Ok(());
@@ -377,12 +434,12 @@ pub fn spawn_and_monitor_sidecar(
 
     // Bump generation so old Terminated handlers become stale
     let generation = {
-        let mut gen = state.generation.lock().unwrap();
+        let mut gen = state.generation.lock().expect("generation mutex poisoned");
         *gen += 1;
         *gen
     };
 
-    let mut process_lock = state.process.lock().unwrap();
+    let mut process_lock = state.process.lock().expect("daemon process mutex poisoned");
     *process_lock = Some(child);
     drop(process_lock);
 

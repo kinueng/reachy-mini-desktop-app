@@ -56,9 +56,9 @@ pub fn detect_vpn() -> Result<NetworkContext, String> {
     };
     
     if is_vpn {
-        println!("[network] ⚠️  VPN detected on interface: {}", interface.name);
+        log::warn!("[network] VPN detected on interface: {}", interface.name);
     } else {
-        println!("[network] ✅ No VPN detected (interface: {})", interface.name);
+        log::info!("[network] No VPN detected (interface: {})", interface.name);
     }
     
     Ok(NetworkContext {
@@ -67,21 +67,4 @@ pub fn detect_vpn() -> Result<NetworkContext, String> {
         interface_type,
         recommended_mode,
     })
-}
-
-/// Get detailed network interface information (for debugging)
-#[tauri::command]
-pub fn get_network_info() -> Result<String, String> {
-    let interface = get_default_interface()
-        .map_err(|e| format!("Failed to get network interface: {}", e))?;
-    
-    let info = format!(
-        "Interface: {}\nMAC: {}\nIPv4: {:?}\nIPv6: {:?}",
-        interface.name,
-        interface.mac_addr.map_or("N/A".to_string(), |m| m.to_string()),
-        interface.ipv4.iter().map(|ip| ip.addr.to_string()).collect::<Vec<_>>(),
-        interface.ipv6.iter().map(|ip| ip.addr.to_string()).collect::<Vec<_>>()
-    );
-    
-    Ok(info)
 }

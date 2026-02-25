@@ -19,6 +19,12 @@ use daemon::{
     add_log, cleanup_system_daemons, kill_daemon, set_external_mode, spawn_and_monitor_sidecar,
     transition_and_emit, transition_status, DaemonState, DaemonStatus,
 };
+
+/// Cross-platform path for the crash marker file.
+/// Uses the OS-standard data/log directory instead of hardcoded macOS paths.
+fn crash_marker_path() -> Option<std::path::PathBuf> {
+    dirs::data_local_dir().map(|d| d.join("com.pollen-robotics.reachy-mini").join(".crash_marker"))
+}
 use discovery::DiscoveryState;
 use local_proxy::LocalProxyState;
 use std::sync::Arc;
@@ -92,13 +98,13 @@ fn set_daemon_external_mode(external: bool) {
 
 #[tauri::command]
 fn get_daemon_status(state: State<DaemonState>) -> String {
-    let status = *state.status.lock().unwrap();
+    let status = *state.status.lock().expect("daemon status mutex poisoned");
     format!("{:?}", status)
 }
 
 #[tauri::command]
 fn get_logs(state: State<DaemonState>) -> Vec<String> {
-    let logs = state.logs.lock().unwrap();
+    let logs = state.logs.lock().expect("daemon logs mutex poisoned");
     logs.iter().cloned().collect()
 }
 
@@ -110,13 +116,7 @@ fn get_logs(state: State<DaemonState>) -> Vec<String> {
 /// Returns `{ panic_info, log_tail }` if a marker was found, or null.
 #[tauri::command]
 fn check_crash_marker(app_handle: tauri::AppHandle) -> Option<serde_json::Value> {
-    let marker_path = std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(std::path::PathBuf::from)?
-        .join("Library")
-        .join("Logs")
-        .join("com.pollen-robotics.reachy-mini")
-        .join(".crash_marker");
+    let marker_path = crash_marker_path()?;
 
     if !marker_path.exists() {
         return None;
@@ -201,16 +201,10 @@ pub fn run() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         log::error!("PANIC: {}", info);
-        if let Some(dir) = std::env::var_os("HOME")
-            .or_else(|| std::env::var_os("USERPROFILE"))
-            .map(std::path::PathBuf::from)
-        {
-            let marker = dir
-                .join("Library")
-                .join("Logs")
-                .join("com.pollen-robotics.reachy-mini")
-                .join(".crash_marker");
-            let _ = std::fs::create_dir_all(marker.parent().unwrap());
+        if let Some(marker) = crash_marker_path() {
+            if let Some(parent) = marker.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
             let _ = std::fs::write(&marker, format!("{}", info));
         }
         default_hook(info);
@@ -299,24 +293,9 @@ pub fn run() {
 
                 #[cfg(target_os = "macos")]
                 {
-                    let window = app.get_webview_window("main").unwrap();
-                    use cocoa::base::{id, YES};
-                    use objc::{msg_send, sel, sel_impl};
-
-                    unsafe {
-                        let ns_window = window.ns_window().unwrap() as id;
-
-                        // Transparent titlebar and fullscreen content
-                        let _: () = msg_send![ns_window, setTitlebarAppearsTransparent: YES];
-
-                        // Full size content view so content goes under titlebar
-                        let style_mask: u64 = msg_send![ns_window, styleMask];
-                        let new_style = style_mask | (1 << 15); // NSWindowStyleMaskFullSizeContentView
-                        let _: () = msg_send![ns_window, setStyleMask: new_style];
+                    if let Some(win) = app.get_webview_window("main") {
+                        window::setup_transparent_titlebar(&win);
                     }
-
-                    // Request all macOS permissions (camera, microphone, etc.)
-                    // These permissions will propagate to child processes (Python daemon and apps)
                     permissions::request_all_permissions();
                 }
 
@@ -355,8 +334,7 @@ pub fn run() {
             discovery::get_static_peers,
             discovery::clear_discovery_cache,
             // Network detection (VPN)
-            network::detect_vpn,
-            network::get_network_info
+            network::detect_vpn
         ])
         .on_window_event(|window, event| {
             match event {
@@ -383,8 +361,6 @@ pub fn run() {
         .run(|_app_handle, event| {
             match event {
                 tauri::RunEvent::ExitRequested { .. } => {
-                    // ⌘Q (Cmd+Q) on macOS triggers this event
-                    // Kill daemon via port 8000 + process name (reliable cleanup)
                     log::info!("ExitRequested (Cmd+Q) - killing daemon");
                     cleanup_system_daemons();
                 }

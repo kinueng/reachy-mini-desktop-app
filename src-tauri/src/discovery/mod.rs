@@ -9,6 +9,7 @@
 //! This replaces the old system command-based WiFi scanning with a native
 //! Rust implementation that's faster, more reliable, and cross-platform.
 
+use crate::daemon::DAEMON_PORT;
 use mdns_sd::{ServiceDaemon, ServiceEvent};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -166,7 +167,7 @@ pub async fn discover_robots(
     state: tauri::State<'_, DiscoveryState>,
 ) -> Result<Vec<RobotInfo>, String> {
     let mut robots = Vec::new();
-    let port = 8000; // Default Reachy daemon port
+    let port = DAEMON_PORT;
     
     log::info!("[discovery] Starting robot discovery");
     
@@ -251,7 +252,7 @@ pub async fn connect_to_ip(
     ip: String,
     state: tauri::State<'_, DiscoveryState>,
 ) -> Result<RobotInfo, String> {
-    let port = 8000;
+    let port = DAEMON_PORT;
     
     log::info!("[discovery] Manual connection to IP: {}", ip);
     
