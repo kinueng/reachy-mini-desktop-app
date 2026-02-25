@@ -12,7 +12,7 @@ vi.mock('../storeLogger', () => ({
 }));
 
 import { createRobotSlice } from '../slices/robotSlice';
-import { ROBOT_STATUS } from '../../constants/robotStatus';
+import { ROBOT_STATUS, BUSY_REASON } from '../../constants/robotStatus';
 
 const S = ROBOT_STATUS;
 
@@ -72,7 +72,7 @@ describe('transitionTo guards', () => {
 
 describe('invalid transitions are silently blocked', () => {
   it('disconnected -> busy is blocked', () => {
-    store.getState().transitionTo.busy('command');
+    store.getState().transitionTo.busy(BUSY_REASON.COMMAND);
     expect(store.getState().robotStatus).toBe(S.DISCONNECTED);
   });
 
@@ -102,27 +102,27 @@ describe('busy reason and lock flags', () => {
   });
 
   it('busy("command") sets isCommandRunning', () => {
-    store.getState().transitionTo.busy('command');
+    store.getState().transitionTo.busy(BUSY_REASON.COMMAND);
     const s = store.getState();
     expect(s.robotStatus).toBe(S.BUSY);
-    expect(s.busyReason).toBe('command');
+    expect(s.busyReason).toBe(BUSY_REASON.COMMAND);
     expect(s.isCommandRunning).toBe(true);
     expect(s.isAppRunning).toBe(false);
   });
 
   it('busy("app-running") sets isAppRunning', () => {
-    store.getState().transitionTo.busy('app-running');
+    store.getState().transitionTo.busy(BUSY_REASON.APP_RUNNING);
     expect(store.getState().isAppRunning).toBe(true);
     expect(store.getState().isCommandRunning).toBe(false);
   });
 
   it('busy("installing") sets isInstalling', () => {
-    store.getState().transitionTo.busy('installing');
+    store.getState().transitionTo.busy(BUSY_REASON.INSTALLING);
     expect(store.getState().isInstalling).toBe(true);
   });
 
   it('transitioning to ready clears all lock flags', () => {
-    store.getState().transitionTo.busy('command');
+    store.getState().transitionTo.busy(BUSY_REASON.COMMAND);
     store.getState().transitionTo.ready();
     const s = store.getState();
     expect(s.isCommandRunning).toBe(false);
@@ -286,7 +286,7 @@ describe('setIsCommandRunning compound action', () => {
   it('setting true transitions to busy("command")', () => {
     store.getState().setIsCommandRunning(true);
     expect(store.getState().robotStatus).toBe(S.BUSY);
-    expect(store.getState().busyReason).toBe('command');
+    expect(store.getState().busyReason).toBe(BUSY_REASON.COMMAND);
   });
 
   it('setting false transitions back to ready (only if busyReason was "command")', () => {
@@ -297,10 +297,10 @@ describe('setIsCommandRunning compound action', () => {
   });
 
   it('setting false does not change status if busyReason was NOT "command"', () => {
-    store.getState().transitionTo.busy('app-running');
+    store.getState().transitionTo.busy(BUSY_REASON.APP_RUNNING);
     store.getState().setIsCommandRunning(false);
     expect(store.getState().robotStatus).toBe(S.BUSY);
-    expect(store.getState().busyReason).toBe('app-running');
+    expect(store.getState().busyReason).toBe(BUSY_REASON.APP_RUNNING);
   });
 });
 
@@ -318,7 +318,7 @@ describe('lockForApp / unlockApp', () => {
   it('lockForApp transitions to busy and sets app name', () => {
     store.getState().lockForApp('face-tracker');
     expect(store.getState().robotStatus).toBe(S.BUSY);
-    expect(store.getState().busyReason).toBe('app-running');
+    expect(store.getState().busyReason).toBe(BUSY_REASON.APP_RUNNING);
     expect(store.getState().currentAppName).toBe('face-tracker');
   });
 

@@ -11,24 +11,16 @@
  * All boolean states (isActive, isStarting, etc.) are DERIVED from robotStatus
  */
 import { logConnect, logDisconnect } from '../storeLogger';
-import { ROBOT_STATUS, validateTransition, buildDerivedState } from '../../constants/robotStatus';
+import {
+  ROBOT_STATUS,
+  BUSY_REASON,
+  validateTransition,
+  buildDerivedState,
+} from '../../constants/robotStatus';
 
 // ============================================================================
 // SELECTORS - Derive boolean states from robotStatus
 // ============================================================================
-
-/**
- * @param {Object} state - Store state
- * @returns {boolean} True if robot is active (ready or busy)
- */
-export const selectIsActive = state =>
-  state.robotStatus === ROBOT_STATUS.READY || state.robotStatus === ROBOT_STATUS.BUSY;
-
-export const selectIsStarting = state => state.robotStatus === ROBOT_STATUS.STARTING;
-
-export const selectIsStopping = state => state.robotStatus === ROBOT_STATUS.STOPPING;
-
-export const selectIsDaemonCrashed = state => state.robotStatus === ROBOT_STATUS.CRASHED;
 
 /**
  * Note: sleeping with safeToShutdown=true is NOT busy (allows Settings access for shutdown)
@@ -206,9 +198,9 @@ export const createRobotSlice = (set, get) => ({
       busy: reason => {
         if (!requireConnection(get(), ROBOT_STATUS.BUSY)) return;
         const locks = {};
-        if (reason === 'command') locks.isCommandRunning = true;
-        if (reason === 'app-running') locks.isAppRunning = true;
-        if (reason === 'installing') locks.isInstalling = true;
+        if (reason === BUSY_REASON.COMMAND) locks.isCommandRunning = true;
+        if (reason === BUSY_REASON.APP_RUNNING) locks.isAppRunning = true;
+        if (reason === BUSY_REASON.INSTALLING) locks.isInstalling = true;
         apply(get, set, ROBOT_STATUS.BUSY, { busyReason: reason, ...locks });
       },
 
@@ -236,22 +228,23 @@ export const createRobotSlice = (set, get) => ({
 
     if (robotStatus === ROBOT_STATUS.BUSY && busyReason) {
       const reasonLabels = {
-        moving: 'Moving',
-        command: 'Executing Command',
-        'app-running': 'Running App',
-        installing: 'Installing',
+        [BUSY_REASON.MOVING]: 'Moving',
+        [BUSY_REASON.COMMAND]: 'Executing Command',
+        [BUSY_REASON.APP_RUNNING]: 'Running App',
+        [BUSY_REASON.INSTALLING]: 'Installing',
       };
       return reasonLabels[busyReason] || 'Busy';
     }
 
     const statusLabels = {
-      disconnected: 'Disconnected',
-      'ready-to-start': 'Ready to Start',
-      starting: 'Starting',
-      ready: 'Ready',
-      busy: 'Busy',
-      stopping: 'Stopping',
-      crashed: 'Crashed',
+      [ROBOT_STATUS.DISCONNECTED]: 'Disconnected',
+      [ROBOT_STATUS.READY_TO_START]: 'Ready to Start',
+      [ROBOT_STATUS.STARTING]: 'Starting',
+      [ROBOT_STATUS.SLEEPING]: 'Sleeping',
+      [ROBOT_STATUS.READY]: 'Ready',
+      [ROBOT_STATUS.BUSY]: 'Busy',
+      [ROBOT_STATUS.STOPPING]: 'Stopping',
+      [ROBOT_STATUS.CRASHED]: 'Crashed',
     };
 
     return statusLabels[robotStatus] || 'Unknown';
@@ -262,7 +255,7 @@ export const createRobotSlice = (set, get) => ({
   // ============================================================================
 
   lockForApp: appName => {
-    get().transitionTo.busy('app-running');
+    get().transitionTo.busy(BUSY_REASON.APP_RUNNING);
     set({ currentAppName: appName });
   },
 
@@ -373,8 +366,8 @@ export const createRobotSlice = (set, get) => ({
   setIsCommandRunning: value => {
     const state = get();
     if (value) {
-      state.transitionTo.busy('command');
-    } else if (state.busyReason === 'command') {
+      state.transitionTo.busy(BUSY_REASON.COMMAND);
+    } else if (state.busyReason === BUSY_REASON.COMMAND) {
       state.transitionTo.ready();
     }
     set({ isCommandRunning: value });

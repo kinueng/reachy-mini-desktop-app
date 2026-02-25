@@ -1,45 +1,24 @@
 import { useState, useEffect } from 'react';
 
 /**
- * Hook to detect if the window has focus
- * @returns {boolean} True if window has focus, false otherwise
+ * Track whether the window currently has focus via native events.
+ * No polling - relies entirely on focus/blur event listeners.
  */
 export function useWindowFocus() {
-  const [hasFocus, setHasFocus] = useState(() => {
-    // Check initial focus state
-    if (typeof document !== 'undefined') {
-      return document.hasFocus();
-    }
-    return true; // Default to true if document is not available
-  });
+  const [hasFocus, setHasFocus] = useState(() =>
+    typeof document !== 'undefined' ? document.hasFocus() : true
+  );
 
   useEffect(() => {
-    const handleFocus = () => {
-      setHasFocus(true);
-    };
+    const onFocus = () => setHasFocus(true);
+    const onBlur = () => setHasFocus(false);
 
-    const handleBlur = () => {
-      setHasFocus(false);
-    };
-
-    // Listen to window focus/blur events
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-
-    // Also check document focus state periodically (for cases where events might not fire)
-    const checkFocus = () => {
-      if (typeof document !== 'undefined') {
-        setHasFocus(document.hasFocus());
-      }
-    };
-
-    // Check focus state every 500ms as a fallback
-    const focusCheckInterval = setInterval(checkFocus, 500);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
 
     return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-      clearInterval(focusCheckInterval);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('blur', onBlur);
     };
   }, []);
 

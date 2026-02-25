@@ -1,14 +1,16 @@
 import React from 'react';
-import { Box, Typography, Button, Avatar, CircularProgress } from '@mui/material';
+import { Box, Typography, Button, Avatar, Chip, CircularProgress } from '@mui/material';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import VerifiedIcon from '@mui/icons-material/Verified';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useActiveRobotContext } from '../../../context';
 
 /**
  * App card component for Discover Modal
- * Uses ActiveRobotContext for decoupling from Tauri
+ * Supports both Python apps (installable) and Web apps (open in browser)
  */
 export default function AppCard({
   app,
@@ -29,7 +31,10 @@ export default function AppCard({
   const author = app.extra?.id?.split('/')?.[0] || app.extra?.author || null;
   const likes = app.extra?.likes || 0;
   const lastModified = app.extra?.lastModified || app.extra?.createdAt || null;
-  const emoji = cardData.emoji || '📦';
+  const isPythonApp = app.extra?.isPythonApp !== false;
+  const isOfficial = app.isOfficial === true;
+  const emoji = cardData.emoji || (isPythonApp ? '📦' : '🌐');
+  const spaceUrl = app.url || `https://huggingface.co/spaces/${app.extra?.id || app.name}`;
 
   // Format date
   const formattedDate = lastModified
@@ -98,33 +103,75 @@ export default function AppCard({
             alignItems: 'center',
           }}
         >
-          {/* Author - Left */}
-          {author && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-              <Avatar
+          {/* Author + Badges - Left */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, flex: 1 }}>
+            {author && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                <Avatar
+                  sx={{
+                    width: 20,
+                    height: 20,
+                    bgcolor: isOfficial
+                      ? 'rgba(59, 130, 246, 0.15)'
+                      : darkMode
+                        ? 'rgba(255, 255, 255, 0.1)'
+                        : 'rgba(0, 0, 0, 0.08)',
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: isOfficial ? '#FF9500' : darkMode ? '#ffffff' : '#1a1a1a',
+                    flexShrink: 0,
+                  }}
+                >
+                  {author.charAt(0).toUpperCase()}
+                </Avatar>
+                <Typography
+                  sx={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: darkMode ? '#aaaaaa' : '#666666',
+                    fontFamily: 'monospace',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {author}
+                </Typography>
+              </Box>
+            )}
+            {isOfficial && (
+              <Chip
+                icon={<VerifiedIcon sx={{ fontSize: 11 }} />}
+                label="Official"
+                size="small"
                 sx={{
-                  width: 20,
-                  height: 20,
-                  bgcolor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
-                  fontSize: 10,
+                  bgcolor: darkMode ? 'rgba(255, 149, 0, 0.15)' : 'rgba(255, 149, 0, 0.1)',
+                  color: '#FF9500',
                   fontWeight: 600,
-                  color: darkMode ? '#ffffff' : '#1a1a1a',
+                  fontSize: 9,
+                  height: 18,
+                  flexShrink: 0,
+                  '& .MuiChip-icon': { color: '#FF9500', ml: 0.5 },
+                  '& .MuiChip-label': { px: 0.5 },
                 }}
-              >
-                {author.charAt(0).toUpperCase()}
-              </Avatar>
-              <Typography
+              />
+            )}
+            {!isPythonApp && (
+              <Chip
+                label="Web"
+                size="small"
                 sx={{
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: darkMode ? '#aaaaaa' : '#666666',
-                  fontFamily: 'monospace',
+                  bgcolor: darkMode ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+                  color: '#6366f1',
+                  fontWeight: 600,
+                  fontSize: 9,
+                  height: 18,
+                  flexShrink: 0,
+                  '& .MuiChip-label': { px: 0.75 },
                 }}
-              >
-                {author}
-              </Typography>
-            </Box>
-          )}
+              />
+            )}
+          </Box>
 
           {/* Likes - Right - Always show, even if 0 */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -253,82 +300,117 @@ export default function AppCard({
           </Typography>
         </Box>
 
-        {/* Install/Installed Button */}
-        <Button
-          variant="outlined"
-          color="primary"
-          size="small"
-          disabled={isBusy || isInstalled}
-          onClick={e => {
-            e.stopPropagation();
-            if (!isInstalled) {
-              handleInstall(app);
+        {/* Action Button: Install (Python) or Open (Web) */}
+        {isPythonApp ? (
+          <Button
+            variant="outlined"
+            color="primary"
+            size="small"
+            disabled={isBusy || isInstalled}
+            onClick={e => {
+              e.stopPropagation();
+              if (!isInstalled) {
+                handleInstall(app);
+              }
+            }}
+            endIcon={
+              isInstalled ? (
+                <CheckCircleOutlineIcon sx={{ fontSize: 14 }} />
+              ) : isInstalling ? (
+                <CircularProgress size={14} sx={{ color: '#FF9500' }} />
+              ) : (
+                <DownloadOutlinedIcon sx={{ fontSize: 14 }} />
+              )
             }
-          }}
-          endIcon={
-            isInstalled ? (
-              <CheckCircleOutlineIcon sx={{ fontSize: 14 }} />
-            ) : isInstalling ? (
-              <CircularProgress size={14} sx={{ color: '#FF9500' }} />
-            ) : (
-              <DownloadOutlinedIcon sx={{ fontSize: 14 }} />
-            )
-          }
-          sx={{
-            mt: 2.5,
-            width: '100%',
-            py: 1,
-            fontSize: 12,
-            fontWeight: 600,
-            textTransform: 'none',
-            borderRadius: '10px',
-            bgcolor: 'transparent',
-            color: isInstalled
-              ? darkMode
-                ? 'rgba(255, 255, 255, 0.5)'
-                : 'rgba(0, 0, 0, 0.5)'
-              : installFailed
-                ? '#ef4444'
-                : '#FF9500',
-            border: isInstalled
-              ? darkMode
-                ? '1px solid rgba(255, 255, 255, 0.2)'
-                : '1px solid rgba(0, 0, 0, 0.2)'
-              : installFailed
-                ? '1px solid #ef4444'
-                : isInstalling
-                  ? '1px solid #FF9500'
-                  : '1px solid #FF9500',
-            transition: 'all 0.2s ease',
-            '&:hover': {
-              bgcolor: isInstalled
-                ? 'transparent'
-                : installFailed
-                  ? 'rgba(239, 68, 68, 0.08)'
-                  : 'rgba(255, 149, 0, 0.08)',
-              borderColor: isInstalled
+            sx={{
+              mt: 2.5,
+              width: '100%',
+              py: 1,
+              fontSize: 12,
+              fontWeight: 600,
+              textTransform: 'none',
+              borderRadius: '10px',
+              bgcolor: 'transparent',
+              color: isInstalled
                 ? darkMode
-                  ? 'rgba(255, 255, 255, 0.2)'
-                  : 'rgba(0, 0, 0, 0.2)'
+                  ? 'rgba(255, 255, 255, 0.5)'
+                  : 'rgba(0, 0, 0, 0.5)'
                 : installFailed
                   ? '#ef4444'
                   : '#FF9500',
-            },
-            '&:disabled': {
+              border: isInstalled
+                ? darkMode
+                  ? '1px solid rgba(255, 255, 255, 0.2)'
+                  : '1px solid rgba(0, 0, 0, 0.2)'
+                : installFailed
+                  ? '1px solid #ef4444'
+                  : isInstalling
+                    ? '1px solid #FF9500'
+                    : '1px solid #FF9500',
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                bgcolor: isInstalled
+                  ? 'transparent'
+                  : installFailed
+                    ? 'rgba(239, 68, 68, 0.08)'
+                    : 'rgba(255, 149, 0, 0.08)',
+                borderColor: isInstalled
+                  ? darkMode
+                    ? 'rgba(255, 255, 255, 0.2)'
+                    : 'rgba(0, 0, 0, 0.2)'
+                  : installFailed
+                    ? '#ef4444'
+                    : '#FF9500',
+              },
+              '&:disabled': {
+                bgcolor: 'transparent',
+                color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+                borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.12)',
+              },
+            }}
+          >
+            {isInstalled
+              ? 'Installed'
+              : isInstalling
+                ? 'Installing...'
+                : installFailed
+                  ? 'Retry Install'
+                  : 'Install'}
+          </Button>
+        ) : (
+          <Button
+            variant="outlined"
+            size="small"
+            endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+            onClick={async e => {
+              e.stopPropagation();
+              try {
+                await open(spaceUrl);
+              } catch (err) {
+                console.error('Failed to open web app URL:', err);
+              }
+            }}
+            sx={{
+              mt: 2.5,
+              width: '100%',
+              py: 1,
+              fontSize: 12,
+              fontWeight: 600,
+              textTransform: 'none',
+              borderRadius: '10px',
               bgcolor: 'transparent',
-              color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
-              borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.12)',
-            },
-          }}
-        >
-          {isInstalled
-            ? 'Installed'
-            : isInstalling
-              ? 'Installing...'
-              : installFailed
-                ? 'Retry Install'
-                : 'Install'}
-        </Button>
+              color: '#6366f1',
+              border: '1px solid #6366f1',
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                bgcolor: 'rgba(99, 102, 241, 0.08)',
+                borderColor: '#6366f1',
+              },
+            }}
+          >
+            Open
+          </Button>
+        )}
       </Box>
     </Box>
   );

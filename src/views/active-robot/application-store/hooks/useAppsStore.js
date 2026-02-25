@@ -4,6 +4,7 @@ import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '@config/daemon';
 import { useLogger } from '@utils/logging';
 import { useAppFetching, mergeAppsData } from './useAppFetching';
 import { useAppJobs } from './useAppJobs';
+import { useWindowVisible } from '../../../../hooks/system/useWindowVisible';
 
 /**
  * ✅ DRY: Helper to handle permission errors consistently
@@ -523,22 +524,21 @@ export function useAppsStore(isActive) {
    * HardwareScanView and stored globally. Clearing should only happen on actual
    * daemon disconnect (handled by transitionTo.disconnected), not when components unmount.
    */
+  const isWindowVisible = useWindowVisible();
+
   useEffect(() => {
-    if (!isActive) {
-      // Don't fetch when inactive, but also don't clear apps (they're globally cached)
-      isFirstActiveRef.current = true;
+    if (!isActive || !isWindowVisible) {
+      if (!isActive) isFirstActiveRef.current = true;
       return;
     }
 
-    // Fetch apps (will use cache if valid - up to 1 day)
     fetchAvailableApps(false);
 
-    // Start polling current app status
     fetchCurrentAppStatus();
     const interval = setInterval(fetchCurrentAppStatus, DAEMON_CONFIG.INTERVALS.APP_STATUS);
 
     return () => clearInterval(interval);
-  }, [isActive, fetchAvailableApps, fetchCurrentAppStatus]);
+  }, [isActive, isWindowVisible, fetchAvailableApps, fetchCurrentAppStatus]);
 
   return {
     // Data from store

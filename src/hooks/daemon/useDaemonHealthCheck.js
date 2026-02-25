@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import useAppStore from '../../store/useAppStore';
 import {
   DAEMON_CONFIG,
@@ -7,6 +7,7 @@ import {
   isWiFiMode,
 } from '../../config/daemon';
 import { useDaemonEventBus } from './useDaemonEventBus';
+import { useWindowVisible } from '../system/useWindowVisible';
 
 /**
  * 🎯 Centralized hook for daemon health checking
@@ -45,46 +46,10 @@ export function useDaemonHealthCheck(isActive) {
   const { isDaemonCrashed, isWakeSleepTransitioning, incrementTimeouts, resetTimeouts } =
     useAppStore();
 
-  // ✅ Event Bus for centralized event handling
   const eventBus = useDaemonEventBus();
 
-  // 🎯 Track window visibility to pause health checks when not visible
-  // This prevents false timeouts caused by browser/WebView throttling (Windows/Linux)
-  // On macOS 14+, backgroundThrottling is disabled natively, but this adds extra safety
-  const [isWindowVisible, setIsWindowVisible] = useState(() => {
-    // Initialize based on current visibility state
-    return typeof document !== 'undefined' ? document.visibilityState === 'visible' : true;
-  });
-
-  // Track if we were paused (to reset timeouts on resume)
-  const wasPausedRef = useRef(false);
-
-  // 👁️ Listen to visibility changes (tab hidden, window minimized, etc.)
-  // ⚠️ Only use visibilitychange, NOT blur/focus. Blur fires on every window switch
-  // (e.g. clicking DevTools, another app) which is too aggressive and masks real issues.
-  // Visibility API only fires when the page is actually hidden (minimized, tab switched).
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      const visible = document.visibilityState === 'visible';
-      setIsWindowVisible(visible);
-
-      if (!visible) {
-        wasPausedRef.current = true;
-        console.log('👁️ Window hidden - pausing health check (fallback for Windows/Linux)');
-      } else if (wasPausedRef.current) {
-        // Reset timeouts when becoming visible again (prevent false crash from accumulated timeouts)
-        console.log('👁️ Window visible - resuming health check, resetting timeout counter');
-        resetTimeouts();
-        wasPausedRef.current = false;
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isWindowVisible, resetTimeouts]);
+  // Pause health checks when window is hidden; reset timeouts on resume
+  const isWindowVisible = useWindowVisible(resetTimeouts);
 
   useEffect(() => {
     if (!isActive) {

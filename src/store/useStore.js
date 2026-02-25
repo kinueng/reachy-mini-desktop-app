@@ -9,7 +9,7 @@ import {
 } from './slices';
 import { logReset } from './storeLogger';
 import { disableSimulationMode } from '../utils/simulationMode';
-import { ROBOT_STATUS, buildDerivedState } from '../constants/robotStatus';
+import { ROBOT_STATUS, BUSY_REASON, buildDerivedState } from '../constants/robotStatus';
 
 /**
  * ✨ Unified Store with Slices Architecture
@@ -108,7 +108,7 @@ export const useStore = create(
      */
     lockForInstallWithRobot: (appName, jobType = 'install') => {
       const state = get();
-      state.transitionTo.busy('installing');
+      state.transitionTo.busy(BUSY_REASON.INSTALLING);
       state.lockForInstall(appName, jobType);
     },
 

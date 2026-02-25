@@ -82,12 +82,7 @@ function ActiveRobotView({
   const { showToast } = useToast();
 
   // ✅ Apps hook for deep link installation
-  const {
-    availableApps,
-    installApp,
-    fetchAvailableApps,
-    error: appsError,
-  } = useApps(isActive, true); // officialOnly=true by default
+  const { availableApps, installApp, fetchAvailableApps, error: appsError } = useApps(isActive);
 
   // ✅ App handlers for deep link installation
   const { handleInstall } = useAppHandlers({

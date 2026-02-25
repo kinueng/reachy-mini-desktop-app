@@ -13,12 +13,14 @@ import { isSimulationMode, disableSimulationMode } from '../../utils/simulationM
 import { findErrorConfig, createErrorFromConfig } from '../../utils/hardwareErrors';
 import { useDaemonEventBus } from './useDaemonEventBus';
 import { handleDaemonError } from '../../utils/daemonErrorHandler';
-import { ROBOT_STATUS } from '../../constants/robotStatus';
 
 export const useDaemon = () => {
   const logger = useLogger();
   const {
     robotStatus,
+    isActive,
+    isStarting,
+    isStopping,
     startupError,
     // Note: connectionMode is read via getState() inside callbacks for fresh value
     transitionTo,
@@ -29,13 +31,6 @@ export const useDaemon = () => {
     clearStartupTimeout,
     resetAll,
   } = useAppStore();
-
-  const isActive =
-    robotStatus === ROBOT_STATUS.SLEEPING ||
-    robotStatus === ROBOT_STATUS.READY ||
-    robotStatus === ROBOT_STATUS.BUSY;
-  const isStarting = robotStatus === ROBOT_STATUS.STARTING;
-  const isStopping = robotStatus === ROBOT_STATUS.STOPPING;
 
   const eventBus = useDaemonEventBus();
 

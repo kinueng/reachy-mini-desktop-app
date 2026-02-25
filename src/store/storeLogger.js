@@ -22,20 +22,9 @@ const LOG_LEVELS = {
   DEBUG: isDev, // Debug info - dev only
 };
 
-/**
- * Format connection mode for display
- */
-const formatMode = (mode, host) => {
-  if (!mode) return 'none';
-  if (mode === 'wifi' && host) return `wifi(${host})`;
-  return mode;
-};
-
-/**
- * Core logger
- */
 const log = (emoji, action, details = '') => {
   const detailStr = details ? ` → ${details}` : '';
+  console.log(`[Store] ${emoji} ${action}${detailStr}`);
 };
 
 /**
@@ -123,17 +112,4 @@ export const logInstallEnd = (appName, success, durationSec, jobType = 'install'
     // Install event
     telemetry.hfAppInstalled({ app_id: appName, success, duration_sec: durationSec });
   }
-};
-
-export default {
-  logConnect,
-  logDisconnect,
-  logReset,
-  logReady,
-  logBusy,
-  logCrash,
-  logAppStart,
-  logAppStop,
-  logInstallStart,
-  logInstallEnd,
 };

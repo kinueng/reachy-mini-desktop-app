@@ -17,6 +17,7 @@ import {
   usePermissions,
   useUsbCheckTiming,
   useDeepLink,
+  useWindowVisible,
 } from '../hooks/system';
 import { useViewRouter, ViewRouterWrapper } from '../hooks/system/useViewRouter';
 import { useRobotCommands, useRobotStateWebSocket, useActiveMoves } from '../hooks/robot';
@@ -69,6 +70,7 @@ function App() {
   const { isUsbConnected, usbPortName, checkUsbRobot } = useUsbDetection();
   const { sendCommand, playRecordedMove } = useRobotCommands(); // Note: isCommandRunning comes from store
   const { logs, fetchLogs } = useLogs();
+  const isWindowVisible = useWindowVisible();
 
   // 🍞 Global toast for deep link feedback
   const { toast, toastProgress, showToast, handleCloseToast } = useToast();
@@ -234,12 +236,6 @@ function App() {
     silent: false,
   });
 
-  // 🔍 DEBUG: Force update check in dev mode for testing
-  useEffect(() => {
-    if (isDev) {
-    }
-  }, [isDev, checkForUpdates]);
-
   // ✨ Update view state management with useReducer
   // Handles all cases: dev mode, production mode, minimum display time, errors
   const shouldShowUpdateView = useUpdateViewState({
@@ -256,8 +252,8 @@ function App() {
   // 🕐 USB check timing - manages when to start USB check after update view
   const { shouldShowUsbCheck } = useUsbCheckTiming(shouldShowUpdateView);
 
-  // 🎯 Daemon health check (POST /health-check every 2.5s)
-  // Handles crash detection via timeout counting (3 consecutive timeouts = crash)
+  // Daemon health check (GET /api/daemon/status, USB 3s / WiFi 5s)
+  // 4 consecutive timeouts → transitionTo.crashed()
   useDaemonHealthCheck(isActive);
 
   // 🚀 Unified WebSocket for ALL robot state
@@ -343,24 +339,19 @@ function App() {
   useWindowResize(currentView);
 
   useEffect(() => {
-    // Fetch logs and version on mount
+    if (!isWindowVisible) return;
+
     fetchLogs();
     fetchDaemonVersion();
 
-    // 🔌 USB polling: ONLY when searching for a robot (not connected)
-    // Once connected, the daemon handles everything (healthcheck detects disconnection)
-    // This prevents race conditions where polling could set isUsbConnected=false during startup
     const shouldPollUsb = !connectionMode;
 
-    // ⚠️ IMPORTANT: Don't check USB until update check is complete
-    // This ensures UpdateView is shown FIRST, before USB check
     if (!shouldShowUpdateView && shouldPollUsb) {
       checkUsbRobot();
     }
 
     const logsInterval = setInterval(fetchLogs, DAEMON_CONFIG.INTERVALS.LOGS_FETCH);
     const usbInterval = setInterval(() => {
-      // Only check USB if update check is complete AND we should poll
       if (!shouldShowUpdateView && shouldPollUsb) {
         checkUsbRobot();
       }
@@ -371,7 +362,14 @@ function App() {
       clearInterval(usbInterval);
       clearInterval(versionInterval);
     };
-  }, [fetchLogs, checkUsbRobot, fetchDaemonVersion, shouldShowUpdateView, connectionMode]);
+  }, [
+    fetchLogs,
+    checkUsbRobot,
+    fetchDaemonVersion,
+    shouldShowUpdateView,
+    connectionMode,
+    isWindowVisible,
+  ]);
 
   // ✅ USB disconnection detection is handled by:
   // 1. Daemon health check (daemon stops responding → crash detection)

@@ -16,11 +16,4 @@ export { createAppsSlice } from './appsSlice';
 // ============================================================================
 // SELECTORS - Derive state from robotStatus (single source of truth)
 // ============================================================================
-export {
-  selectIsActive,
-  selectIsStarting,
-  selectIsStopping,
-  selectIsDaemonCrashed,
-  selectIsBusy,
-  selectIsReady,
-} from './robotSlice';
+export { selectIsBusy, selectIsReady } from './robotSlice';

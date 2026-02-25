@@ -22,7 +22,7 @@ import { telemetry } from '../../utils/telemetry';
 import { logReady, logBusy, logCrash } from '../storeLogger';
 import { subscribeRobotStatus } from '../subscribers/robotStatusSubscriber';
 import { createRobotSlice } from '../slices/robotSlice';
-import { ROBOT_STATUS } from '../../constants/robotStatus';
+import { ROBOT_STATUS, BUSY_REASON } from '../../constants/robotStatus';
 
 const S = ROBOT_STATUS;
 
@@ -126,10 +126,10 @@ describe('structured logging side effects', () => {
     store.getState().startConnection('usb', {});
     store.getState().transitionTo.sleeping();
     store.getState().transitionTo.ready();
-    store.getState().transitionTo.busy('command');
+    store.getState().transitionTo.busy(BUSY_REASON.COMMAND);
 
     expect(logBusy).toHaveBeenCalledOnce();
-    expect(logBusy).toHaveBeenCalledWith('command');
+    expect(logBusy).toHaveBeenCalledWith(BUSY_REASON.COMMAND);
   });
 
   it('logCrash fires once on crash', () => {

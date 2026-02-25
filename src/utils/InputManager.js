@@ -856,20 +856,33 @@ export const useActiveDevice = () => {
   return activeDevice;
 };
 
-// React hook to check if a gamepad is connected
+// React hook to check if a gamepad is connected.
+// Pauses polling when the window is hidden (no point checking gamepads
+// when the user is in another app).
 export const useGamepadConnected = () => {
   const [isConnected, setIsConnected] = React.useState(getInputManager().isGamepadConnected());
+  const [isVisible, setIsVisible] = React.useState(() =>
+    typeof document !== 'undefined' ? document.visibilityState === 'visible' : true
+  );
 
   React.useEffect(() => {
-    const inputManager = getInputManager();
+    const handler = () => setIsVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, []);
 
-    // Periodically check connection state
+  React.useEffect(() => {
+    if (!isVisible) return;
+
+    const inputManager = getInputManager();
+    setIsConnected(inputManager.isGamepadConnected());
+
     const checkInterval = setInterval(() => {
       setIsConnected(inputManager.isGamepadConnected());
     }, 500);
 
     return () => clearInterval(checkInterval);
-  }, []);
+  }, [isVisible]);
 
   return isConnected;
 };

@@ -93,6 +93,7 @@
     "@tauri-apps/plugin-updater": "^2.0.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.23.24",
+    "fuse.js": "^7.1.0",
     "gsap": "^3.13.0",
     "leva": "^0.10.1",
     "postprocessing": "^6.37.8",

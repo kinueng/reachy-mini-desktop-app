@@ -72,33 +72,6 @@ class DaemonEventBus {
       }
     };
   }
-
-  /**
-   * Remove all listeners for an event
-   * @param {string} event - Event name (optional, removes all if not provided)
-   */
-  off(event = null) {
-    if (event) {
-      this.listeners.delete(event);
-    } else {
-      this.listeners.clear();
-    }
-  }
-
-  /**
-   * Get event log for debugging
-   * @returns {Array} Event log entries
-   */
-  getEventLog() {
-    return [...this.eventLog];
-  }
-
-  /**
-   * Clear event log
-   */
-  clearEventLog() {
-    this.eventLog = [];
-  }
 }
 
 // Module-level singleton — every call to useDaemonEventBus() returns the same instance.

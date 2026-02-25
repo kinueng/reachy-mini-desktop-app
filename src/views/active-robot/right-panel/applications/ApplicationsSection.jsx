@@ -45,7 +45,7 @@ export default function ApplicationsSection({
   const effectiveIsBusy = isBusy !== undefined ? isBusy : actions.isBusy();
 
   // State
-  const [officialOnly, setOfficialOnly] = useState(true);
+  const [officialOnly, setOfficialOnly] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 

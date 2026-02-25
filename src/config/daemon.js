@@ -12,7 +12,7 @@ import { useStore } from '../store';
 export const DAEMON_CONFIG = {
   // API timeouts (in milliseconds)
   TIMEOUTS: {
-    HEALTHCHECK: 2000, // Health check timeout (2s) - must be < HEALTHCHECK_POLLING (2.5s)
+    HEALTHCHECK: 2000, // Health check timeout (2s) - must be < HEALTHCHECK_POLLING (3s)
     HEALTHCHECK_WIFI: 3500, // WiFi health check timeout (3.5s) - higher latency on wireless
     STATE_FULL: 10000, // Read full state with all motors (10s for WiFi)
     COMMAND: 10000, // Movement commands (can be long)
@@ -422,18 +422,6 @@ export function getDaemonHostname() {
 export function isInstalling() {
   if (!appStoreInstance) return false;
   return appStoreInstance.getState().isInstalling;
-}
-
-/**
- * Check if device is online
- * @returns {boolean} True if online, false if offline
- */
-export function isOnline() {
-  if (typeof navigator !== 'undefined' && 'onLine' in navigator) {
-    return navigator.onLine;
-  }
-  // Default to online if navigator not available
-  return true;
 }
 
 /**

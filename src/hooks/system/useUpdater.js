@@ -8,7 +8,7 @@ import {
   getDetailedUpdateErrorMessage,
 } from '../../utils/errorUtils';
 import { isDevMode } from '../../utils/devMode';
-import { DAEMON_CONFIG, isOnline } from '../../config/daemon';
+import { DAEMON_CONFIG } from '../../config/daemon';
 import { logInfo, logError, logWarning, logSuccess } from '../../utils/logging/logger';
 
 /**
@@ -476,7 +476,7 @@ export const useUpdater = ({
       if (autoCheck && !isCheckingRef.current) {
         // Use a small delay to ensure state is updated
         setTimeout(() => {
-          if (!isCheckingRef.current && isOnline()) {
+          if (!isCheckingRef.current && navigator.onLine) {
             checkForUpdates();
           }
         }, 500);

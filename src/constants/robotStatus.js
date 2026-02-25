@@ -66,18 +66,3 @@ export function buildDerivedState(status) {
     isDaemonCrashed: status === S.CRASHED,
   };
 }
-
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-/**
- * Helper to check if robot is in an "active" state (connected and operational)
- */
-export const isActiveStatus = status =>
-  status === S.SLEEPING || status === S.READY || status === S.BUSY;
-
-/**
- * Helper to check if robot can receive commands (awake and not busy)
- */
-export const canReceiveCommands = status => status === S.READY;

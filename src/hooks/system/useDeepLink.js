@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ROBOT_STATUS } from '../../constants/robotStatus';
+import { ROBOT_STATUS, BUSY_REASON } from '../../constants/robotStatus';
 
 /**
  * Hook to handle deep links for app installation
@@ -162,19 +162,19 @@ export function useDeepLink({
       }
 
       // Check busyReason for more specific messages
-      if (busyReason === 'moving') {
+      if (busyReason === BUSY_REASON.MOVING) {
         return 'Robot is moving. Please wait...';
       }
 
-      if (busyReason === 'command') {
+      if (busyReason === BUSY_REASON.COMMAND) {
         return 'A command is running. Please wait...';
       }
 
-      if (busyReason === 'installing') {
+      if (busyReason === BUSY_REASON.INSTALLING) {
         return 'Installation in progress. Please wait...';
       }
 
-      if (busyReason === 'app-running') {
+      if (busyReason === BUSY_REASON.APP_RUNNING) {
         return 'An app is running. Stop it first!';
       }
 
