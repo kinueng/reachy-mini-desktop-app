@@ -306,6 +306,35 @@ export const useDaemon = () => {
   const startDaemon = useCallback(async () => {
     const currentConnectionMode = useAppStore.getState().connectionMode;
 
+    // External mode: daemon is already running externally, just verify it's alive
+    if (currentConnectionMode === 'external') {
+      eventBus.emit('daemon:start:attempt');
+
+      await new Promise(resolve =>
+        setTimeout(resolve, DAEMON_CONFIG.ANIMATIONS.SPINNER_RENDER_DELAY)
+      );
+
+      try {
+        const statusResponse = await fetchWithTimeout(
+          buildApiUrl(DAEMON_CONFIG.ENDPOINTS.DAEMON_STATUS),
+          {},
+          DAEMON_CONFIG.TIMEOUTS.STARTUP_CHECK,
+          { label: 'External daemon status check' }
+        );
+
+        if (!statusResponse.ok) {
+          throw new Error(`External daemon status check failed: ${statusResponse.status}`);
+        }
+
+        eventBus.emit('daemon:start:success', { existing: true, external: true });
+      } catch (e) {
+        console.error('[Daemon] External daemon not reachable:', e.message);
+        eventBus.emit('daemon:start:error', new Error(`External daemon error: ${e.message}`));
+        resetAll();
+      }
+      return;
+    }
+
     // WiFi mode: daemon is remote, initialize it if needed
     if (currentConnectionMode === 'wifi') {
       eventBus.emit('daemon:start:attempt');
@@ -436,6 +465,14 @@ export const useDaemon = () => {
 
     // Wait for any daemon goto_target to complete
     await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // External mode: don't stop the daemon, just reset our state
+    if (currentConnectionMode === 'external') {
+      setTimeout(() => {
+        resetAll();
+      }, DAEMON_CONFIG.ANIMATIONS.STOP_DAEMON_DELAY);
+      return;
+    }
 
     // WiFi mode: stop daemon then disconnect
     if (currentConnectionMode === 'wifi') {

@@ -16,7 +16,8 @@ mod wifi;
 mod window;
 
 use daemon::{
-    add_log, cleanup_system_daemons, kill_daemon, spawn_and_monitor_sidecar, DaemonState,
+    add_log, cleanup_system_daemons, kill_daemon, set_external_mode, spawn_and_monitor_sidecar,
+    DaemonState,
 };
 use discovery::DiscoveryState;
 use local_proxy::LocalProxyState;
@@ -37,6 +38,9 @@ fn start_daemon(
     sim_mode: Option<bool>,
 ) -> Result<String, String> {
     let sim_mode = sim_mode.unwrap_or(false);
+
+    // Reset external mode flag (handles external → USB reconnect without app restart)
+    set_external_mode(false);
 
     // 🎭 Simulation mode: mockup-sim backend (no physics engine needed)
     if sim_mode {
@@ -78,6 +82,11 @@ fn stop_daemon(state: State<DaemonState>) -> Result<String, String> {
     add_log(&state, "✓ Daemon stopped".to_string());
 
     Ok("Daemon stopped successfully".to_string())
+}
+
+#[tauri::command]
+fn set_daemon_external_mode(external: bool) {
+    set_external_mode(external);
 }
 
 #[tauri::command]
@@ -207,6 +216,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             start_daemon,
             stop_daemon,
+            set_daemon_external_mode,
             get_logs,
             usb::check_usb_robot,
             window::apply_transparent_titlebar,

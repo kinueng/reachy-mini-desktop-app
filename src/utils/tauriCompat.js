@@ -43,6 +43,9 @@ export const invoke = async (command, args = {}) => {
 
     // Sign binaries (macOS specific - no-op in web mode)
     sign_python_binaries: { method: 'GET', url: null, noop: true },
+
+    // External daemon mode flag (Rust-side only - no-op in web mode)
+    set_daemon_external_mode: { method: 'GET', url: null, noop: true },
   };
 
   const mapping = commandMap[command];

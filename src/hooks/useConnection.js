@@ -40,6 +40,7 @@ export const ConnectionMode = {
   USB: 'usb',
   WIFI: 'wifi',
   SIMULATION: 'simulation',
+  EXTERNAL: 'external',
 };
 
 /**
@@ -106,6 +107,16 @@ export function useConnection() {
         case ConnectionMode.SIMULATION:
           enableSimulationMode();
           startConnection('simulation', { portName: 'simulation' });
+          break;
+
+        case ConnectionMode.EXTERNAL:
+          // Tell Rust backend to skip daemon cleanup on app close
+          try {
+            await invoke('set_daemon_external_mode', { external: true });
+          } catch (e) {
+            console.warn('[External] Failed to set external mode flag:', e);
+          }
+          startConnection('external');
           break;
 
         default:
