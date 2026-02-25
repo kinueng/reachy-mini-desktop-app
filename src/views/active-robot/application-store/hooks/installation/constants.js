@@ -11,6 +11,7 @@ import { DAEMON_CONFIG } from '@config/daemon';
 export const JOB_TYPES = {
   INSTALL: 'install',
   REMOVE: 'remove',
+  UPDATE: 'update',
 };
 
 /**
@@ -74,6 +75,7 @@ export const LOG_SUCCESS_PATTERNS = [
   'completed successfully',
   "job 'install' completed",
   "job 'remove' completed",
+  "job 'update' completed",
 ];
 
 /**

@@ -13,6 +13,7 @@ Test
 
 .playwright-mcp
 
+.claude/
 .cursor/
 .dist-web/
 

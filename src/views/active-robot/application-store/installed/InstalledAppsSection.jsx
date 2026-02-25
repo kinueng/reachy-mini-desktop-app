@@ -16,6 +16,8 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import LaunchIcon from '@mui/icons-material/Launch';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import DiscoverAppsButton from '../discover/Button';
 import ReachiesCarousel from '@components/ReachiesCarousel';
 import { getDaemonHostname } from '../../../../config/daemon';
@@ -364,6 +366,10 @@ export default function InstalledAppsSection({
   isStoppingApp = false,
   handleStartApp,
   handleUninstall,
+  handleUpdate,
+  hasUpdate,
+  isCheckingUpdates,
+  hasCheckedOnce,
   getJobInfo,
   stopCurrentApp,
   onOpenDiscover,
@@ -650,7 +656,11 @@ export default function InstalledAppsSection({
                                   letterSpacing: '0.2px',
                                 }}
                               >
-                                {jobInfo.type === 'remove' ? 'Removing...' : 'Installing...'}
+                                {jobInfo.type === 'remove'
+                                  ? 'Removing...'
+                                  : jobInfo.type === 'update'
+                                    ? 'Updating...'
+                                    : 'Installing...'}
                               </Typography>
                             );
                           }
@@ -676,6 +686,79 @@ export default function InstalledAppsSection({
 
                     {/* Right: Action buttons */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      {/* Update badge */}
+                      {(() => {
+                        const isUpdating = isJobRunning(app.name, 'update');
+
+                        if (isUpdating) {
+                          // Updating: orange spinner
+                          return (
+                            <Tooltip title="Updating..." arrow placement="top">
+                              <CircularProgress
+                                size={14}
+                                thickness={5}
+                                sx={{ color: '#FF9500', flexShrink: 0 }}
+                              />
+                            </Tooltip>
+                          );
+                        }
+
+                        if (hasUpdate && hasUpdate(app.name)) {
+                          // Update available: orange arrow button
+                          return (
+                            <Tooltip title="Update available" arrow placement="top">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  disabled={isCurrentlyRunning || isSleeping}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    if (handleUpdate) handleUpdate(app.name);
+                                  }}
+                                  sx={{
+                                    width: 24,
+                                    height: 24,
+                                    color: '#FF9500',
+                                    border: '1px solid #FF9500',
+                                    borderRadius: '6px',
+                                    transition: 'all 0.2s ease',
+                                    '&:hover': {
+                                      bgcolor: 'rgba(255, 149, 0, 0.1)',
+                                    },
+                                    '&:disabled': {
+                                      color: darkMode ? '#555' : '#999',
+                                      borderColor: darkMode
+                                        ? 'rgba(255, 255, 255, 0.1)'
+                                        : 'rgba(0, 0, 0, 0.12)',
+                                    },
+                                  }}
+                                >
+                                  <ArrowUpwardIcon sx={{ fontSize: 14 }} />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          );
+                        }
+
+                        // Up to date: subtle green check (only after first check completes)
+                        if (hasUpdate && hasCheckedOnce && !isCheckingUpdates) {
+                          return (
+                            <Tooltip title="Up to date" arrow placement="top">
+                              <CheckCircleOutlinedIcon
+                                sx={{
+                                  fontSize: 16,
+                                  color: '#22c55e',
+                                  opacity: 0.7,
+                                  flexShrink: 0,
+                                }}
+                              />
+                            </Tooltip>
+                          );
+                        }
+
+                        return null;
+                      })()}
+
                       {/* Settings button - toggles accordion (disabled when sleeping) */}
                       <Tooltip
                         title={isSleeping ? 'Wake robot first' : 'Settings'}

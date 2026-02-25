@@ -9,3 +9,4 @@ export { useAppFiltering } from './useAppFiltering';
 export { useModalStack } from './useModalStack';
 export { useAppLogs } from './useAppLogs';
 export { useAppFetching, mergeAppsData } from './useAppFetching';
+export { useAppUpdates } from './useAppUpdates';

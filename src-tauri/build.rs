@@ -5,6 +5,13 @@ fn main() {
         println!("cargo:rustc-link-lib=framework=AVFoundation");
     }
 
+    // Link against libX11 on Linux for XInitThreads()
+    // Required to prevent xcb threading crashes with WebKitGTK
+    #[cfg(target_os = "linux")]
+    {
+        println!("cargo:rustc-link-lib=X11");
+    }
+
     // On Windows, RC.EXE cannot handle apostrophes or other special characters in file paths.
     // tauri-winres canonicalizes the icon path (resolving symlinks/junctions), so if the real
     // user profile folder contains an apostrophe (e.g. C:\Users\hightower's\...), the build

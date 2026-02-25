@@ -195,8 +195,24 @@ async fn clear_local_proxy_target(state: State<'_, Arc<LocalProxyState>>) -> Res
 // ENTRY POINT
 // ============================================================================
 
+#[cfg(target_os = "linux")]
+extern "C" {
+    fn XInitThreads() -> std::ffi::c_int;
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // On Linux/X11, XInitThreads must be called before ANY other X11/GTK call
+    // to prevent "[xcb] Unknown sequence number" crashes in multi-threaded apps.
+    // This must happen before panic hooks, signal handlers, and Tauri builder.
+    #[cfg(target_os = "linux")]
+    {
+        let result = unsafe { XInitThreads() };
+        if result == 0 {
+            eprintln!("Warning: XInitThreads() failed");
+        }
+    }
+
     // Custom panic hook: log the panic and write a crash marker for next-startup detection
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {

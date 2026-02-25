@@ -4,6 +4,7 @@ import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '@config/daemon';
 import { useLogger } from '@utils/logging';
 import { useAppFetching, mergeAppsData } from './useAppFetching';
 import { useAppJobs } from './useAppJobs';
+import { useAppUpdates } from './useAppUpdates';
 import { useWindowVisible } from '../../../../hooks/system/useWindowVisible';
 
 /**
@@ -30,7 +31,7 @@ const handlePermissionError = (err, action, appName, logger, setAppsError) => {
 /**
  * ✅ DRY: Helper to create and track a job
  */
-const createJob = (jobId, jobType, appName, appInfo, setActiveJobs, startJobPollingRef) => {
+export const createJob = (jobId, jobType, appName, appInfo, setActiveJobs, startJobPollingRef) => {
   setActiveJobs(prev => {
     const updated = new Map(prev instanceof Map ? prev : new Map(Object.entries(prev || {})));
     updated.set(jobId, {
@@ -233,6 +234,16 @@ export function useAppsStore(isActive) {
   // Store startJobPolling in ref for use in installApp/removeApp
   const startJobPollingRef = useRef(startJobPolling);
   startJobPollingRef.current = startJobPolling;
+
+  // Initialize app updates hook
+  const {
+    checkForUpdates,
+    hasUpdate,
+    getAppUpdateStatus,
+    triggerUpdate,
+    isCheckingUpdates,
+    hasCheckedOnce,
+  } = useAppUpdates(isActive, installedApps, setActiveJobs, startJobPollingRef);
 
   /**
    * Fetch current app status
@@ -559,5 +570,13 @@ export function useAppsStore(isActive) {
     fetchCurrentAppStatus,
     startJobPolling, // Expose for useAppHandlers
     invalidateCache: invalidateAppsCache,
+
+    // Update-related
+    checkForUpdates,
+    hasUpdate,
+    getAppUpdateStatus,
+    triggerUpdate,
+    isCheckingUpdates,
+    hasCheckedOnce,
   };
 }

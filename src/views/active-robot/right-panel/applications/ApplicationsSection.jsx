@@ -66,6 +66,10 @@ export default function ApplicationsSection({
     isLoading,
     isStoppingApp,
     error: appsError,
+    hasUpdate,
+    triggerUpdate,
+    isCheckingUpdates,
+    hasCheckedOnce,
   } = useApps(effectiveIsActive, officialOnly);
 
   // Notify parent when loading status changes
@@ -101,6 +105,7 @@ export default function ApplicationsSection({
     startingApp,
     handleInstall,
     handleUninstall,
+    handleUpdate,
     handleStartApp,
     isJobRunning,
     getJobInfo,
@@ -111,6 +116,7 @@ export default function ApplicationsSection({
     removeApp,
     startApp,
     stopCurrentApp,
+    triggerUpdate,
     showToast,
   });
 
@@ -222,6 +228,10 @@ export default function ApplicationsSection({
             isStoppingApp={isStoppingApp}
             handleStartApp={handleStartApp}
             handleUninstall={handleUninstall}
+            handleUpdate={handleUpdate}
+            hasUpdate={hasUpdate}
+            isCheckingUpdates={isCheckingUpdates}
+            hasCheckedOnce={hasCheckedOnce}
             getJobInfo={getJobInfo}
             stopCurrentApp={stopCurrentApp}
             onOpenDiscover={() => openModal('discover')}

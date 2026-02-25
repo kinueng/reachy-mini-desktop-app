@@ -135,7 +135,11 @@ export default function InstallOverlay({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const isInstalling = jobType === 'install';
+  const isInstalling = jobType === 'install' || jobType === 'update';
+  const jobLabel =
+    jobType === 'update' ? 'Update' : jobType === 'install' ? 'Installation' : 'Uninstallation';
+  const jobLabelProgress =
+    jobType === 'update' ? 'Updating' : jobType === 'install' ? 'Installing' : 'Uninstalling';
 
   // ✅ Use persisted data: never lose logs or decrease progress
   const currentLogs =
@@ -291,11 +295,7 @@ export default function InstallOverlay({
                 },
               }}
             >
-              {isNetworkError
-                ? 'Network Issue'
-                : isInstalling
-                  ? 'Installation Failed'
-                  : 'Uninstallation Failed'}
+              {isNetworkError ? 'Network Issue' : `${jobLabel} Failed`}
             </Typography>
             <Typography
               sx={{
@@ -340,7 +340,7 @@ export default function InstallOverlay({
                 textTransform: 'uppercase',
               }}
             >
-              {isInstalling ? 'Installing' : 'Uninstalling'}
+              {jobLabelProgress}
             </Typography>
             <Typography
               sx={{

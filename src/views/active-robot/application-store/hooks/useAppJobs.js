@@ -5,8 +5,12 @@ import { useLogger } from '@utils/logging';
 import { invoke } from '@utils/tauriCompat';
 import { TIMINGS, NETWORK_ERROR_MESSAGE } from './installation/constants';
 
+/** Map job type to human-readable label */
+const jobTypeLabel = type =>
+  type === 'install' ? 'Install' : type === 'update' ? 'Update' : 'Uninstall';
+
 /**
- * Hook for managing app installation/uninstallation jobs
+ * Hook for managing app installation/uninstallation/update jobs
  * Handles polling, status updates, and error handling
  * Uses tauriCompat for web mode support
  */
@@ -132,7 +136,7 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
               // Log to LogConsole
               if (job.appName) {
                 logger.warning(
-                  `${job.type === 'install' ? 'Install' : 'Uninstall'} ${job.appName} timeout - daemon not responsive`
+                  `${jobTypeLabel(job.type)} ${job.appName} timeout - daemon not responsive`
                 );
               }
 
@@ -187,7 +191,8 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
         const isSuccessInLogs =
           logsText.includes('completed successfully') ||
           logsText.includes("job 'install' completed") ||
-          logsText.includes("job 'remove' completed");
+          logsText.includes("job 'remove' completed") ||
+          logsText.includes("job 'update' completed");
         const isFinished =
           jobStatus.status === 'completed' || jobStatus.status === 'failed' || isSuccessInLogs;
 
@@ -208,18 +213,16 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
               console.error('❌ Job failed with logs:', jobStatus.logs);
               const errorSummary = jobStatus.logs?.slice(-2).join(' | ') || 'Unknown error';
               logger.error(
-                `${jobInfo.type === 'install' ? 'Install' : 'Uninstall'} ${jobInfo.appName} failed: ${errorSummary}`
+                `${jobTypeLabel(jobInfo.type)} ${jobInfo.appName} failed: ${errorSummary}`
               );
             } else {
-              logger.success(
-                `${jobInfo.type === 'install' ? 'Install' : 'Uninstall'} ${jobInfo.appName} completed`
-              );
+              logger.success(`${jobTypeLabel(jobInfo.type)} ${jobInfo.appName} completed`);
 
               // ✅ macOS: Re-sign Python binaries after successful installation
               // This fixes Team ID mismatch issues with pip-installed packages
               // The Rust command handles platform detection, so safe to call on all platforms
               // Run asynchronously to avoid blocking the UI (signing can take 10-30s)
-              if (jobInfo.type === 'install') {
+              if (jobInfo.type === 'install' || jobInfo.type === 'update') {
                 // Don't await - let it run in background to avoid UI freeze
                 invoke('sign_python_binaries')
                   .then(result => {

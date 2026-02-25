@@ -14,6 +14,7 @@ export function useAppHandlers({
   removeApp,
   startApp,
   stopCurrentApp,
+  triggerUpdate,
   showToast,
 }) {
   const { robotState, actions, api } = useActiveRobotContext();
@@ -79,6 +80,16 @@ export function useAppHandlers({
       // Note: Job tracking and completion handled by useAppInstallation hook
     } catch (err) {
       handleInstallError(err, appName, 'uninstall');
+    }
+  };
+
+  // Update handler (same pattern as install/uninstall)
+  const handleUpdate = async appName => {
+    try {
+      lockForInstall(appName, 'update');
+      await triggerUpdate(appName);
+    } catch (err) {
+      handleInstallError(err, appName, 'update');
     }
   };
 
@@ -171,10 +182,10 @@ export function useAppHandlers({
     return false;
   };
 
-  // Get job info (status + logs)
+  // Get job info (status + logs). jobType is optional - omit to match any type.
   const getJobInfo = (appName, jobType) => {
     for (const [jobId, job] of activeJobs.entries()) {
-      if (job.appName === appName && job.type === jobType) {
+      if (job.appName === appName && (jobType === undefined || job.type === jobType)) {
         return job;
       }
     }
@@ -187,6 +198,7 @@ export function useAppHandlers({
     startingApp,
     handleInstall,
     handleUninstall,
+    handleUpdate,
     handleStartApp,
     isJobRunning,
     getJobInfo,
