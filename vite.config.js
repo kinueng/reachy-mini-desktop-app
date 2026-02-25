@@ -18,7 +18,7 @@ export default defineConfig({
     watch: {
       // Ignore app venvs to prevent page reloads during app installation
       // (Gradio packages contain tsconfig.json files that trigger Vite reloads)
-      ignored: ['**/src-tauri/target/**', '**/*_venv/**'],
+      ignored: ['**/src-tauri/target/**', '**/*_venv/**', '**/.venv/**', '**/src-tauri/binaries/**'],
     },
   },
   envPrefix: ['VITE_', 'TAURI_'],
