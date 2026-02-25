@@ -45,7 +45,7 @@ pub fn close_window(app: AppHandle, window_label: String) -> Result<(), String> 
         window
             .close()
             .map_err(|e| format!("Failed to close window '{}': {}", window_label, e))?;
-        println!("✅ Window '{}' closed successfully", window_label);
+        log::info!("Window '{}' closed successfully", window_label);
     } else {
         return Err(format!("Window '{}' not found", window_label));
     }

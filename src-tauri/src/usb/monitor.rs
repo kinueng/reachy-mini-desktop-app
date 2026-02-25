@@ -47,7 +47,7 @@ impl UsbMonitorState {
                 });
             }
             Err(e) => {
-                eprintln!("[USB Monitor] Failed to enumerate ports: {}", e);
+                log::error!("[USB Monitor] Failed to enumerate ports: {}", e);
             }
         }
     }
@@ -169,7 +169,7 @@ pub fn start_monitor() -> std::result::Result<(), String> {
                 // Register for device notifications (all device interfaces)
                 // Note: We use a simpler approach without DEV_BROADCAST_DEVICEINTERFACE
                 // since WM_DEVICECHANGE will fire anyway for USB events
-                println!(
+                log::info!(
                     "[USB Monitor] Event-driven monitor started successfully on window {:?}",
                     hwnd
                 );
@@ -178,7 +178,7 @@ pub fn start_monitor() -> std::result::Result<(), String> {
                 if let Ok(mut state) = USB_MONITOR.lock() {
                     state.update();
                     if let Some(port) = &state.reachy_port {
-                        println!("[USB Monitor] Reachy Mini detected at: {}", port);
+                        log::info!("[USB Monitor] Reachy Mini detected at: {}", port);
                     }
                 }
 
@@ -192,7 +192,7 @@ pub fn start_monitor() -> std::result::Result<(), String> {
             })();
 
             if let Err(e) = result {
-                eprintln!("[USB Monitor] Failed to start monitor: {}", e);
+                log::error!("[USB Monitor] Failed to start monitor: {}", e);
             }
         }
     });
@@ -203,7 +203,7 @@ pub fn start_monitor() -> std::result::Result<(), String> {
 #[cfg(not(target_os = "windows"))]
 /// Dummy function for non-Windows platforms
 pub fn start_monitor() -> Result<(), String> {
-    println!(
+    log::info!(
         "[USB Monitor] Event-driven monitoring not available on this platform, using direct checks"
     );
     Ok(())

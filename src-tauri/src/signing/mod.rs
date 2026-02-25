@@ -14,7 +14,7 @@ pub async fn sign_python_binaries() -> Result<String, String> {
 
     // Run the signing work in a blocking thread to avoid blocking the async runtime
     let result = tauri::async_runtime::spawn_blocking(move || {
-        println!("[tauri] 🔐 Starting Python binaries re-signing...");
+        log::info!("[tauri] Starting Python binaries re-signing...");
 
         // 1. Find app bundle path or dev mode path
     let exe_path = env::current_exe()
@@ -61,7 +61,7 @@ pub async fn sign_python_binaries() -> Result<String, String> {
         };
 
         if binaries_venv.exists() {
-            println!("[tauri] 📁 Found .venv at: {}", binaries_venv.display());
+            log::info!("[tauri] Found .venv at: {}", binaries_venv.display());
             binaries_venv
         } else {
             let target_venv = if is_in_src_tauri {
@@ -71,12 +71,12 @@ pub async fn sign_python_binaries() -> Result<String, String> {
             };
 
             if target_venv.exists() {
-                println!("[tauri] 📁 Found .venv at: {}", target_venv.display());
+                log::info!("[tauri] Found .venv at: {}", target_venv.display());
                 target_venv
             } else {
                 // Fallback: try current_dir/.venv
                 let fallback_venv = current_dir.join(".venv");
-                println!("[tauri] 📁 Trying fallback .venv at: {}", fallback_venv.display());
+                log::info!("[tauri] Trying fallback .venv at: {}", fallback_venv.display());
                 fallback_venv
             }
         }
@@ -86,7 +86,7 @@ pub async fn sign_python_binaries() -> Result<String, String> {
         return Err(format!("Python virtual environment (.venv) not found at: {}", venv_dir.display()));
     }
 
-    println!("[tauri] 📁 Using .venv at: {}", venv_dir.display());
+    log::info!("[tauri] Using .venv at: {}", venv_dir.display());
 
     // For signing identity detection, we still need the app bundle in production
     // In dev mode, we'll use adhoc signature
@@ -121,7 +121,7 @@ pub async fn sign_python_binaries() -> Result<String, String> {
                     });
 
                 if let Some(id) = identity {
-                    println!("[tauri] ✅ Detected signing identity: {}", id);
+                    log::info!("[tauri] Detected signing identity: {}", id);
                     id
                 } else {
                     // Fallback: try to get from security find-identity
@@ -147,28 +147,28 @@ pub async fn sign_python_binaries() -> Result<String, String> {
                                 });
 
                             if let Some(id) = dev_id {
-                                println!("[tauri] ✅ Found Developer ID: {}", id);
+                                log::info!("[tauri] Found Developer ID: {}", id);
                                 id
                             } else {
-                                println!("[tauri] ⚠️  No Developer ID found, using adhoc signature");
+                                log::info!("[tauri] No Developer ID found, using adhoc signature");
                                 "-".to_string() // Adhoc signature
                             }
                         }
                         Err(_) => {
-                            println!("[tauri] ⚠️  Failed to detect identity, using adhoc signature");
+                            log::info!("[tauri] Failed to detect identity, using adhoc signature");
                             "-".to_string() // Adhoc signature
                         }
                     }
                 }
             }
             Err(_) => {
-                println!("[tauri] ⚠️  Failed to detect identity from app bundle, using adhoc signature");
+                log::info!("[tauri] Failed to detect identity from app bundle, using adhoc signature");
                 "-".to_string() // Adhoc signature
             }
         }
     } else {
         // Dev mode: use adhoc signature
-        println!("[tauri] 🛠️  Dev mode detected, using adhoc signature");
+        log::info!("[tauri] Dev mode detected, using adhoc signature");
         "-".to_string()
     };
 
@@ -183,10 +183,10 @@ pub async fn sign_python_binaries() -> Result<String, String> {
         if let Some(bundle) = app_bundle {
             let entitlements_path = bundle.join("Contents/Resources/python-entitlements.plist");
             if entitlements_path.exists() {
-                println!("[tauri] 📜 Found python-entitlements.plist at: {}", entitlements_path.display());
+                log::info!("[tauri] Found python-entitlements.plist at: {}", entitlements_path.display());
                 Some(entitlements_path)
             } else {
-                println!("[tauri] ⚠️  python-entitlements.plist not found in Resources");
+                log::info!("[tauri] python-entitlements.plist not found in Resources");
                 None
             }
         } else {
@@ -217,7 +217,7 @@ pub async fn sign_python_binaries() -> Result<String, String> {
     // Apply entitlements to libpython for disable-library-validation
     let libpython_dylib = venv_dir.join("lib/libpython3.12.dylib");
     if libpython_dylib.exists() {
-        println!("[tauri] 🔐 Signing libpython3.12.dylib with entitlements (priority)...");
+        log::info!("[tauri] Signing libpython3.12.dylib with entitlements (priority)...");
         if sign_binary_with_entitlements(&libpython_dylib, &signing_identity, python_entitlements.as_ref())? {
             signed_count += 1;
         } else {
@@ -229,7 +229,7 @@ pub async fn sign_python_binaries() -> Result<String, String> {
     // Apply entitlements to python3 for disable-library-validation
     let python_bin = venv_dir.join("bin/python3");
     if python_bin.exists() {
-        println!("[tauri] 🔐 Signing python3 executable with entitlements...");
+        log::info!("[tauri] Signing python3 executable with entitlements...");
         if sign_binary_with_entitlements(&python_bin, &signing_identity, python_entitlements.as_ref())? {
             signed_count += 1;
         } else {
@@ -240,7 +240,7 @@ pub async fn sign_python_binaries() -> Result<String, String> {
     // Also sign python3.12 if it exists and is different from python3
     let python312_bin = venv_dir.join("bin/python3.12");
     if python312_bin.exists() && python312_bin != python_bin {
-        println!("[tauri] 🔐 Signing python3.12 executable with entitlements...");
+        log::info!("[tauri] Signing python3.12 executable with entitlements...");
         if sign_binary_with_entitlements(&python312_bin, &signing_identity, python_entitlements.as_ref())? {
             signed_count += 1;
         } else {
@@ -289,12 +289,12 @@ pub async fn sign_python_binaries() -> Result<String, String> {
     }
 
         let result_msg = if error_count == 0 {
-            format!("✅ Successfully signed {} Python binaries", signed_count)
+            format!("Successfully signed {} Python binaries", signed_count)
         } else {
-            format!("⚠️  Signed {} binaries, {} failed", signed_count, error_count)
+            format!("Signed {} binaries, {} failed", signed_count, error_count)
         };
 
-        println!("[tauri] {}", result_msg);
+        log::info!("[tauri] {}", result_msg);
         Ok(result_msg)
     })
     .await
@@ -389,8 +389,8 @@ fn sign_binary_with_entitlements(
     if let Some(entitlements) = entitlements_path {
         if entitlements.exists() {
             cmd.arg("--entitlements").arg(entitlements);
-            println!(
-                "[tauri]   📜 Using entitlements: {}",
+            log::info!(
+                "[tauri]   Using entitlements: {}",
                 entitlements.display()
             );
         }
@@ -409,12 +409,12 @@ fn sign_binary_with_entitlements(
     match sign_result {
         Ok(output) => {
             if output.status.success() {
-                println!("[tauri]   ✓ Signed: {}", binary_path.display());
+                log::info!("[tauri]   Signed: {}", binary_path.display());
                 Ok(true)
             } else {
                 let error = String::from_utf8_lossy(&output.stderr);
-                println!(
-                    "[tauri]   ⚠️  Failed to sign {}: {}",
+                log::info!(
+                    "[tauri]   Failed to sign {}: {}",
                     binary_path.display(),
                     error
                 );
@@ -422,8 +422,8 @@ fn sign_binary_with_entitlements(
             }
         }
         Err(e) => {
-            println!(
-                "[tauri]   ⚠️  Error signing {}: {}",
+            log::info!(
+                "[tauri]   Error signing {}: {}",
                 binary_path.display(),
                 e
             );

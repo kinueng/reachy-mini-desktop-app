@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useActiveRobotContext } from '../context';
+import { ROBOT_STATUS } from '../../../constants/robotStatus';
 
 /**
  * Hook to monitor active robot movements and update store status
@@ -17,28 +18,24 @@ export function useRobotMovementStatus(isActive) {
     const moves = Array.isArray(activeMoves) ? activeMoves : [];
 
     if (!isActive) {
-      // Reset to ready if we were busy due to movement
-      if (robotStatus === 'busy' && busyReason === 'moving') {
+      if (robotStatus === ROBOT_STATUS.BUSY && busyReason === 'moving') {
         transitionTo.ready();
       }
       return;
     }
 
-    // Don't interfere with sleeping state - wake/sleep toggle manages its own transitions
-    if (robotStatus === 'sleeping') {
+    if (robotStatus === ROBOT_STATUS.SLEEPING) {
       return;
     }
 
     const hasActiveMoves = moves.length > 0;
 
     if (hasActiveMoves) {
-      // Set to busy with 'moving' reason if not already set
-      if (robotStatus !== 'busy' || busyReason !== 'moving') {
+      if (robotStatus !== ROBOT_STATUS.BUSY || busyReason !== 'moving') {
         transitionTo.busy('moving');
       }
     } else {
-      // Clear busy status if we were busy due to movement
-      if (robotStatus === 'busy' && busyReason === 'moving') {
+      if (robotStatus === ROBOT_STATUS.BUSY && busyReason === 'moving') {
         transitionTo.ready();
       }
     }

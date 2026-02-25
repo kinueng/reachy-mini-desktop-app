@@ -11,6 +11,7 @@ import Scene from './Scene';
 import { useRobotWebSocket } from './hooks';
 import useAppStore from '../../store/useAppStore';
 import { selectIsBusy } from '../../store/slices';
+import { ROBOT_STATUS } from '../../constants/robotStatus';
 import { arraysEqual } from '../../utils/arraysEqual';
 import SettingsOverlay from './SettingsOverlay';
 import { FPSMeter } from '../FPSMeter';
@@ -237,20 +238,19 @@ export default function RobotViewer3D({
     // If robotStatus provided, use state machine (NEW)
     if (robotStatus) {
       switch (robotStatus) {
-        case 'disconnected':
+        case ROBOT_STATUS.DISCONNECTED:
           return { label: 'Offline', color: '#999' };
 
-        case 'ready-to-start':
+        case ROBOT_STATUS.READY_TO_START:
           return { label: 'Ready to Start', color: '#3b82f6' };
 
-        case 'starting':
+        case ROBOT_STATUS.STARTING:
           return { label: 'Starting', color: '#3b82f6', animated: true };
 
-        case 'sleeping':
+        case ROBOT_STATUS.SLEEPING:
           return { label: 'Sleeping', color: '#6b7280' };
 
-        case 'ready':
-          // If motors on → Ready, if off → Standby
+        case ROBOT_STATUS.READY:
           if (isOn === true) {
             return { label: 'Ready', color: '#22c55e' };
           } else if (isOn === false) {
@@ -258,8 +258,7 @@ export default function RobotViewer3D({
           }
           return { label: 'Connected', color: '#3b82f6' };
 
-        case 'busy': {
-          // Specific labels based on reason
+        case ROBOT_STATUS.BUSY: {
           const busyLabels = {
             moving: { label: 'Moving', color: '#a855f7' },
             command: { label: 'Executing', color: '#a855f7' },
@@ -270,10 +269,10 @@ export default function RobotViewer3D({
           return { ...busyInfo, animated: true };
         }
 
-        case 'stopping':
+        case ROBOT_STATUS.STOPPING:
           return { label: 'Stopping', color: '#ef4444', animated: true };
 
-        case 'crashed':
+        case ROBOT_STATUS.CRASHED:
           return { label: 'Crashed', color: '#ef4444' };
 
         default:

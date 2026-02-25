@@ -13,6 +13,7 @@ import { isSimulationMode, disableSimulationMode } from '../../utils/simulationM
 import { findErrorConfig, createErrorFromConfig } from '../../utils/hardwareErrors';
 import { useDaemonEventBus } from './useDaemonEventBus';
 import { handleDaemonError } from '../../utils/daemonErrorHandler';
+import { ROBOT_STATUS } from '../../constants/robotStatus';
 
 export const useDaemon = () => {
   const logger = useLogger();
@@ -29,11 +30,12 @@ export const useDaemon = () => {
     resetAll,
   } = useAppStore();
 
-  // Derived from robotStatus (state machine)
-  // Include 'sleeping' in isActive so window resizes on connection (not just on wake)
-  const isActive = robotStatus === 'sleeping' || robotStatus === 'ready' || robotStatus === 'busy';
-  const isStarting = robotStatus === 'starting';
-  const isStopping = robotStatus === 'stopping';
+  const isActive =
+    robotStatus === ROBOT_STATUS.SLEEPING ||
+    robotStatus === ROBOT_STATUS.READY ||
+    robotStatus === ROBOT_STATUS.BUSY;
+  const isStarting = robotStatus === ROBOT_STATUS.STARTING;
+  const isStopping = robotStatus === ROBOT_STATUS.STOPPING;
 
   const eventBus = useDaemonEventBus();
 
@@ -125,59 +127,56 @@ export const useDaemon = () => {
   }, [setDaemonVersion]);
 
   // Refs to store unlisten functions (avoid race conditions on cleanup)
-  const unlistenTerminatedRef = useRef(null);
+  const unlistenDaemonStatusRef = useRef(null);
   const unlistenStderrRef = useRef(null);
   const unlistenStdoutRef = useRef(null);
   const lastActivityResetRef = useRef(0);
 
-  // Listen to sidecar termination events to detect immediate crashes
+  // Listen to Rust-side daemon-status-changed for instant crash detection
   useEffect(() => {
     let isMounted = true;
 
-    const setupTerminationListener = async () => {
-      // Cleanup previous listener if any
-      if (unlistenTerminatedRef.current) {
-        unlistenTerminatedRef.current();
-        unlistenTerminatedRef.current = null;
+    const setup = async () => {
+      if (unlistenDaemonStatusRef.current) {
+        unlistenDaemonStatusRef.current();
+        unlistenDaemonStatusRef.current = null;
       }
 
       try {
-        const unlisten = await listen('sidecar-terminated', event => {
+        const unlisten = await listen('daemon-status-changed', event => {
           if (!isMounted) return;
-
-          const currentState = useAppStore.getState();
-          if (!currentState.isStarting) {
-            return;
+          const { current } = event.payload || {};
+          if (current === 'Crashed') {
+            const currentState = useAppStore.getState();
+            if (currentState.isStarting) {
+              eventBus.emit('daemon:crash', { status: 'process-terminated' });
+              clearStartupTimeout();
+            } else if (currentState.isActive) {
+              currentState.transitionTo.crashed();
+            }
           }
-
-          const status =
-            typeof event.payload === 'string'
-              ? event.payload
-              : event.payload?.toString() || 'unknown';
-
-          eventBus.emit('daemon:crash', { status });
         });
 
         if (isMounted) {
-          unlistenTerminatedRef.current = unlisten;
+          unlistenDaemonStatusRef.current = unlisten;
         } else {
           unlisten();
         }
       } catch (error) {
-        console.error('[Daemon] Failed to setup termination listener:', error);
+        console.error('[Daemon] Failed to setup daemon-status-changed listener:', error);
       }
     };
 
-    setupTerminationListener();
+    setup();
 
     return () => {
       isMounted = false;
-      if (unlistenTerminatedRef.current) {
-        unlistenTerminatedRef.current();
-        unlistenTerminatedRef.current = null;
+      if (unlistenDaemonStatusRef.current) {
+        unlistenDaemonStatusRef.current();
+        unlistenDaemonStatusRef.current = null;
       }
     };
-  }, [eventBus]);
+  }, [eventBus, clearStartupTimeout]);
 
   // Listen to sidecar stderr events to detect hardware errors
   useEffect(() => {

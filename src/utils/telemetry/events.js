@@ -44,6 +44,10 @@ export const EVENTS = {
   // WiFi Setup
   WIFI_SETUP_STARTED: 'wifi_setup_started',
   WIFI_SETUP_COMPLETED: 'wifi_setup_completed',
+
+  // Crash Reporting
+  APP_CRASH: 'app_crash',
+  APP_CRASH_REPORT: 'app_crash_report',
 };
 
 // ============================================================================
