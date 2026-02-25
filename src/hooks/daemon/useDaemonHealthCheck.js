@@ -59,14 +59,12 @@ export function useDaemonHealthCheck(isActive) {
 
     // Don't poll if daemon is already crashed
     if (isDaemonCrashed) {
-      console.warn('⚠️ Daemon crashed, stopping health check polling');
       return;
     }
 
     // 👁️ Don't poll if window is not visible (prevents false timeouts)
     // This is critical for Windows/Linux where backgroundThrottling is not supported
     if (!isWindowVisible) {
-      console.log('👁️ Health check paused (window not visible)');
       return;
     }
 
@@ -80,9 +78,6 @@ export function useDaemonHealthCheck(isActive) {
     // This can happen if state gets corrupted during rapid mode switching
     const { connectionMode } = useAppStore.getState();
     if (isActive && !connectionMode) {
-      console.error(
-        '🔴 Invalid state detected: isActive=true but connectionMode=null. Triggering crash...'
-      );
       useAppStore.getState().transitionTo.crashed();
       return;
     }
@@ -118,7 +113,6 @@ export function useDaemonHealthCheck(isActive) {
 
           // Check if backend has an error (USB disconnected, serial port error, etc.)
           if (data.backend_status?.error) {
-            console.warn('⚠️ Backend error detected:', data.backend_status.error);
             incrementTimeouts('backend_error');
             eventBus.emit('daemon:health:failure', {
               error: data.backend_status.error,
@@ -133,7 +127,6 @@ export function useDaemonHealthCheck(isActive) {
           }
         } else {
           // Response but not OK → not a timeout, but still increment
-          console.warn('⚠️ Health check responded but not OK:', response.status);
           incrementTimeouts('http_error');
           eventBus.emit('daemon:health:failure', {
             error: `HTTP ${response.status}`,
@@ -166,7 +159,6 @@ export function useDaemonHealthCheck(isActive) {
 
         if (isTimeoutOrNetworkError) {
           const failureType = error.name === 'AbortError' ? 'timeout' : 'network';
-          console.warn(`⚠️ Health check failed (${failureType}), incrementing counter`);
           incrementTimeouts(failureType);
           eventBus.emit('daemon:health:failure', {
             error: error.message || error.name || 'Network error',
@@ -174,7 +166,6 @@ export function useDaemonHealthCheck(isActive) {
           });
         } else {
           // Other error (not network related) - still increment for safety
-          console.warn('⚠️ Health check error:', error.message);
           incrementTimeouts('unknown');
           eventBus.emit('daemon:health:failure', {
             error: error.message,

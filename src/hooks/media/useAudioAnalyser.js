@@ -55,9 +55,7 @@ export default function useAudioAnalyser(audioTrack, options = {}) {
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       try {
         audioContextRef.current.close();
-      } catch (e) {
-        console.warn('[useAudioAnalyser] Error closing AudioContext:', e);
-      }
+      } catch {}
     }
     audioContextRef.current = null;
     analyserRef.current = null;
@@ -82,7 +80,6 @@ export default function useAudioAnalyser(audioTrack, options = {}) {
 
     // Check if track is valid and enabled
     if (audioTrack.readyState !== 'live' || !audioTrack.enabled) {
-      console.warn('[useAudioAnalyser] Audio track not live or disabled');
       return;
     }
 
@@ -159,7 +156,6 @@ export default function useAudioAnalyser(audioTrack, options = {}) {
 
       animationRef.current = requestAnimationFrame(analyze);
     } catch (e) {
-      console.error('[useAudioAnalyser] Error setting up audio analysis:', e);
       cleanup();
     }
 

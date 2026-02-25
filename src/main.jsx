@@ -34,6 +34,7 @@ if (typeof window !== 'undefined' && !window.__TAURI__) {
 import App from './components/App';
 import DevPlayground from './components/DevPlayground';
 import WebApp from './components/WebApp';
+import ErrorBoundary from './components/ErrorBoundary';
 import robotModelCache from './utils/robotModelCache';
 import useAppStore from './store/useAppStore';
 
@@ -215,8 +216,10 @@ console.log(`[Main] Mode: ${isWebMode ? 'WEB' : DEV_MODE ? 'DEV' : 'TAURI'}`);
 // StrictMode double-invokes effects in dev, causing WebSocket/connection issues
 ReactDOM.createRoot(document.getElementById('root')).render(
   <ThemeWrapper>
-    <div style={{ width: '100%', height: '100%' }}>
-      <RootComponent />
-    </div>
+    <ErrorBoundary>
+      <div style={{ width: '100%', height: '100%' }}>
+        <RootComponent />
+      </div>
+    </ErrorBoundary>
   </ThemeWrapper>
 );

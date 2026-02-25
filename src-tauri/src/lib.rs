@@ -43,11 +43,17 @@ fn start_daemon(
     app_handle: tauri::AppHandle,
     state: State<DaemonState>,
     sim_mode: Option<bool>,
+    connection_mode: Option<String>,
 ) -> Result<String, String> {
     let sim_mode = sim_mode.unwrap_or(false);
 
     // Reset external mode flag (handles external → USB reconnect without app restart)
     set_external_mode(false);
+
+    // Track which frontend connection mode initiated this daemon
+    if let Ok(mut mode) = state.connection_mode.lock() {
+        *mode = connection_mode;
+    }
 
     if sim_mode {
         add_log(&state, "Starting simulation mode (mockup-sim)...".to_string());
@@ -87,6 +93,10 @@ fn stop_daemon(
     kill_daemon(&state);
     let _ = transition_and_emit(&state, DaemonStatus::Idle, &app_handle);
 
+    if let Ok(mut mode) = state.connection_mode.lock() {
+        *mode = None;
+    }
+
     add_log(&state, "Daemon stopped".to_string());
     Ok("Daemon stopped successfully".to_string())
 }
@@ -97,9 +107,17 @@ fn set_daemon_external_mode(external: bool) {
 }
 
 #[tauri::command]
-fn get_daemon_status(state: State<DaemonState>) -> String {
+fn get_daemon_status(state: State<DaemonState>) -> serde_json::Value {
     let status = *state.status.lock().expect("daemon status mutex poisoned");
-    format!("{:?}", status)
+    let mode = state
+        .connection_mode
+        .lock()
+        .expect("connection_mode mutex poisoned")
+        .clone();
+    serde_json::json!({
+        "status": format!("{:?}", status),
+        "connectionMode": mode,
+    })
 }
 
 #[tauri::command]
@@ -297,6 +315,7 @@ pub fn run() {
             logs: std::sync::Mutex::new(std::collections::VecDeque::new()),
             status: std::sync::Mutex::new(DaemonStatus::Idle),
             generation: std::sync::Mutex::new(0),
+            connection_mode: std::sync::Mutex::new(None),
         })
         .manage(local_proxy_state)
         .manage(discovery_state)

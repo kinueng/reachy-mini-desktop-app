@@ -43,9 +43,7 @@ async function resizeWindowInstantly(targetWidth, targetHeight) {
     // Center window on screen
 
     await moveWindow(Position.Center);
-  } catch (error) {
-    console.error('❌ Window resize error:', error);
-  }
+  } catch (error) {}
 }
 
 /**
@@ -66,7 +64,6 @@ export function useWindowResize(view) {
 
     const targetSize = sizes[view];
     if (!targetSize) {
-      console.warn(`⚠️ Unknown view: ${view}`);
       return;
     }
 
@@ -78,9 +75,7 @@ export function useWindowResize(view) {
       // Set size immediately
       if (window.__TAURI__) {
         const appWindow = getAppWindow();
-        appWindow
-          .setSize(new LogicalSize(targetSize.width, targetSize.height))
-          .catch(err => console.error('❌ Failed to set initial size:', err));
+        appWindow.setSize(new LogicalSize(targetSize.width, targetSize.height)).catch(() => {});
       }
       return;
     }

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 
-import { useDaemon, useDaemonHealthCheck } from '../hooks/daemon';
+import { useDaemon, useDaemonHealthCheck, useDaemonReconciliation } from '../hooks/daemon';
 import {
   telemetry,
   initTelemetry,
@@ -43,6 +43,9 @@ function App() {
   useEffect(() => {
     setAppStoreInstance(useAppStore);
   }, []);
+
+  // Reconcile JS store with Rust daemon state on mount/HMR
+  useDaemonReconciliation();
 
   const {
     daemonVersion,
@@ -123,7 +126,6 @@ function App() {
   // Note: Toast is shown in ActiveRobotView when processing completes (with accurate status)
   const handleDeepLinkInstall = useCallback(
     appName => {
-      console.log('[App] Deep link install requested for:', appName);
       // Store pending install - ActiveRobotView will pick it up and process it
       setPendingDeepLinkInstall(appName);
     },
@@ -195,12 +197,6 @@ function App() {
             await relaunch();
             // If relaunch succeeds, this code won't execute (app will restart)
           } catch (error) {
-            console.error('[App] ❌ Failed to restart app:', error);
-            console.error('[App] Error details:', {
-              message: error.message,
-              name: error.name,
-              code: error.code,
-            });
             // Reset state so user can try again
             setIsRestarting(false);
             restartStartedRef.current = false;
@@ -281,8 +277,6 @@ function App() {
         const currentWindow = getCurrentWindow();
 
         unlisten = await currentWindow.onCloseRequested(async () => {
-          console.log('[App] Window close requested - cleaning up WiFi daemon');
-
           try {
             const remoteHost = useAppStore.getState().remoteHost;
             if (remoteHost) {
@@ -295,19 +289,14 @@ function App() {
                 method: 'POST',
                 connectTimeout: 2000,
               }).catch(() => {});
-
-              console.log('[App] WiFi daemon stop sent');
             }
           } catch (e) {
             // Ignore errors during cleanup
-            console.warn('[App] WiFi cleanup error:', e.message);
           }
 
           // Don't prevent close - let it proceed
         });
-      } catch (e) {
-        console.warn('[App] Failed to setup close listener:', e.message);
-      }
+      } catch (e) {}
     };
 
     setupCloseListener();

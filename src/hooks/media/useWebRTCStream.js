@@ -53,9 +53,7 @@ export default function useWebRTCStream(robotHost, autoConnect = false) {
     if (sessionRef.current) {
       try {
         sessionRef.current.close();
-      } catch (e) {
-        console.warn('[WebRTC] Error closing session:', e);
-      }
+      } catch {}
       sessionRef.current = null;
     }
 
@@ -72,9 +70,7 @@ export default function useWebRTCStream(robotHost, autoConnect = false) {
         }
         // Note: GstWebRTCAPI doesn't have a close method, but we can close the internal channel
         // by creating a new API instance or just letting it go out of scope
-      } catch (e) {
-        console.warn('[WebRTC] Error cleaning up API:', e);
-      }
+      } catch {}
       apiRef.current = null;
     }
 
@@ -159,7 +155,6 @@ export default function useWebRTCStream(robotHost, autoConnect = false) {
 
           const session = api.createConsumerSession(producer.id);
           if (!session) {
-            console.error('[WebRTC] Failed to create consumer session');
             return;
           }
 
@@ -167,7 +162,6 @@ export default function useWebRTCStream(robotHost, autoConnect = false) {
 
           session.addEventListener('error', e => {
             if (!mountedRef.current) return;
-            console.error('[WebRTC] Session error:', e.message || e);
             setError(e.message || 'Stream error');
             setState(StreamState.ERROR);
           });
@@ -211,7 +205,6 @@ export default function useWebRTCStream(robotHost, autoConnect = false) {
 
       api.registerProducersListener(producersListenerRef.current);
     } catch (e) {
-      console.error('[WebRTC] Connection error:', e);
       setError(e.message);
       setState(StreamState.ERROR);
     }

@@ -86,7 +86,6 @@ export function useActiveMoves(isActive) {
     const connectWebSocket = () => {
       // Check max reconnection attempts
       if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-        console.warn('⚠️ [ActiveMoves] Max reconnection attempts reached');
         return;
       }
 
@@ -129,14 +128,10 @@ export function useActiveMoves(isActive) {
               // Remove completed/failed/cancelled move
               setActiveMoves(prev => prev.filter(m => m.uuid !== data.uuid));
             }
-          } catch (err) {
-            console.warn('[ActiveMoves] Failed to parse WebSocket message:', err);
-          }
+          } catch (err) {}
         };
 
-        ws.onerror = error => {
-          console.warn('[ActiveMoves] WebSocket error:', error);
-        };
+        ws.onerror = () => {};
 
         ws.onclose = () => {
           if (!isMountedRef.current) return;
@@ -157,9 +152,7 @@ export function useActiveMoves(isActive) {
         };
 
         wsRef.current = ws;
-      } catch (err) {
-        console.error('[ActiveMoves] Failed to create WebSocket:', err);
-      }
+      } catch (err) {}
     };
 
     // Connect to WebSocket

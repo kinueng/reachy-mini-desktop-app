@@ -22,7 +22,6 @@ export const useLogs = () => {
       const fetchedLogs = await invoke('get_logs');
       setLogs(fetchedLogs);
     } catch (e) {
-      console.error('Error fetching logs:', e);
     } finally {
       isFetchingLogsRef.current = false;
     }

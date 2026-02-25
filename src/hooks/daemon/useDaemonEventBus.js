@@ -41,9 +41,7 @@ class DaemonEventBus {
     handlers.forEach(handler => {
       try {
         handler(data, logEntry);
-      } catch (error) {
-        console.error(`[DaemonEventBus] Error in handler for ${event}:`, error);
-      }
+      } catch {}
     });
   }
 

@@ -30,11 +30,6 @@ export function useDeepLink({
   // Track if we've already set up the listener
   const listenerSetupRef = useRef(false);
 
-  // Log only on mount
-  useEffect(() => {
-    console.log('[DeepLink] 🎣 Hook mounted');
-  }, []);
-
   // Track if we've already processed initial URLs
   const initialUrlsProcessedRef = useRef(false);
 
@@ -87,8 +82,6 @@ export function useDeepLink({
       return;
     }
 
-    console.log('[DeepLink] 🚀 Setting up deep link listener...');
-
     let unlisten = null;
 
     const setupListener = async () => {
@@ -102,7 +95,6 @@ export function useDeepLink({
           try {
             const initialUrls = await getCurrent();
             if (initialUrls && initialUrls.length > 0) {
-              console.log('[DeepLink] 📥 App launched with URL:', initialUrls[0]);
               // Process after a short delay to ensure app is ready
               setTimeout(() => {
                 handleDeepLink(initialUrls[0]);
@@ -116,15 +108,11 @@ export function useDeepLink({
         // Then set up listener for future deep links
         unlisten = await onOpenUrl(urls => {
           if (!urls || urls.length === 0) return;
-          console.log('[DeepLink] 📥 Received URL:', urls[0]);
           handleDeepLink(urls[0]);
         });
 
         listenerSetupRef.current = true;
-        console.log('[DeepLink] ✅ Listener ready');
-      } catch (err) {
-        console.error('[DeepLink] Failed to setup listener:', err);
-      }
+      } catch (err) {}
     };
 
     /**
@@ -227,8 +215,6 @@ export function useDeepLink({
           return;
         }
 
-        console.log('[DeepLink] 📦 Install request for:', appName);
-
         // Check conditions with specific messages
         if (!isActive) {
           showToast?.('Robot is not connected. Connect first!', 'warning');
@@ -243,10 +229,8 @@ export function useDeepLink({
         }
 
         // All conditions met - trigger install
-        console.log('[DeepLink] ✅ Triggering install for:', appName);
         onInstallRequest?.(appName);
       } catch (err) {
-        console.error('[DeepLink] ❌ Error:', err);
         showToast?.('Failed to process install link', 'error');
       }
     };
