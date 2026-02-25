@@ -400,28 +400,42 @@ pub async fn update_daemon(
     log::info!("[update] Using pip at: {:?}", pip_path);
 
     // 3. Install gstreamer first (from freedesktop GitLab registry)
-    // This must happen before reachy-mini upgrade since it uses a custom index URL
-    // See: https://huggingface.co/docs/reachy_mini/SDK/installation
-    let gstreamer_args = vec![
-        "install",
-        "--upgrade",
-        "--index-url",
-        "https://gitlab.freedesktop.org/api/v4/projects/1340/packages/pypi/simple",
-        "gstreamer==1.28.0",
-    ];
+    // Only on macOS/Windows - no Linux wheels available (Linux uses system GStreamer)
+    #[cfg(not(target_os = "linux"))]
+    {
+        let gstreamer_args = vec![
+            "install",
+            "--upgrade",
+            "--index-url",
+            "https://gitlab.freedesktop.org/api/v4/projects/1340/packages/pypi/simple",
+            "gstreamer==1.28.0",
+        ];
 
-    log::info!("[update] Installing gstreamer: {:?} {:?}", pip_path, gstreamer_args);
+        log::info!(
+            "[update] Installing gstreamer: {:?} {:?}",
+            pip_path,
+            gstreamer_args
+        );
 
-    let gst_output = std::process::Command::new(&pip_path)
-        .args(&gstreamer_args)
-        .output()
-        .map_err(|e| format!("Failed to run pip for gstreamer: {}", e))?;
+        let gst_output = std::process::Command::new(&pip_path)
+            .args(&gstreamer_args)
+            .output()
+            .map_err(|e| format!("Failed to run pip for gstreamer: {}", e))?;
 
-    if !gst_output.status.success() {
-        let gst_stderr = String::from_utf8_lossy(&gst_output.stderr);
-        log::warn!("[update] gstreamer install failed (non-fatal): {}", gst_stderr);
-    } else {
-        log::info!("[update] gstreamer installed successfully");
+        if !gst_output.status.success() {
+            let gst_stderr = String::from_utf8_lossy(&gst_output.stderr);
+            log::warn!(
+                "[update] gstreamer install failed (non-fatal): {}",
+                gst_stderr
+            );
+        } else {
+            log::info!("[update] gstreamer installed successfully");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        log::info!("[update] Skipping gstreamer pip package on Linux (using system GStreamer)");
     }
 
     // 4. Upgrade reachy-mini
