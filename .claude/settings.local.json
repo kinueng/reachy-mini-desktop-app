@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "mcp__ide__getDiagnostics",
-      "Bash(cd /Users/pierrerouanet/Dev/mini/reachy-mini-desktop-app/src-tauri && cargo check 2>&1)"
-    ]
-  }
-}
