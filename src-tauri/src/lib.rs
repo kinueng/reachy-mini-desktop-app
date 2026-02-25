@@ -16,7 +16,8 @@ mod wifi;
 mod window;
 
 use daemon::{
-    add_log, cleanup_system_daemons, kill_daemon, spawn_and_monitor_sidecar, DaemonState,
+    add_log, cleanup_system_daemons, kill_daemon, spawn_and_monitor_sidecar, transition_and_emit,
+    transition_status, DaemonState, DaemonStatus,
 };
 use discovery::DiscoveryState;
 use local_proxy::LocalProxyState;
@@ -38,46 +39,52 @@ fn start_daemon(
 ) -> Result<String, String> {
     let sim_mode = sim_mode.unwrap_or(false);
 
-    // 🎭 Simulation mode: mockup-sim backend (no physics engine needed)
     if sim_mode {
-        add_log(
-            &state,
-            "🎭 Starting simulation mode (mockup-sim)...".to_string(),
-        );
+        add_log(&state, "Starting simulation mode (mockup-sim)...".to_string());
     }
 
-    // 1. ⚡ Aggressive cleanup of all existing daemons (including zombies)
-    let cleanup_msg = if sim_mode {
-        "🧹 Cleaning up existing daemons (simulation mode)..."
-    } else {
-        "🧹 Cleaning up existing daemons..."
-    };
-    add_log(&state, cleanup_msg.to_string());
+    add_log(&state, "Cleaning up existing daemons...".to_string());
     kill_daemon(&state);
 
-    // 2. Spawn embedded daemon sidecar
-    spawn_and_monitor_sidecar(app_handle, &state, sim_mode)?;
+    transition_and_emit(&state, DaemonStatus::Starting, &app_handle).map_err(|e| {
+        add_log(&state, format!("Transition error: {}", e));
+        e
+    })?;
 
-    // 3. Log success
+    if let Err(e) = spawn_and_monitor_sidecar(app_handle.clone(), &state, sim_mode) {
+        let _ = transition_and_emit(&state, DaemonStatus::Crashed, &app_handle);
+        add_log(&state, format!("Spawn failed: {}", e));
+        return Err(e);
+    }
+
+    let _ = transition_and_emit(&state, DaemonStatus::Running, &app_handle);
+
     let success_msg = if sim_mode {
-        "✓ Daemon started in simulation mode (mockup-sim) via embedded sidecar"
+        "Daemon started in simulation mode (mockup-sim)"
     } else {
-        "✓ Daemon started via embedded sidecar"
+        "Daemon started via embedded sidecar"
     };
     add_log(&state, success_msg.to_string());
-
     Ok("Daemon started successfully".to_string())
 }
 
 #[tauri::command]
-fn stop_daemon(state: State<DaemonState>) -> Result<String, String> {
-    // 1. Kill daemon (local process + system)
+fn stop_daemon(
+    app_handle: tauri::AppHandle,
+    state: State<DaemonState>,
+) -> Result<String, String> {
+    let _ = transition_and_emit(&state, DaemonStatus::Stopping, &app_handle);
     kill_daemon(&state);
+    let _ = transition_and_emit(&state, DaemonStatus::Idle, &app_handle);
 
-    // 2. Log stop
-    add_log(&state, "✓ Daemon stopped".to_string());
-
+    add_log(&state, "Daemon stopped".to_string());
     Ok("Daemon stopped successfully".to_string())
+}
+
+#[tauri::command]
+fn get_daemon_status(state: State<DaemonState>) -> String {
+    let status = *state.status.lock().unwrap();
+    format!("{:?}", status)
 }
 
 #[tauri::command]
@@ -168,6 +175,8 @@ pub fn run() {
         .manage(DaemonState {
             process: std::sync::Mutex::new(None),
             logs: std::sync::Mutex::new(std::collections::VecDeque::new()),
+            status: std::sync::Mutex::new(DaemonStatus::Idle),
+            generation: std::sync::Mutex::new(0),
         })
         .manage(local_proxy_state)
         .manage(discovery_state)
@@ -207,6 +216,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             start_daemon,
             stop_daemon,
+            get_daemon_status,
             get_logs,
             usb::check_usb_robot,
             window::apply_transparent_titlebar,
@@ -239,22 +249,18 @@ pub fn run() {
         .on_window_event(|window, event| {
             match event {
                 tauri::WindowEvent::CloseRequested { .. } => {
-                    // Only kill daemon if main window is closing
                     if window.label() == "main" {
-                        println!("🔴 Main window close requested - killing daemon");
+                        println!("[tauri] Main window close requested - killing daemon");
                         let state: tauri::State<DaemonState> = window.state();
+                        let _ = transition_status(&state.status, DaemonStatus::Stopping);
                         kill_daemon(&state);
-                    } else {
-                        println!("🔴 Secondary window close requested: {}", window.label());
+                        let _ = transition_status(&state.status, DaemonStatus::Idle);
                     }
                 }
                 tauri::WindowEvent::Destroyed => {
-                    // Only cleanup if main window is destroyed
                     if window.label() == "main" {
-                        println!("🔴 Main window destroyed - final cleanup");
+                        println!("[tauri] Main window destroyed - final cleanup");
                         cleanup_system_daemons();
-                    } else {
-                        println!("🔴 Secondary window destroyed: {}", window.label());
                     }
                 }
                 _ => {}

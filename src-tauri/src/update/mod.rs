@@ -366,7 +366,7 @@ pub async fn update_daemon(
 
     // 1. Stop the daemon gracefully
     println!("[update] Stopping daemon...");
-    crate::stop_daemon(state.clone())?;
+    crate::stop_daemon(app_handle.clone(), state.clone())?;
 
     // Wait a bit for the daemon to stop completely
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;

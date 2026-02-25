@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { ROBOT_STATUS } from '../../constants/robotStatus';
 
 /**
  * Hook to handle deep links for app installation
@@ -140,7 +141,7 @@ export function useDeepLink({
       } = state;
 
       // Check specific conditions in priority order
-      if (robotStatus === 'sleeping') {
+      if (robotStatus === ROBOT_STATUS.SLEEPING) {
         return 'Robot is asleep. Wake it up first!';
       }
 
@@ -178,7 +179,7 @@ export function useDeepLink({
       }
 
       // Generic busy message as fallback
-      if (robotStatus === 'busy') {
+      if (robotStatus === ROBOT_STATUS.BUSY) {
         return 'Robot is busy. Please wait...';
       }
 

@@ -7,8 +7,9 @@ import {
   createAppsSlice,
   setupSystemPreferenceListener,
 } from './slices';
-import { logReset, logInstallStart, logInstallEnd } from './storeLogger';
+import { logReset } from './storeLogger';
 import { disableSimulationMode } from '../utils/simulationMode';
+import { ROBOT_STATUS, buildDerivedState } from '../constants/robotStatus';
 
 /**
  * ✨ Unified Store with Slices Architecture
@@ -52,14 +53,9 @@ export const useStore = create(
       disableSimulationMode();
 
       set({
-        // Robot state reset (robotStatus is the source of truth)
-        robotStatus: 'disconnected',
+        robotStatus: ROBOT_STATUS.DISCONNECTED,
         busyReason: null,
-        // Derived booleans (kept in sync)
-        isActive: false,
-        isStarting: false,
-        isStopping: false,
-        isDaemonCrashed: false,
+        ...buildDerivedState(ROBOT_STATUS.DISCONNECTED),
         // Connection
         connectionMode: null,
         remoteHost: null,
@@ -131,12 +127,36 @@ export const useStore = create(
     // ============================================
 
     /**
-     * Generic update for backwards compatibility
-     * Accepts any state updates
+     * Generic update for backwards compatibility.
+     * Protected fields (robotStatus and derived booleans) are stripped
+     * to prevent bypassing the state machine. Use transitionTo instead.
      */
-    update: updates => set(updates),
+    update: updates => {
+      const PROTECTED = ['robotStatus', 'isActive', 'isStarting', 'isStopping', 'isDaemonCrashed'];
+      const safe = { ...updates };
+      let stripped = false;
+      for (const key of PROTECTED) {
+        if (key in safe) {
+          delete safe[key];
+          stripped = true;
+        }
+      }
+      if (stripped) {
+        console.warn(
+          '[Store] update() stripped protected fields. Use transitionTo instead.',
+          Object.keys(updates).filter(k => PROTECTED.includes(k))
+        );
+      }
+      if (Object.keys(safe).length > 0) {
+        set(safe);
+      }
+    },
   }))
 );
+
+// Side-effect subscriber for robotStatus transitions (telemetry, logging)
+import { subscribeRobotStatus } from './subscribers/robotStatusSubscriber';
+subscribeRobotStatus(useStore);
 
 // Setup system preference listener for dark mode
 if (typeof window !== 'undefined') {

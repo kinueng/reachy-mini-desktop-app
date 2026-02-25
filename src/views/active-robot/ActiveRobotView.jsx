@@ -32,6 +32,7 @@ import { WebRTCStreamProvider } from '../../contexts/WebRTCStreamContext';
 import { useToast } from '../../hooks/useToast';
 import ConnectionLostIllustration from '../../assets/connection-lost.svg';
 import useAppStore from '../../store/useAppStore';
+import { ROBOT_STATUS } from '../../constants/robotStatus';
 
 function ActiveRobotView({
   isActive,
@@ -237,7 +238,7 @@ function ActiveRobotView({
 
     // Only act when transitioning TO active (arriving on view)
     if (isActive && !wasActive) {
-      if (robotStatus === 'sleeping') {
+      if (robotStatus === ROBOT_STATUS.SLEEPING) {
         // Arriving in sleeping state - no loading needed
         setAppsLoading(false);
         hasLoadedOnceRef.current = true;
@@ -526,15 +527,14 @@ function ActiveRobotView({
               {/* Power Button - top left corner (only enabled when sleeping AND safe to shutdown AND not transitioning) */}
               <PowerButton
                 onStopDaemon={stopDaemon}
-                isSleeping={robotStatus === 'sleeping'}
+                isSleeping={robotStatus === ROBOT_STATUS.SLEEPING}
                 safeToShutdown={safeToShutdown}
                 isWakeSleepTransitioning={isWakeSleepTransitioning}
                 isStopping={isStopping}
                 darkMode={darkMode}
               />
 
-              {/* Sleep Button - only visible when awake (wake button is in RightPanel) */}
-              {robotStatus !== 'sleeping' && <SleepButton darkMode={darkMode} />}
+              {robotStatus !== ROBOT_STATUS.SLEEPING && <SleepButton darkMode={darkMode} />}
             </Box>
 
             {/* Robot Header - Title, version, status, mode */}
@@ -556,7 +556,7 @@ function ActiveRobotView({
                 onMicrophoneMute={handleMicrophoneMute}
                 darkMode={darkMode}
                 disabled={isBusyState}
-                isSleeping={robotStatus === 'sleeping'}
+                isSleeping={robotStatus === ROBOT_STATUS.SLEEPING}
               />
             </Box>
 
