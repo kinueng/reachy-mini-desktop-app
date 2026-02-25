@@ -337,7 +337,12 @@ pub fn lookup_bin_folder(possible_folders: &[&str], bin: &str) -> Option<std::pa
     for abs_path in possible_abs_bin(possible_folders) {
         let candidate = abs_path.join(bin);
         if candidate.exists() {
-            return Some(abs_path);
+            // Verify the folder also contains cpython and .venv — this prevents
+            // matching incomplete folders (e.g. target/debug/ in dev mode where
+            // Tauri copies uv as a resource but glob-based cpython copy fails)
+            if find_cpython_folder(&abs_path).is_ok() && abs_path.join(".venv").exists() {
+                return Some(abs_path);
+            }
         }
     }
     None
