@@ -1,5 +1,6 @@
 {
   "name": "reachy_mini_desktop_app",
+  "description": "Desktop application for controlling and monitoring Reachy Mini robots, built with Tauri and React",
   "private": true,
   "version": "0.9.19",
   "type": "module",
