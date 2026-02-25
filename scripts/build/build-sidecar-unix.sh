@@ -7,11 +7,36 @@ set -e
 
 DST_DIR="src-tauri/binaries"
 
-# Remove old build
+# Remove old build artifacts but preserve installed app venvs (*_venv/)
+# Apps are installed as {app_name}_venv/ alongside .venv in this directory
 if [ -d "$DST_DIR" ]; then
+    TEMP_APPS=$(mktemp -d)
+    # Move app venvs to temp directory
+    FOUND_APPS=false
+    for app_venv in "$DST_DIR"/*_venv; do
+        if [ -d "$app_venv" ]; then
+            echo "💾 Preserving app venv: $(basename "$app_venv")"
+            mv "$app_venv" "$TEMP_APPS/"
+            FOUND_APPS=true
+        fi
+    done
+    
     rm -rf "$DST_DIR"
+    mkdir -p "$DST_DIR"
+    
+    # Restore app venvs
+    if [ "$FOUND_APPS" = true ]; then
+        for app_venv in "$TEMP_APPS"/*_venv; do
+            if [ -d "$app_venv" ]; then
+                echo "♻️  Restoring app venv: $(basename "$app_venv")"
+                mv "$app_venv" "$DST_DIR/"
+            fi
+        done
+    fi
+    rm -rf "$TEMP_APPS"
+else
+    mkdir -p "$DST_DIR"
 fi
-mkdir -p "$DST_DIR"
 
 # Get Rust target triplet
 # Use TARGET_TRIPLET from environment if provided (for cross-compilation in CI)
@@ -40,6 +65,14 @@ echo "📦 Installing sidecar with REACHY_MINI_SOURCE=$REACHY_MINI_SOURCE..."
     --python-version 3.12 \
     --dependencies "reachy-mini" \
     --reachy-mini-source "$REACHY_MINI_SOURCE"
+
+# Install gstreamer from freedesktop GitLab registry
+# Required for media features (camera, audio streaming)
+# See: https://huggingface.co/docs/reachy_mini/SDK/installation
+echo "📦 Installing gstreamer..."
+UV_PYTHON_INSTALL_DIR="../$DST_DIR" UV_WORKING_DIR="../$DST_DIR" "../$DST_DIR/uv" pip install \
+    --upgrade --index-url https://gitlab.freedesktop.org/api/v4/projects/1340/packages/pypi/simple \
+    "gstreamer==1.28.0"
 
 # Build uv-trampoline
 echo "🔨 Building uv-trampoline..."

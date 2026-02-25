@@ -62,6 +62,12 @@ else
     pip install "git+https://github.com/pollen-robotics/reachy_mini.git@$REACHY_MINI_SOURCE"
 fi
 
+# Install gstreamer from freedesktop GitLab registry
+# Required for media features (camera, audio streaming)
+# See: https://huggingface.co/docs/reachy_mini/SDK/installation
+echo "📥 Installing gstreamer..."
+pip install --upgrade --index-url https://gitlab.freedesktop.org/api/v4/projects/1340/packages/pypi/simple "gstreamer==1.28.0"
+
 # Create PyInstaller spec file for better control
 echo "📝 Creating PyInstaller spec file..."
 cat > /tmp/daemon.spec << 'EOF'
@@ -91,6 +97,7 @@ a = Analysis(
         'soundfile',
         'cv2',
         'numpy',
+        'gstreamer',
     ],
     hookspath=[],
     hooksconfig={},

@@ -39,7 +39,9 @@ struct PackageInfo {
 /// Get the path to the local venv SOURCE directory
 /// This is the directory that contains the .venv that uv-trampoline will copy
 /// - In dev: src-tauri/binaries/.venv
-/// - In production: App.app/Contents/Resources/binaries/.venv
+/// - In production (macOS): ~/Library/Application Support/com.pollen-robotics.reachy-mini/.venv
+///   (fallback: App.app/Contents/Resources/.venv)
+/// - In production (Windows): %LOCALAPPDATA%\Reachy Mini Control\.venv
 fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
     #[cfg(target_os = "windows")]
     {
@@ -117,15 +119,26 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
             }
         }
 
-        // In production (macOS app bundle), the executable is in:
-        // App.app/Contents/MacOS/
-        // The resources are in App.app/Contents/Resources/
-        // The venv is in App.app/Contents/Resources/binaries/.venv
         #[cfg(target_os = "macos")]
         {
+            // Priority 1: Application Support (externalized venv, persists across Tauri updates)
+            if let Ok(home) = std::env::var("HOME") {
+                let app_support_dir = PathBuf::from(home)
+                    .join("Library")
+                    .join("Application Support")
+                    .join("com.pollen-robotics.reachy-mini");
+                if app_support_dir.join(".venv").exists() {
+                    log::info!(
+                        "[update] Using Application Support venv: {:?}",
+                        app_support_dir
+                    );
+                    return Ok(app_support_dir);
+                }
+            }
+
+            // Priority 2: App bundle Resources (before externalization or as fallback)
             if let Some(macos_dir) = exe_dir.parent() {
-                // Contents/
-                let resources_dir = macos_dir.join("Resources").join("binaries");
+                let resources_dir = macos_dir.join("Resources");
                 if resources_dir.join(".venv").exists() {
                     log::info!("[update] Using production venv: {:?}", resources_dir);
                     return Ok(resources_dir);
@@ -386,8 +399,32 @@ pub async fn update_daemon(
 
     log::info!("[update] Using pip at: {:?}", pip_path);
 
-    // 3. Build pip command
-    // Note: No [mujoco] extra for desktop app (USB mode only, no simulation)
+    // 3. Install gstreamer first (from freedesktop GitLab registry)
+    // This must happen before reachy-mini upgrade since it uses a custom index URL
+    // See: https://huggingface.co/docs/reachy_mini/SDK/installation
+    let gstreamer_args = vec![
+        "install",
+        "--upgrade",
+        "--index-url",
+        "https://gitlab.freedesktop.org/api/v4/projects/1340/packages/pypi/simple",
+        "gstreamer==1.28.0",
+    ];
+
+    log::info!("[update] Installing gstreamer: {:?} {:?}", pip_path, gstreamer_args);
+
+    let gst_output = std::process::Command::new(&pip_path)
+        .args(&gstreamer_args)
+        .output()
+        .map_err(|e| format!("Failed to run pip for gstreamer: {}", e))?;
+
+    if !gst_output.status.success() {
+        let gst_stderr = String::from_utf8_lossy(&gst_output.stderr);
+        log::warn!("[update] gstreamer install failed (non-fatal): {}", gst_stderr);
+    } else {
+        log::info!("[update] gstreamer installed successfully");
+    }
+
+    // 4. Upgrade reachy-mini
     let mut args = vec!["install", "--upgrade", "reachy-mini"];
     if pre_release {
         args.push("--pre");
@@ -395,13 +432,11 @@ pub async fn update_daemon(
 
     log::info!("[update] Running: {:?} {:?}", pip_path, args);
 
-    // 4. Execute pip install
     let output = std::process::Command::new(&pip_path)
         .args(&args)
         .output()
         .map_err(|e| format!("Failed to run pip: {}", e))?;
 
-    // Log output
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
