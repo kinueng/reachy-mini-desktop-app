@@ -44,11 +44,13 @@ export function useAppUpdates(isActive, installedApps, setActiveJobs, startJobPo
 
         const data = await response.json();
 
-        // data is expected to be an object keyed by app name
+        // Backend returns { apps_with_updates: [ { app_name, update_available, ... } ] }
         const statusMap = new Map();
-        if (data && typeof data === 'object') {
-          for (const [appName, info] of Object.entries(data)) {
-            statusMap.set(appName, info);
+        if (Array.isArray(data?.apps_with_updates)) {
+          for (const app of data.apps_with_updates) {
+            if (app.app_name) {
+              statusMap.set(app.app_name, app);
+            }
           }
         }
 
