@@ -1,14 +1,15 @@
 /// Update module for managing daemon updates
 ///
 /// This module provides functionality to check for and install daemon updates
-/// independently of the Python daemon's update routes. It directly queries PyPI
-/// and manages the local venv using pip.
+/// independently of the Python daemon's update routes. It queries GitHub Releases
+/// for version info and manages the local venv using pip.
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, State};
 
 use crate::daemon::DaemonState;
+
+const GITHUB_REPO: &str = "pollen-robotics/reachy_mini";
 
 // ============================================================================
 // TYPES
@@ -22,14 +23,8 @@ pub struct DaemonUpdateInfo {
 }
 
 #[derive(Debug, Deserialize)]
-struct PyPiResponse {
-    info: PackageInfo,
-    releases: HashMap<String, Vec<serde_json::Value>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PackageInfo {
-    version: String,
+struct GitHubRelease {
+    tag_name: String,
 }
 
 // ============================================================================
@@ -92,16 +87,27 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
         log::info!("[update] Executable directory: {:?}", exe_dir);
 
         // In development, the executable is in target/debug/
-        // The source venv is in src-tauri/binaries/.venv
-        // We need to go up to the reachy_mini_desktop_app root, then into src-tauri/binaries/
+        // Tauri copies resources (uv, cpython, .venv) from binaries/ to target/debug/
+        // The daemon (via uv-trampoline) runs from target/debug/, so we must
+        // update THAT copy for changes to take effect immediately.
         if exe_dir.ends_with("target/debug") || exe_dir.ends_with("target\\debug") {
-            // Dev mode - go to src-tauri/binaries/
+            let target_debug_dir = exe_dir.to_path_buf();
+
+            // Priority 1: target/debug/.venv (Tauri-copied runtime venv, used by uv-trampoline)
+            if target_debug_dir.join(".venv").exists() {
+                log::info!(
+                    "[update] Using target/debug venv (runtime copy): {:?}",
+                    target_debug_dir
+                );
+                return Ok(target_debug_dir);
+            }
+
+            // Priority 2: src-tauri/binaries/.venv (source venv, fallback)
             let src_tauri_dir = exe_dir
-                .parent() // target/
-                .and_then(|p| p.parent()) // reachy_mini_desktop_app/src-tauri/ OR reachy_mini_desktop_app/ depending on structure
+                .parent()
+                .and_then(|p| p.parent())
                 .ok_or_else(|| "Failed to navigate to src-tauri directory".to_string())?;
 
-            // Check if we're already in src-tauri or need to go into it
             let binaries_dir = if src_tauri_dir.ends_with("src-tauri") {
                 src_tauri_dir.join("binaries")
             } else {
@@ -109,14 +115,15 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
             };
 
             if binaries_dir.join(".venv").exists() {
-                log::info!("[update] Using dev venv: {:?}", binaries_dir);
+                log::info!("[update] Using dev binaries venv: {:?}", binaries_dir);
                 return Ok(binaries_dir);
-            } else {
-                return Err(format!(
-                    "Dev venv not found at {:?}",
-                    binaries_dir.join(".venv")
-                ));
             }
+
+            return Err(format!(
+                "Dev venv not found in {:?} or {:?}",
+                target_debug_dir.join(".venv"),
+                binaries_dir.join(".venv")
+            ));
         }
 
         #[cfg(target_os = "macos")]
@@ -167,24 +174,38 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
 
 /// Get the currently installed version of reachy-mini from the local venv
 fn get_local_daemon_version(venv_path: &Path) -> Result<String, String> {
-    // Try to read version from dist-info METADATA file
-    // Path: .venv/lib/python3.12/site-packages/reachy_mini-X.Y.Z.dist-info/METADATA
-
     #[cfg(target_os = "windows")]
     let site_packages = venv_path.join(".venv").join("Lib").join("site-packages");
 
     #[cfg(not(target_os = "windows"))]
-    let site_packages = venv_path
-        .join(".venv")
-        .join("lib")
-        .join("python3.12")
-        .join("site-packages");
+    let site_packages = {
+        // Auto-detect Python version instead of hardcoding python3.12
+        let lib_dir = venv_path.join(".venv").join("lib");
+        if !lib_dir.exists() {
+            return Err(format!("Venv lib dir not found at {:?}", lib_dir));
+        }
+
+        let python_dir = std::fs::read_dir(&lib_dir)
+            .map_err(|e| format!("Failed to read lib dir: {}", e))?
+            .filter_map(|e| e.ok())
+            .find(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("python3")
+            })
+            .ok_or_else(|| format!("No python3.x directory found in {:?}", lib_dir))?;
+
+        log::info!(
+            "[update] Detected Python version dir: {:?}",
+            python_dir.file_name()
+        );
+        python_dir.path().join("site-packages")
+    };
 
     if !site_packages.exists() {
         return Err(format!("Site-packages not found at {:?}", site_packages));
     }
 
-    // Find reachy_mini-*.dist-info directory
     let entries = std::fs::read_dir(&site_packages)
         .map_err(|e| format!("Failed to read site-packages: {}", e))?;
 
@@ -198,7 +219,6 @@ fn get_local_daemon_version(venv_path: &Path) -> Result<String, String> {
                 let content = std::fs::read_to_string(&metadata_path)
                     .map_err(|e| format!("Failed to read METADATA: {}", e))?;
 
-                // Parse METADATA file for "Version: X.Y.Z"
                 for line in content.lines() {
                     if line.starts_with("Version: ") {
                         return Ok(line.replace("Version: ", "").trim().to_string());
@@ -211,54 +231,72 @@ fn get_local_daemon_version(venv_path: &Path) -> Result<String, String> {
     Err("reachy-mini version not found in venv".to_string())
 }
 
-/// Get the latest version available on PyPI
-async fn get_pypi_version(package_name: &str, pre_release: bool) -> Result<String, String> {
-    let url = format!("https://pypi.org/pypi/{}/json", package_name);
+/// Get the latest version available from GitHub Releases.
+///
+/// - Stable: GET /repos/{repo}/releases/latest (excludes pre-releases)
+/// - Pre-release: GET /repos/{repo}/releases?per_page=1 (most recent, any type)
+async fn get_github_version(pre_release: bool) -> Result<String, String> {
+    let url = if pre_release {
+        format!(
+            "https://api.github.com/repos/{}/releases?per_page=1",
+            GITHUB_REPO
+        )
+    } else {
+        format!(
+            "https://api.github.com/repos/{}/releases/latest",
+            GITHUB_REPO
+        )
+    };
 
-    log::info!("[update] Fetching PyPI info from: {}", url);
+    log::info!("[update] Fetching GitHub release from: {}", url);
 
-    let response = reqwest::get(&url)
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("Accept", "application/vnd.github.v3+json")
+        .header("User-Agent", "reachy-mini-desktop-app")
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
         .await
-        .map_err(|e| format!("Failed to fetch PyPI: {}", e))?;
+        .map_err(|e| format!("Failed to fetch GitHub releases: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!("PyPI returned status: {}", response.status()));
+        return Err(format!("GitHub API returned status: {}", response.status()));
     }
 
-    let data: PyPiResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse PyPI JSON: {}", e))?;
+    let tag = if pre_release {
+        let releases: Vec<GitHubRelease> = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse GitHub JSON: {}", e))?;
 
-    if pre_release {
-        // Get all versions and sort them
-        let mut versions: Vec<String> = data.releases.keys().cloned().collect();
-        versions.sort_by(|a, b| compare_semver(a, b));
-
-        if let Some(latest) = versions.last() {
-            log::info!(
-                "[update] Latest version (including pre-release): {}",
-                latest
-            );
-            Ok(latest.clone())
-        } else {
-            Err("No versions found on PyPI".to_string())
-        }
+        releases
+            .first()
+            .ok_or_else(|| "No releases found on GitHub".to_string())?
+            .tag_name
+            .clone()
     } else {
-        // Return the stable version from info
-        log::info!("[update] Latest stable version: {}", data.info.version);
-        Ok(data.info.version)
-    }
+        let release: GitHubRelease = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse GitHub JSON: {}", e))?;
+
+        release.tag_name
+    };
+
+    let version = tag.strip_prefix('v').unwrap_or(&tag).to_string();
+    log::info!("[update] GitHub version: {}", version);
+    Ok(version)
 }
 
-/// Parse a version string, handling PyPI pre-release formats (e.g., "1.2.5rc1" -> "1.2.5-rc.1")
+/// Parse a PEP 440 version string into semver.
+///
+/// Handles: "1.4.0", "1.2.5rc1", "1.3.1.dev0", "1.2.5a1", "1.2.5b2"
 fn parse_version(version_str: &str) -> Result<semver::Version, String> {
-    // First, try standard semver parsing
     if let Ok(ver) = semver::Version::parse(version_str) {
         return Ok(ver);
     }
 
-    // If that fails, try to handle PyPI pre-release format: "1.2.5rc1"
     let parts: Vec<&str> = version_str.split('.').collect();
     if parts.len() < 3 {
         return Err(format!("Invalid version string: {}", version_str));
@@ -268,58 +306,45 @@ fn parse_version(version_str: &str) -> Result<semver::Version, String> {
     let minor = parts[1];
     let patch_part = parts[2];
 
-    // Check for "rc" in patch part
+    // PEP 440 ".devN" suffix: "1.3.1.dev0" -> parts = ["1", "3", "1", "dev0"]
+    if parts.len() >= 4 && parts[3].starts_with("dev") {
+        let dev_num = &parts[3][3..];
+        let clean = format!("{}.{}.{}-dev.{}", major, minor, patch_part, dev_num);
+        return semver::Version::parse(&clean)
+            .map_err(|e| format!("Failed to parse dev version '{}': {}", clean, e));
+    }
+
+    // PEP 440 "rcN" in patch: "1.2.5rc1" -> "1.2.5-rc.1"
     if patch_part.contains("rc") {
         let rc_parts: Vec<&str> = patch_part.split("rc").collect();
         if rc_parts.len() == 2 {
-            let patch = rc_parts[0];
-            let rc_num = rc_parts[1];
-            let clean_version = format!("{}.{}.{}-rc.{}", major, minor, patch, rc_num);
-            return semver::Version::parse(&clean_version).map_err(|e| {
-                format!("Failed to parse cleaned version '{}': {}", clean_version, e)
-            });
+            let clean = format!("{}.{}.{}-rc.{}", major, minor, rc_parts[0], rc_parts[1]);
+            return semver::Version::parse(&clean)
+                .map_err(|e| format!("Failed to parse rc version '{}': {}", clean, e));
         }
     }
 
-    // Check for "a" (alpha) or "b" (beta) in patch part
+    // PEP 440 "aN" (alpha): "1.2.5a1" -> "1.2.5-alpha.1"
     if patch_part.contains('a') {
-        let parts: Vec<&str> = patch_part.split('a').collect();
-        if parts.len() == 2 {
-            let patch = parts[0];
-            let alpha_num = parts[1];
-            let clean_version = format!("{}.{}.{}-alpha.{}", major, minor, patch, alpha_num);
-            return semver::Version::parse(&clean_version).map_err(|e| {
-                format!("Failed to parse cleaned version '{}': {}", clean_version, e)
-            });
+        let a_parts: Vec<&str> = patch_part.split('a').collect();
+        if a_parts.len() == 2 {
+            let clean = format!("{}.{}.{}-alpha.{}", major, minor, a_parts[0], a_parts[1]);
+            return semver::Version::parse(&clean)
+                .map_err(|e| format!("Failed to parse alpha version '{}': {}", clean, e));
         }
     }
 
+    // PEP 440 "bN" (beta): "1.2.5b2" -> "1.2.5-beta.2"
     if patch_part.contains('b') {
-        let parts: Vec<&str> = patch_part.split('b').collect();
-        if parts.len() == 2 {
-            let patch = parts[0];
-            let beta_num = parts[1];
-            let clean_version = format!("{}.{}.{}-beta.{}", major, minor, patch, beta_num);
-            return semver::Version::parse(&clean_version).map_err(|e| {
-                format!("Failed to parse cleaned version '{}': {}", clean_version, e)
-            });
+        let b_parts: Vec<&str> = patch_part.split('b').collect();
+        if b_parts.len() == 2 {
+            let clean = format!("{}.{}.{}-beta.{}", major, minor, b_parts[0], b_parts[1]);
+            return semver::Version::parse(&clean)
+                .map_err(|e| format!("Failed to parse beta version '{}': {}", clean, e));
         }
     }
 
     Err(format!("Could not parse version: {}", version_str))
-}
-
-/// Compare two semver version strings
-/// Returns Ordering (Less, Equal, Greater)
-fn compare_semver(a: &str, b: &str) -> std::cmp::Ordering {
-    // Try to parse both versions with our custom parser
-    match (parse_version(a), parse_version(b)) {
-        (Ok(va), Ok(vb)) => va.cmp(&vb),
-        _ => {
-            // Fallback to string comparison if parsing fails
-            a.cmp(b)
-        }
-    }
 }
 
 /// Check if a new version is available
@@ -350,8 +375,8 @@ pub async fn check_daemon_update(
     let current_version = get_local_daemon_version(&venv_path)?;
     log::info!("[update] Current version: {}", current_version);
 
-    // 2. Get PyPI version
-    let available_version = get_pypi_version("reachy-mini", pre_release).await?;
+    // 2. Get latest version from GitHub Releases
+    let available_version = get_github_version(pre_release).await?;
     log::info!("[update] Available version: {}", available_version);
 
     // 3. Compare versions
