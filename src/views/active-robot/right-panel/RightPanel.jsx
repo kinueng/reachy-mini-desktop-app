@@ -4,6 +4,7 @@ import WbSunnyOutlinedIcon from '@mui/icons-material/WbSunnyOutlined';
 import PulseButton from '@components/PulseButton';
 import { ApplicationsSection } from './applications';
 import ControlButtons from './ControlButtons';
+import HfLoginBanner from './applications/HfLoginBanner';
 import { ControllerSection } from './controller';
 import ExpressionsSection from './expressions';
 import { useActiveRobotContext } from '../context';
@@ -118,6 +119,9 @@ export default function RightPanel({
           transition: 'opacity 0.2s ease-out',
         }}
       />
+
+      {/* HuggingFace login banner - always visible regardless of sleep state */}
+      <HfLoginBanner darkMode={darkMode} />
 
       {/* Conditional rendering based on rightPanelView and sleeping state */}
       {isSleeping ? (
