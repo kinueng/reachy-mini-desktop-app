@@ -251,6 +251,9 @@ export default function FindingRobotView() {
   useEffect(() => {
     if (isBusy) return;
 
+    // Reset immediately so stale state from a previous session doesn't linger
+    setExternalDaemonAvailable(false);
+
     const checkExternalDaemon = async () => {
       try {
         const response = await fetchWithTimeout(

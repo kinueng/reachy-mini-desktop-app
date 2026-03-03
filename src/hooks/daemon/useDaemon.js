@@ -474,6 +474,13 @@ export const useDaemon = () => {
         // Continue with reset
       }
 
+      // Clear the local proxy so discovery doesn't detect a stale forwarded daemon
+      try {
+        await invoke('clear_local_proxy_target');
+      } catch (e) {
+        // Continue with reset
+      }
+
       setTimeout(() => {
         resetAll();
       }, DAEMON_CONFIG.ANIMATIONS.STOP_DAEMON_DELAY);
