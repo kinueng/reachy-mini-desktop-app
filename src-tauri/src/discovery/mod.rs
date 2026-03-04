@@ -228,6 +228,11 @@ async fn discover_via_mdns(timeout: Duration) -> Result<Vec<RobotInfo>, String> 
         }
     }
 
+    // Explicitly shut down the daemon so background threads are cleaned up
+    // before the next discovery cycle. Without this, subsequent calls see
+    // "sending on a closed channel" errors from stale receivers.
+    let _ = mdns.shutdown();
+
     log::info!(
         "[discovery] mDNS discovery finished ({} robots found)",
         robots.len()

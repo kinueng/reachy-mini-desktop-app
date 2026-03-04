@@ -1,13 +1,16 @@
 import { useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import useAppStore from '../../store/useAppStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useLogger } from '../../utils/logging';
 
 // Global ref to prevent overlapping log fetches across re-renders
 const isFetchingLogsRef = { current: false };
 
 export const useLogs = () => {
-  const { logs, setLogs } = useAppStore();
+  const { logs, setLogs } = useAppStore(
+    useShallow(state => ({ logs: state.logs, setLogs: state.setLogs }))
+  );
   const logger = useLogger();
 
   const fetchLogs = useCallback(async () => {

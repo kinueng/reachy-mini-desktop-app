@@ -19,7 +19,6 @@ import {
   SettingsCacheCard,
   ChangeWifiOverlay,
 } from './settings';
-import { useWakeSleep } from '../../views/active-robot/hooks';
 
 /**
  * Settings Overlay for 3D Viewer Configuration
@@ -29,8 +28,27 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
     useAppStore();
   const isWifiMode = connectionMode === 'wifi';
 
-  // Wake/Sleep controls - used to put robot to sleep before update
-  const { goToSleep, isSleeping } = useWakeSleep();
+  // Helper to safely park the robot (sleep + disable motors) before update
+  const safelyParkRobot = async () => {
+    try {
+      await fetchWithTimeout(
+        buildApiUrl('/api/move/play/goto_sleep'),
+        { method: 'POST' },
+        DAEMON_CONFIG.TIMEOUTS.COMMAND,
+        { label: 'Goto sleep before update', silent: true }
+      );
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      await fetchWithTimeout(
+        buildApiUrl('/api/motors/set_mode/disabled'),
+        { method: 'POST' },
+        DAEMON_CONFIG.TIMEOUTS.COMMAND,
+        { label: 'Disable motors before update', silent: true }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   // Text colors
   const textPrimary = darkMode ? '#f5f5f5' : '#333';
@@ -250,14 +268,10 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
     setIsUpdating(true);
 
     try {
-      // 🛡️ Put robot to sleep before update if not already sleeping
-      // This ensures motors are disabled and robot is in safe position
-      if (!isSleeping) {
-        const sleepSuccess = await goToSleep();
-        if (!sleepSuccess) {
-          console.warn('⚠️ Failed to put robot to sleep, continuing with update anyway');
-        } else {
-        }
+      // Park the robot safely before update (sleep animation + disable motors)
+      const parkSuccess = await safelyParkRobot();
+      if (!parkSuccess) {
+        console.warn('[Update] Failed to park robot, continuing with update anyway');
       }
 
       if (isWifiMode) {
@@ -325,7 +339,7 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
 
       setIsUpdating(false);
     }
-  }, [isWifiMode, preRelease, showToast, isSleeping, goToSleep, connectUpdateWebSocket]);
+  }, [isWifiMode, preRelease, showToast, safelyParkRobot, connectUpdateWebSocket]);
 
   // ═══════════════════════════════════════════════════════════════════
   // WIFI FUNCTIONS
@@ -1240,13 +1254,16 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
 
             {/* Logs Container */}
             <Box
+              ref={el => {
+                if (el) el.scrollTop = el.scrollHeight;
+              }}
               sx={{
                 mb: 3,
                 p: 2,
                 borderRadius: '12px',
                 bgcolor: darkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.05)',
                 border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
-                maxHeight: 300,
+                height: 220,
                 overflowY: 'auto',
                 fontFamily: 'monospace',
                 fontSize: 12,

@@ -95,46 +95,48 @@ export function useAppHandlers({
 
   const handleStartApp = async appName => {
     try {
-      // ✅ Check if robot is busy (quick action in progress)
       if (isCommandRunning) {
         showToast('Please wait for the current action to finish', 'warning');
-        console.warn(`⚠️ Cannot start ${appName}: quick action is running`);
         return;
       }
 
-      // Check if another app is already running
-      if (currentApp && currentApp.info && currentApp.info.name !== appName) {
+      // Only prompt to stop if the current app is truly active (running/starting)
+      const isCurrentAppActive =
+        currentApp &&
+        currentApp.info &&
+        currentApp.info.name !== appName &&
+        (currentApp.state === 'running' || currentApp.state === 'starting');
+
+      if (isCurrentAppActive) {
         const shouldStop = window.confirm(
           `${currentApp.info.name} is currently running. Stop it and launch ${appName}?`
         );
         if (!shouldStop) return;
 
-        // Stop the current app
         await stopCurrentApp();
-        unlockApp(); // Unlock
-        // Wait a bit for the app to stop
+        unlockApp();
         await new Promise(resolve =>
           setTimeout(resolve, DAEMON_CONFIG.APP_INSTALLATION.HANDLER_DELAY)
         );
+      } else if (currentApp && currentApp.info) {
+        // App is in error/done/stopping state — just clear the stale state
+        unlockApp();
       }
 
       setStartingApp(appName);
-      waitingForPollingRef.current = true; // ✅ Mark that we're waiting for polling
+      waitingForPollingRef.current = true;
 
       const result = await startApp(appName);
 
-      // ✅ Lock to prevent quick actions
       lockForApp(appName);
-
-      // ✅ DON'T clear startingApp here - let the effect do it when polling confirms
-      // The effect will clear startingApp when currentApp.state becomes 'starting' or 'running'
-      // This prevents the spinner from flickering
     } catch (err) {
-      console.error(`❌ Failed to start ${appName}:`, err);
+      console.error(`Failed to start ${appName}:`, err);
       setStartingApp(null);
       waitingForPollingRef.current = false;
-      unlockApp(); // Ensure unlock on error
-      alert(`Failed to start app: ${err.message}`);
+      unlockApp();
+      if (showToast) {
+        showToast(`Failed to start ${appName}: ${err.message}`, 'error');
+      }
     }
   };
 

@@ -21,7 +21,7 @@ import { ViewportSwapper } from './layout';
 import LogConsole from '@components/LogConsole';
 import { RightPanel } from './right-panel';
 import RobotHeader from './RobotHeader';
-import { PowerButton, SleepButton } from './controls';
+import { PowerButton } from './controls';
 import AudioControls from './audio/AudioControls';
 import { useRobotPowerState, useRobotMovementStatus } from './hooks';
 import { useAudioControls } from './audio/hooks';
@@ -32,7 +32,7 @@ import { WebRTCStreamProvider } from '../../contexts/WebRTCStreamContext';
 import { useToast } from '../../hooks/useToast';
 import ConnectionLostIllustration from '../../assets/connection-lost.svg';
 import useAppStore from '../../store/useAppStore';
-import { ROBOT_STATUS } from '../../constants/robotStatus';
+import { useShallow } from 'zustand/react/shallow';
 
 function ActiveRobotView({
   isActive,
@@ -57,9 +57,7 @@ function ActiveRobotView({
     busyReason,
     currentAppName,
     isAppRunning,
-    safeToShutdown,
-    isWakeSleepTransitioning,
-    robotStateFull, // ✅ For checking if robot position is ready
+    robotStateFull,
   } = robotState;
 
   // Extract actions from context
@@ -96,7 +94,12 @@ function ActiveRobotView({
   });
 
   // ✅ Deep link pending install - processed from root App.jsx
-  const { pendingDeepLinkInstall, clearPendingDeepLinkInstall } = useAppStore();
+  const { pendingDeepLinkInstall, clearPendingDeepLinkInstall } = useAppStore(
+    useShallow(state => ({
+      pendingDeepLinkInstall: state.pendingDeepLinkInstall,
+      clearPendingDeepLinkInstall: state.clearPendingDeepLinkInstall,
+    }))
+  );
 
   // Process pending deep link install when it's set
   useEffect(() => {
@@ -104,7 +107,6 @@ function ActiveRobotView({
 
     const processDeepLinkInstall = async () => {
       const appName = pendingDeepLinkInstall;
-      console.log('[ActiveRobotView] Processing pending deep link install:', appName);
 
       // Clear immediately to avoid re-processing
       clearPendingDeepLinkInstall();
@@ -115,8 +117,6 @@ function ActiveRobotView({
       );
 
       if (!app) {
-        console.log('[ActiveRobotView] App not found, refreshing list...');
-
         // Check network status before fetching
         if (!navigator.onLine) {
           showToast?.('No internet connection. Cannot fetch app list.', 'error');
@@ -154,8 +154,6 @@ function ActiveRobotView({
         return;
       }
 
-      // Trigger installation
-      console.log('[ActiveRobotView] Starting installation via deep link:', app.name);
       showToast?.(`Starting installation of ${app.name}...`, 'success');
       handleInstall(app);
     };
@@ -188,34 +186,38 @@ function ActiveRobotView({
     handleMicrophoneMute,
   } = useAudioControls(isActive);
 
-  // ✅ Apps loading state (for internal UI if needed)
-  // Only show "Preparing robot..." overlay on FIRST load, not on refreshes
-  const [appsLoading, setAppsLoading] = useState(true);
-  const hasLoadedOnceRef = useRef(false);
+  // Apps and robot position are pre-loaded during HardwareScanView + wake-up sequence.
+  // The "Preparing robot..." overlay only shows if position data isn't ready yet.
+  const hasHeadJoints =
+    robotStateFull?.data?.head_joints &&
+    Array.isArray(robotStateFull.data.head_joints) &&
+    robotStateFull.data.head_joints.length === 7;
+  const hasPassiveJoints =
+    robotStateFull?.data?.passive_joints &&
+    Array.isArray(robotStateFull.data.passive_joints) &&
+    robotStateFull.data.passive_joints.length === 21;
 
-  // ✅ Check if robot has received its first position data
-  // robotStateFull is pre-populated in HardwareScanView (including passive_joints via WASM)
-  // so this should be true immediately on mount
-  const robotPositionReady = useMemo(() => {
-    return (
-      robotStateFull?.data?.head_joints &&
-      Array.isArray(robotStateFull.data.head_joints) &&
-      robotStateFull.data.head_joints.length === 7 &&
-      // 🎯 Also require passive_joints (calculated via WASM in HardwareScanView)
-      robotStateFull?.data?.passive_joints &&
-      Array.isArray(robotStateFull.data.passive_joints) &&
-      robotStateFull.data.passive_joints.length === 21
-    );
-  }, [robotStateFull]);
+  // Fallback: if head_joints are present but passive_joints are missing for >2s,
+  // proceed anyway — the 3D viewer calculates them independently via WASM.
+  const [passiveJointsGracePeriodExpired, setPassiveJointsGracePeriodExpired] = useState(false);
+  useEffect(() => {
+    if (hasPassiveJoints || !hasHeadJoints) {
+      setPassiveJointsGracePeriodExpired(false);
+      return;
+    }
+    const timer = setTimeout(() => setPassiveJointsGracePeriodExpired(true), 2000);
+    return () => clearTimeout(timer);
+  }, [hasHeadJoints, hasPassiveJoints]);
 
-  // ✅ Combined ready state: apps loaded AND robot position ready (including passive_joints)
+  const robotPositionReady = hasHeadJoints && (hasPassiveJoints || passiveJointsGracePeriodExpired);
+
+  const [appsLoading, setAppsLoading] = useState(false);
+  const hasLoadedOnceRef = useRef(true);
+
   const isFullyReady = !appsLoading && robotPositionReady;
 
-  // ✅ Callback to receive apps loading state from RightPanel
-  // Only set loading=true if we haven't loaded once yet (prevents overlay flash on refresh)
   const handleAppsLoadingChange = useCallback(loading => {
     if (loading && hasLoadedOnceRef.current) {
-      // Already loaded once, don't show overlay for refreshes
       return;
     }
     if (!loading) {
@@ -223,28 +225,6 @@ function ActiveRobotView({
     }
     setAppsLoading(loading);
   }, []);
-
-  // ✅ Reset state when ARRIVING on view (not on wake/sleep transitions)
-  // Track previous isActive to detect transitions
-  const prevIsActiveRef = useRef(false);
-  useEffect(() => {
-    const wasActive = prevIsActiveRef.current;
-    prevIsActiveRef.current = isActive;
-
-    // Only act when transitioning TO active (arriving on view)
-    if (isActive && !wasActive) {
-      if (robotStatus === ROBOT_STATUS.SLEEPING) {
-        // Arriving in sleeping state - no loading needed
-        setAppsLoading(false);
-        hasLoadedOnceRef.current = true;
-      } else {
-        // Arriving in awake state - show loading until apps ready
-        setAppsLoading(true);
-        hasLoadedOnceRef.current = false;
-      }
-    }
-    // Don't react to robotStatus changes while already active
-  }, [isActive, robotStatus]);
 
   // Wrapper for Quick Actions with toast and visual effects
   const handleQuickAction = useCallback(
@@ -286,13 +266,6 @@ function ActiveRobotView({
   // Quick Actions: Curated mix of emotions, dances, and actions (no redundancy)
   const quickActions = QUICK_ACTIONS;
 
-  // Detect crash and log (no toast, we have the overlay)
-  useEffect(() => {
-    if (isDaemonCrashed) {
-      console.error('💥 DAEMON CRASHED - Fast detection after 3 timeouts (6s)');
-    }
-  }, [isDaemonCrashed]);
-
   // Handler to restart daemon after crash
   const handleRestartDaemon = useCallback(async () => {
     resetTimeouts();
@@ -304,8 +277,7 @@ function ActiveRobotView({
       setTimeout(() => {
         window.location.reload();
       }, 2000);
-    } catch (err) {
-      console.error('Failed to restart:', err);
+    } catch {
       window.location.reload();
     }
   }, [resetTimeouts, update, stopDaemon]);
@@ -519,17 +491,13 @@ function ActiveRobotView({
                 viewCamera={<CameraFeed width={640} height={480} isLarge={true} />}
               />
 
-              {/* Power Button - top left corner (only enabled when sleeping AND safe to shutdown AND not transitioning) */}
+              {/* Power Button - top left corner (sleep + disable motors + kill daemon) */}
               <PowerButton
                 onStopDaemon={stopDaemon}
-                isSleeping={robotStatus === ROBOT_STATUS.SLEEPING}
-                safeToShutdown={safeToShutdown}
-                isWakeSleepTransitioning={isWakeSleepTransitioning}
                 isStopping={isStopping}
+                isBusy={isBusyState}
                 darkMode={darkMode}
               />
-
-              {robotStatus !== ROBOT_STATUS.SLEEPING && <SleepButton darkMode={darkMode} />}
             </Box>
 
             {/* Robot Header - Title, version, status, mode */}
@@ -551,7 +519,7 @@ function ActiveRobotView({
                 onMicrophoneMute={handleMicrophoneMute}
                 darkMode={darkMode}
                 disabled={isBusyState}
-                isSleeping={robotStatus === ROBOT_STATUS.SLEEPING}
+                isSleeping={false}
               />
             </Box>
 

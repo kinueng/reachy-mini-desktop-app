@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Box, Typography, Tooltip } from '@mui/material';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Box, Typography, Tooltip, IconButton, Avatar } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { useActiveRobotContext } from '../../context';
 import {
   useApps,
@@ -27,6 +28,8 @@ export default function ApplicationsSection({
   isActive = false,
   isBusy = false,
   darkMode = false,
+  hfUser = null, // { username, avatarUrl }
+  onLogout = null,
 }) {
   const { robotState, actions } = useActiveRobotContext();
 
@@ -83,6 +86,23 @@ export default function ApplicationsSection({
   useEffect(() => {
     setSelectedCategory(null);
   }, [officialOnly]);
+
+  // Show toast when an app crashes
+  const lastCrashToastRef = useRef(null);
+  useEffect(() => {
+    if (
+      currentApp?.state === 'error' &&
+      currentApp?.info?.name &&
+      showToast &&
+      lastCrashToastRef.current !== currentApp.info.name
+    ) {
+      lastCrashToastRef.current = currentApp.info.name;
+      const firstLine = currentApp.error?.split('\n')[0] || 'unknown error';
+      showToast(`${currentApp.info.name} crashed: ${firstLine}`, 'error');
+    } else if (!currentApp || currentApp.state !== 'error') {
+      lastCrashToastRef.current = null;
+    }
+  }, [currentApp, showToast]);
 
   // Installation lifecycle hook
   useAppInstallation({
@@ -199,6 +219,79 @@ export default function ApplicationsSection({
                   }}
                 />
               </Tooltip>
+
+              {/* HF User Badge — pushed to the right */}
+              {hfUser && (
+                <Box
+                  sx={{
+                    ml: 'auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.75,
+                    py: 0.25,
+                    pl: 0.75,
+                    pr: 0.25,
+                    borderRadius: '20px',
+                    bgcolor: effectiveDarkMode
+                      ? 'rgba(255, 255, 255, 0.04)'
+                      : 'rgba(0, 0, 0, 0.03)',
+                    border: `1px solid ${effectiveDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'}`,
+                    transition: 'background 0.15s ease',
+                    '&:hover': {
+                      bgcolor: effectiveDarkMode
+                        ? 'rgba(255, 255, 255, 0.07)'
+                        : 'rgba(0, 0, 0, 0.05)',
+                    },
+                  }}
+                >
+                  <Avatar
+                    src={hfUser.avatarUrl}
+                    alt={hfUser.username}
+                    sx={{
+                      width: 20,
+                      height: 20,
+                      fontSize: 11,
+                      bgcolor: effectiveDarkMode ? '#444' : '#ddd',
+                    }}
+                  >
+                    {hfUser.username?.[0]?.toUpperCase() || '?'}
+                  </Avatar>
+                  <Typography
+                    sx={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: effectiveDarkMode ? '#ccc' : '#555',
+                      maxWidth: 90,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {hfUser.username}
+                  </Typography>
+                  {onLogout && (
+                    <Tooltip title="Sign out" arrow placement="top">
+                      <IconButton
+                        size="small"
+                        onClick={onLogout}
+                        sx={{
+                          width: 20,
+                          height: 20,
+                          color: effectiveDarkMode ? '#666' : '#aaa',
+                          '&:hover': {
+                            color: effectiveDarkMode ? '#bbb' : '#666',
+                            bgcolor: effectiveDarkMode
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(0, 0, 0, 0.06)',
+                          },
+                        }}
+                      >
+                        <LogoutIcon sx={{ fontSize: 13 }} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Box>
+              )}
             </Box>
             <Typography
               sx={{

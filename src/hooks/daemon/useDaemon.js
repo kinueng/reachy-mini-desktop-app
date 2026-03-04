@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import useAppStore from '../../store/useAppStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useLogger } from '../../utils/logging';
 import {
   DAEMON_CONFIG,
@@ -13,6 +14,7 @@ import { isSimulationMode, disableSimulationMode } from '../../utils/simulationM
 import { findErrorConfig, createErrorFromConfig } from '../../utils/hardwareErrors';
 import { useDaemonEventBus } from './useDaemonEventBus';
 import { handleDaemonError } from '../../utils/daemonErrorHandler';
+import { closeAllAppWindows } from '../../utils/windowManager';
 
 export const useDaemon = () => {
   const logger = useLogger();
@@ -22,7 +24,6 @@ export const useDaemon = () => {
     isStarting,
     isStopping,
     startupError,
-    // Note: connectionMode is read via getState() inside callbacks for fresh value
     transitionTo,
     setDaemonVersion,
     setStartupError,
@@ -30,7 +31,22 @@ export const useDaemon = () => {
     setStartupTimeout,
     clearStartupTimeout,
     resetAll,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow(state => ({
+      robotStatus: state.robotStatus,
+      isActive: state.isActive,
+      isStarting: state.isStarting,
+      isStopping: state.isStopping,
+      startupError: state.startupError,
+      transitionTo: state.transitionTo,
+      setDaemonVersion: state.setDaemonVersion,
+      setStartupError: state.setStartupError,
+      setHardwareError: state.setHardwareError,
+      setStartupTimeout: state.setStartupTimeout,
+      clearStartupTimeout: state.clearStartupTimeout,
+      resetAll: state.resetAll,
+    }))
+  );
 
   const eventBus = useDaemonEventBus();
 
@@ -294,7 +310,7 @@ export const useDaemon = () => {
   const startDaemon = useCallback(async () => {
     const currentConnectionMode = useAppStore.getState().connectionMode;
 
-    // External mode: daemon is already running externally, just verify it's alive
+    // External mode: daemon is already running externally, verify it's alive and initialize if needed
     if (currentConnectionMode === 'external') {
       eventBus.emit('daemon:start:attempt');
 
@@ -312,6 +328,27 @@ export const useDaemon = () => {
 
         if (!statusResponse.ok) {
           throw new Error(`External daemon status check failed: ${statusResponse.status}`);
+        }
+
+        const statusData = await statusResponse.json();
+
+        // Start daemon if it's in a non-active state (same logic as WiFi mode)
+        if (
+          statusData.state === 'not_initialized' ||
+          statusData.state === 'starting' ||
+          statusData.state === 'stopped' ||
+          statusData.state === 'stopping'
+        ) {
+          try {
+            await fetchWithTimeout(
+              buildApiUrl('/api/daemon/start?wake_up=false'),
+              { method: 'POST' },
+              DAEMON_CONFIG.TIMEOUTS.STARTUP_CHECK * 2,
+              { label: 'External daemon start' }
+            );
+          } catch (e) {
+            // Request sent, response may be delayed
+          }
         }
 
         eventBus.emit('daemon:start:success', { existing: true, external: true });
@@ -428,6 +465,41 @@ export const useDaemon = () => {
     }
   }, [eventBus, setStartupTimeout, resetAll]);
 
+  /**
+   * Graceful shutdown: goto_sleep animation → disable motors → kill daemon
+   */
+  const performGracefulShutdown = useCallback(async () => {
+    try {
+      const sleepResponse = await fetchWithTimeout(
+        buildApiUrl('/api/move/play/goto_sleep'),
+        { method: 'POST' },
+        DAEMON_CONFIG.TIMEOUTS.COMMAND,
+        { label: 'Goto sleep animation', silent: true }
+      );
+      const sleepData = await sleepResponse.json();
+      const moveUuid = sleepData?.uuid;
+
+      // Wait for the sleep animation to finish (fixed timeout fallback)
+      const waitMs = moveUuid ? 6000 : 4000;
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+    } catch {
+      // Animation may fail if robot is in a weird state - continue anyway
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    try {
+      await fetchWithTimeout(
+        buildApiUrl('/api/motors/set_mode/disabled'),
+        { method: 'POST' },
+        DAEMON_CONFIG.TIMEOUTS.COMMAND,
+        { label: 'Disable motors', silent: true }
+      );
+      await new Promise(resolve => setTimeout(resolve, 300));
+    } catch {
+      // Continue with shutdown even if motor disable fails
+    }
+  }, []);
+
   const stopDaemon = useCallback(async () => {
     const currentConnectionMode = useAppStore.getState().connectionMode;
     const currentIsAppRunning = useAppStore.getState().isAppRunning;
@@ -436,7 +508,7 @@ export const useDaemon = () => {
     clearStartupTimeout();
     disableSimulationMode();
 
-    // Stop any running app first
+    // Stop any running app and close all app windows
     if (currentIsAppRunning) {
       try {
         await fetchWithTimeout(
@@ -445,24 +517,28 @@ export const useDaemon = () => {
           DAEMON_CONFIG.TIMEOUTS.APP_STOP,
           { label: 'Stop app before shutdown', silent: true }
         );
-      } catch (e) {
+      } catch {
         // Continue with shutdown
       }
     }
+    await closeAllAppWindows();
 
     // Wait for any daemon goto_target to complete
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    // External mode: don't stop the daemon, just reset our state
+    // External mode: sleep + disable motors, but don't stop daemon
     if (currentConnectionMode === 'external') {
+      await performGracefulShutdown();
       setTimeout(() => {
         resetAll();
       }, DAEMON_CONFIG.ANIMATIONS.STOP_DAEMON_DELAY);
       return;
     }
 
-    // WiFi mode: stop daemon then disconnect
+    // WiFi mode: sleep + disable motors, then tell daemon to stop (we don't kill it)
     if (currentConnectionMode === 'wifi') {
+      await performGracefulShutdown();
+
       try {
         await fetchWithTimeout(
           buildApiUrl('/api/daemon/stop?goto_sleep=false'),
@@ -487,8 +563,10 @@ export const useDaemon = () => {
       return;
     }
 
-    // USB/Simulation mode
+    // USB/Simulation mode: sleep + disable motors + kill daemon process
     try {
+      await performGracefulShutdown();
+
       try {
         await fetchWithTimeout(
           buildApiUrl('/api/daemon/stop?goto_sleep=false'),
@@ -508,7 +586,7 @@ export const useDaemon = () => {
     } catch (e) {
       resetAll();
     }
-  }, [clearStartupTimeout, resetAll, transitionTo]);
+  }, [clearStartupTimeout, resetAll, transitionTo, performGracefulShutdown]);
 
   return {
     isActive,

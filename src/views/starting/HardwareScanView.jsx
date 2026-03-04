@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import Viewer3D from '../../components/viewer3d';
 import useAppStore from '../../store/useAppStore';
+import { useShallow } from 'zustand/react/shallow';
 import { invoke } from '@tauri-apps/api/core';
 import { HARDWARE_ERROR_CONFIGS, getErrorMeshes } from '../../utils/hardwareErrors';
 import { getTotalScanParts, mapMeshToScanPart } from '../../utils/scanParts';
@@ -12,6 +13,23 @@ import { detectMovementChanges } from '../../utils/movementDetection';
 import { useAppFetching, mergeAppsData } from '../active-robot/application-store/hooks';
 import { ScanErrorDisplay, ScanStepsIndicator, TipsCarousel } from './components';
 import { calculatePassiveJointsAsync } from '../../utils/kinematics-wasm/useKinematicsWasm';
+
+/**
+ * Calculate passive joints via WASM and store them in the Zustand store.
+ * @returns {boolean} true if passive_joints were successfully computed and stored
+ */
+async function computeAndStorePassiveJoints(headJoints, headPose) {
+  const joints = await calculatePassiveJointsAsync(headJoints, headPose);
+  if (joints && joints.length === 21) {
+    const { setRobotStateFull } = useAppStore.getState();
+    setRobotStateFull(prev => ({
+      ...prev,
+      data: { ...prev.data, passive_joints: joints },
+    }));
+    return true;
+  }
+  return false;
+}
 
 /**
  * Get connection-specific timeout error messages
@@ -136,13 +154,25 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
     transitionTo,
     robotStatus,
     setRobotStateFull,
-    robotStateFull, // 🎯 For checking WebSocket dataVersion
-    setShouldStreamRobotState, // 🎯 Start WebSocket early
+    setShouldStreamRobotState,
     setAvailableApps,
     setInstalledApps,
     setAppsLoading,
     resetAll,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow(state => ({
+      setHardwareError: state.setHardwareError,
+      darkMode: state.darkMode,
+      transitionTo: state.transitionTo,
+      robotStatus: state.robotStatus,
+      setRobotStateFull: state.setRobotStateFull,
+      setShouldStreamRobotState: state.setShouldStreamRobotState,
+      setAvailableApps: state.setAvailableApps,
+      setInstalledApps: state.setInstalledApps,
+      setAppsLoading: state.setAppsLoading,
+      resetAll: state.resetAll,
+    }))
+  );
 
   // ✅ App fetching hooks for pre-loading apps before transition
   const { fetchAppsFromWebsite, fetchInstalledApps } = useAppFetching();
@@ -174,6 +204,7 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
   const movementCheckIntervalRef = useRef(null);
   const elapsedTimerRef = useRef(null); // ✅ Timer for elapsed time
   const lastMovementStateRef = useRef(null); // Track last movement state to detect changes
+  const healthCheckStartedRef = useRef(false); // Guard against multiple startDaemonHealthCheck calls
 
   // ✅ Get message thresholds from config
   const { MESSAGE_THRESHOLDS } = DAEMON_CONFIG.HARDWARE_SCAN;
@@ -276,6 +307,7 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
       setMovementAttempts(0);
       setElapsedSeconds(0); // ✅ Reset elapsed time
       scannedPartsRef.current.clear(); // Reset scanned parts tracking
+      healthCheckStartedRef.current = false; // Allow health check to run again on retry
 
       // Clear all intervals
       clearAllIntervals();
@@ -297,13 +329,12 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
         // Fallback to reload if startDaemon not available
         window.location.reload();
       }
-    } catch (err) {
-      console.error('Failed to retry:', err);
+    } catch {
       setIsRetrying(false);
       // ✅ Keep scan view active - don't reload, let the error be handled by startDaemon
       // startDaemon will set hardwareError if it fails, keeping us in scan view
     }
-  }, [transitionTo, startDaemon, clearAllIntervals, setShouldStreamRobotState]);
+  }, [transitionTo, startDaemon, clearAllIntervals, setShouldStreamRobotState, setHardwareError]);
 
   /**
    * Check daemon health status AND robot ready state
@@ -471,14 +502,22 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
 
           // Start checking for movements
           let movementAttemptCount = 0;
+          let movementsHandled = false;
           const movementStartTime = elapsedSecondsRef.current;
           const checkMovements = async () => {
+            if (movementsHandled) return;
             movementAttemptCount++;
             setMovementAttempts(movementAttemptCount);
 
             const result = await checkDaemonHealth();
 
             if (result.hasMovements) {
+              movementsHandled = true;
+              if (movementCheckIntervalRef.current) {
+                clearInterval(movementCheckIntervalRef.current);
+                movementCheckIntervalRef.current = null;
+              }
+
               // ✅ Movements detected, now start WebSocket and wait for stable data
               setWaitingForMovements(false);
               setWaitingForWebSocket(true);
@@ -495,10 +534,6 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
               const WS_TIMEOUT = 3000; // 3 seconds max
               const wsStartTime = Date.now();
 
-              console.log(
-                '[HardwareScanView] 🔄 Waiting for WebSocket stable data + WASM passive joints...'
-              );
-
               const waitForWebSocketAndWasm = async () => {
                 return new Promise(resolve => {
                   const checkWebSocket = async () => {
@@ -509,52 +544,27 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
                       Array.isArray(data?.head_joints) && data.head_joints.length === 7;
                     const hasHeadPose =
                       Array.isArray(data?.head_pose) && data.head_pose.length === 16;
-
-                    // Debug log every 500ms
                     const elapsed = Date.now() - wsStartTime;
-                    if (elapsed % 500 < WS_CHECK_INTERVAL) {
-                      console.log(
-                        `[HardwareScanView] ⏳ Check: dataVersion=${dataVersion}, hasHeadJoints=${hasHeadJoints}, hasHeadPose=${hasHeadPose}`
-                      );
-                    }
 
-                    // Require dataVersion >= 3 AND head_joints AND head_pose
                     if (dataVersion >= WS_STABLE_FRAMES && hasHeadJoints && hasHeadPose) {
-                      // 🦀 Calculate passive_joints via WASM
-                      console.log('[HardwareScanView] 🦀 Calculating passive joints via WASM...');
                       try {
-                        const passiveJoints = await calculatePassiveJointsAsync(
-                          data.head_joints,
-                          data.head_pose
-                        );
-
-                        if (passiveJoints && passiveJoints.length === 21) {
-                          // Store passive_joints in the store so Viewer3D can use them immediately
-                          const { setRobotStateFull } = useAppStore.getState();
-                          setRobotStateFull(prev => ({
-                            ...prev,
-                            data: {
-                              ...prev.data,
-                              passive_joints: passiveJoints,
-                            },
-                          }));
-
-                          console.log(
-                            `[HardwareScanView] ✅ Ready! (dataVersion=${dataVersion}, passive_joints=${passiveJoints.length})`
-                          );
+                        if (await computeAndStorePassiveJoints(data.head_joints, data.head_pose)) {
                           resolve();
                           return;
                         }
-                      } catch (wasmErr) {
-                        console.warn('[HardwareScanView] ⚠️ WASM error:', wasmErr.message);
-                        // Continue anyway - Viewer3D will calculate via WASM
+                      } catch {
+                        // Continue — Viewer3D will calculate via WASM
                       }
                     }
 
                     if (elapsed > WS_TIMEOUT) {
-                      console.warn(
-                        `[HardwareScanView] ⚠️ Timeout after ${WS_TIMEOUT}ms, proceeding anyway`
-                      );
+                      if (hasHeadJoints && hasHeadPose) {
+                        try {
+                          await computeAndStorePassiveJoints(data.head_joints, data.head_pose);
+                        } catch {
+                          // Proceed without passive_joints — Viewer3D will calculate them
+                        }
+                      }
                       resolve();
                       return;
                     }
@@ -594,11 +604,8 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
 
                 setAvailableApps(enrichedApps);
                 setInstalledApps(installed);
-              } catch (err) {
-                console.warn(
-                  '⚠️ Failed to pre-fetch apps (will retry in ActiveRobotView):',
-                  err.message
-                );
+              } catch {
+                // Apps will be fetched again in ActiveRobotView
               } finally {
                 setAppsLoading(false);
                 // ✅ FIX: Don't reset waitingForApps here - keep it true during the delay
@@ -625,9 +632,6 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
 
             if (movementElapsed >= MOVEMENT_TIMEOUT_SECONDS) {
               const currentConnectionMode = useAppStore.getState().connectionMode;
-              console.error(
-                `❌ Movement check timeout after ${movementElapsed}s (limit: ${MOVEMENT_TIMEOUT_SECONDS}s, mode: ${currentConnectionMode})`
-              );
               setWaitingForMovements(false);
               clearAllIntervals();
 
@@ -654,9 +658,6 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
 
         if (currentElapsed >= DAEMON_TIMEOUT_SECONDS && !daemonReady) {
           const currentConnectionMode = useAppStore.getState().connectionMode;
-          console.error(
-            `❌ Daemon healthcheck timeout after ${currentElapsed}s (limit: ${DAEMON_TIMEOUT_SECONDS}s, mode: ${currentConnectionMode})`
-          );
           setWaitingForDaemon(false);
           clearAllIntervals();
 
@@ -691,24 +692,22 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
   ]);
 
   const handleScanComplete = useCallback(() => {
-    // ✅ Don't mark scan as complete if there's an error - stay in error state
+    // Guard: only start health check flow once (ScanEffect can fire onComplete multiple times)
+    if (healthCheckStartedRef.current) return;
+
     const currentState = useAppStore.getState();
     if (
       currentState.hardwareError ||
       (startupError && typeof startupError === 'object' && startupError.type)
     ) {
-      console.warn(
-        '[HardwareScanView] ⚠️ Scan visual completed but error detected, not completing scan'
-      );
-      return; // Don't complete scan, stay in error state
+      return;
     }
 
+    healthCheckStartedRef.current = true;
     setScanProgress(prev => ({ ...prev, current: prev.total }));
     setCurrentPart(null);
     setScanComplete(true);
 
-    // ✅ NEW: Wait for daemon healthcheck before proceeding
-    // This ensures daemon is ready before fetching apps
     startDaemonHealthCheck();
   }, [startupError, startDaemonHealthCheck]);
 

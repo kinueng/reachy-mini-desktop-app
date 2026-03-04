@@ -25,6 +25,7 @@ import { DAEMON_CONFIG, setAppStoreInstance } from '../config/daemon';
 import { isDevMode } from '../utils/devMode';
 import { isSimulationMode, disableSimulationMode } from '../utils/simulationMode';
 import useAppStore from '../store/useAppStore';
+import { useShallow } from 'zustand/react/shallow';
 
 // 🧹 CRITICAL: Clean stale simMode at module load (BEFORE React mounts)
 // This ensures useUsbDetection sees simMode=false on first check
@@ -59,8 +60,23 @@ function App() {
     isCommandRunning,
     darkMode,
     setPendingDeepLinkInstall,
-    shouldStreamRobotState, // 🎯 Flag to start WebSocket early (during HardwareScanView)
-  } = useAppStore();
+    shouldStreamRobotState,
+  } = useAppStore(
+    useShallow(state => ({
+      daemonVersion: state.daemonVersion,
+      hardwareError: state.hardwareError,
+      connectionMode: state.connectionMode,
+      isAppRunning: state.isAppRunning,
+      robotStatus: state.robotStatus,
+      busyReason: state.busyReason,
+      isInstalling: state.isInstalling,
+      isStoppingApp: state.isStoppingApp,
+      isCommandRunning: state.isCommandRunning,
+      darkMode: state.darkMode,
+      setPendingDeepLinkInstall: state.setPendingDeepLinkInstall,
+      shouldStreamRobotState: state.shouldStreamRobotState,
+    }))
+  );
   const {
     isActive,
     isStarting,
@@ -97,7 +113,9 @@ function App() {
       telemetry.appStarted({ version: appVersion });
     };
 
-    init();
+    init().catch(err => {
+      console.error('[App] Telemetry init failed:', err);
+    });
 
     // Track app closed on unmount/window close
     const handleBeforeUnload = () => {

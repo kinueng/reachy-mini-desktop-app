@@ -248,10 +248,11 @@ export default function FindingRobotView() {
   }, []);
 
   // Detect external daemon running on localhost:8000
+  // Only consider it available if the daemon is actually in a usable state
+  // (prevents false positives from stale proxy or stopped daemons)
   useEffect(() => {
     if (isBusy) return;
 
-    // Reset immediately so stale state from a previous session doesn't linger
     setExternalDaemonAvailable(false);
 
     const checkExternalDaemon = async () => {
@@ -262,7 +263,13 @@ export default function FindingRobotView() {
           1500,
           { silent: true }
         );
-        setExternalDaemonAvailable(response.ok);
+        if (!response.ok) {
+          setExternalDaemonAvailable(false);
+          return;
+        }
+        const data = await response.json();
+        const usableStates = ['running', 'started', 'ready', 'not_initialized'];
+        setExternalDaemonAvailable(data && data.state && usableStates.includes(data.state));
       } catch {
         setExternalDaemonAvailable(false);
       }

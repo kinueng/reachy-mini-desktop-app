@@ -56,7 +56,9 @@ pub fn transition_status(
     status_lock: &Mutex<DaemonStatus>,
     new_status: DaemonStatus,
 ) -> Result<DaemonStatus, String> {
-    let mut status = status_lock.lock().expect("daemon status mutex poisoned");
+    let mut status = status_lock
+        .lock()
+        .map_err(|e| format!("Daemon status mutex poisoned: {}", e))?;
     let old = *status;
 
     if old == new_status {
@@ -123,19 +125,23 @@ pub const MAX_LOGS: usize = 50;
 pub fn add_log(state: &State<DaemonState>, message: String) {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    // Add timestamp prefix (Unix millis) for proper chronological sorting
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0);
 
-    // Format: "TIMESTAMP|MESSAGE" - will be parsed by frontend
     let timestamped_message = format!("{}|{}", timestamp, message);
 
-    let mut logs = state.logs.lock().expect("daemon logs mutex poisoned");
-    logs.push_back(timestamped_message);
-    if logs.len() > MAX_LOGS {
-        logs.pop_front();
+    match state.logs.lock() {
+        Ok(mut logs) => {
+            logs.push_back(timestamped_message);
+            if logs.len() > MAX_LOGS {
+                logs.pop_front();
+            }
+        }
+        Err(e) => {
+            log::error!("[daemon] Logs mutex poisoned, message dropped: {} — {}", message, e);
+        }
     }
 }
 
@@ -280,7 +286,13 @@ pub fn cleanup_system_daemons() {
 
 /// Kill daemon: first the tracked sidecar process, then orphan cleanup as safety net.
 pub fn kill_daemon(state: &State<DaemonState>) {
-    let child = state.process.lock().expect("daemon process mutex poisoned").take();
+    let child = match state.process.lock() {
+        Ok(mut guard) => guard.take(),
+        Err(e) => {
+            log::error!("[daemon] Process mutex poisoned during kill: {}", e);
+            None
+        }
+    };
 
     if let Some(child) = child {
         let pid = child.pid();
@@ -291,6 +303,65 @@ pub fn kill_daemon(state: &State<DaemonState>) {
     }
 
     cleanup_system_daemons();
+}
+
+// ============================================================================
+// SIDECAR TERMINATION HELPERS
+// ============================================================================
+
+/// Determine the target status when a daemon process terminates.
+fn terminated_target_status(current: DaemonStatus) -> DaemonStatus {
+    match current {
+        DaemonStatus::Stopping => DaemonStatus::Idle,
+        DaemonStatus::Running | DaemonStatus::Starting => DaemonStatus::Crashed,
+        other => other,
+    }
+}
+
+/// Clear the tracked process handle and transition daemon status after termination.
+/// Returns Err(()) only when the status mutex is poisoned (caller should break).
+pub fn finalize_daemon_termination(
+    daemon_state: &DaemonState,
+    app_handle: &tauri::AppHandle,
+) -> Result<(), ()> {
+    match daemon_state.process.lock() {
+        Ok(mut guard) => { guard.take(); }
+        Err(e) => log::error!("[daemon] Process mutex poisoned in terminated handler: {}", e),
+    }
+
+    let current_status = *daemon_state.status.lock().map_err(|e| {
+        log::error!("[daemon] Status mutex poisoned in terminated handler: {}", e);
+    })?;
+
+    let target = terminated_target_status(current_status);
+    if target != current_status {
+        let _ = transition_and_emit(daemon_state, target, app_handle);
+    }
+
+    Ok(())
+}
+
+/// Check generation match, then finalize daemon termination.
+/// Returns Ok(true) if handled (gen matched), Ok(false) if stale, Err if poisoned mutex.
+pub fn handle_daemon_terminated(
+    daemon_state: &DaemonState,
+    app_handle: &tauri::AppHandle,
+    captured_generation: u64,
+) -> Result<bool, ()> {
+    let current_gen = *daemon_state.generation.lock().map_err(|e| {
+        log::error!("[daemon] Generation mutex poisoned in terminated handler: {}", e);
+    })?;
+
+    if captured_generation != current_gen {
+        log::info!(
+            "[daemon] Ignoring terminated event for old daemon (gen {} vs current {})",
+            captured_generation, current_gen
+        );
+        return Ok(false);
+    }
+
+    finalize_daemon_termination(daemon_state, app_handle)?;
+    Ok(true)
 }
 
 // ============================================================================
@@ -353,42 +424,15 @@ macro_rules! spawn_sidecar_monitor {
                                 "[tauri] Sidecar process terminated with status: {:?}",
                                 status
                             );
-
                             let daemon_state =
                                 app_handle_clone.state::<crate::daemon::DaemonState>();
-                            let current_gen =
-                                *daemon_state.generation.lock().expect("generation mutex poisoned");
-
-                            if captured_generation == current_gen {
-                                daemon_state.process.lock().expect("process mutex poisoned").take();
-
-                                let current_status =
-                                    *daemon_state.status.lock().expect("status mutex poisoned");
-                                let target = match current_status {
-                                    crate::daemon::DaemonStatus::Stopping => {
-                                        crate::daemon::DaemonStatus::Idle
-                                    }
-                                    crate::daemon::DaemonStatus::Running
-                                    | crate::daemon::DaemonStatus::Starting => {
-                                        crate::daemon::DaemonStatus::Crashed
-                                    }
-                                    _ => current_status,
-                                };
-
-                                if target != current_status {
-                                    let _ = crate::daemon::transition_and_emit(
-                                        &daemon_state,
-                                        target,
-                                        &app_handle_clone,
-                                    );
-                                }
-                            } else {
-                                log::info!(
-                                    "[daemon] Ignoring terminated event for old daemon (gen {} vs current {})",
-                                    captured_generation, current_gen
-                                );
+                            if crate::daemon::handle_daemon_terminated(
+                                &daemon_state,
+                                &app_handle_clone,
+                                captured_generation,
+                            ).is_err() {
+                                break;
                             }
-
                         }
                     }
                     _ => {}
@@ -410,7 +454,10 @@ pub fn spawn_and_monitor_sidecar(
     use crate::python::build_daemon_args;
     use tauri_plugin_shell::ShellExt;
 
-    let process_lock = state.process.lock().expect("daemon process mutex poisoned");
+    let process_lock = state
+        .process
+        .lock()
+        .map_err(|e| format!("Failed to lock process mutex: {}", e))?;
     if process_lock.is_some() {
         log::info!("[tauri] Sidecar is already running. Skipping spawn.");
         return Ok(());
@@ -437,12 +484,18 @@ pub fn spawn_and_monitor_sidecar(
 
     // Bump generation so old Terminated handlers become stale
     let generation = {
-        let mut gen = state.generation.lock().expect("generation mutex poisoned");
+        let mut gen = state
+            .generation
+            .lock()
+            .map_err(|e| format!("Failed to lock generation mutex: {}", e))?;
         *gen += 1;
         *gen
     };
 
-    let mut process_lock = state.process.lock().expect("daemon process mutex poisoned");
+    let mut process_lock = state
+        .process
+        .lock()
+        .map_err(|e| format!("Failed to lock process mutex: {}", e))?;
     *process_lock = Some(child);
     drop(process_lock);
 
@@ -493,10 +546,13 @@ pub fn spawn_and_monitor_sidecar(
 
                     let daemon_state =
                         app_handle_clone.state::<crate::daemon::DaemonState>();
-                    let current_gen = *daemon_state
-                        .generation
-                        .lock()
-                        .expect("generation mutex poisoned");
+                    let current_gen = match daemon_state.generation.lock() {
+                        Ok(gen) => *gen,
+                        Err(e) => {
+                            log::error!("[daemon] Generation mutex poisoned: {}", e);
+                            break;
+                        }
+                    };
 
                     if captured_generation != current_gen {
                         log::info!(
@@ -511,11 +567,10 @@ pub fn spawn_and_monitor_sidecar(
                             "[tauri] Retrying without --preload-datasets..."
                         );
 
-                        daemon_state
-                            .process
-                            .lock()
-                            .expect("process mutex poisoned")
-                            .take();
+                        match daemon_state.process.lock() {
+                            Ok(mut guard) => { guard.take(); }
+                            Err(e) => log::error!("[daemon] Process mutex poisoned: {}", e),
+                        }
 
                         tokio::time::sleep(tokio::time::Duration::from_millis(500))
                             .await;
@@ -567,21 +622,26 @@ pub fn spawn_and_monitor_sidecar(
                             .spawn()
                         {
                             Ok((mut new_rx, new_child)) => {
-                                let new_gen = {
-                                    let mut gen = daemon_state
-                                        .generation
-                                        .lock()
-                                        .expect("generation mutex poisoned");
-                                    *gen += 1;
-                                    *gen
+                                let new_gen = match daemon_state.generation.lock() {
+                                    Ok(mut gen) => {
+                                        *gen += 1;
+                                        *gen
+                                    }
+                                    Err(e) => {
+                                        log::error!("[daemon] Generation mutex poisoned on retry: {}", e);
+                                        break;
+                                    }
                                 };
 
-                                let mut process_lock = daemon_state
-                                    .process
-                                    .lock()
-                                    .expect("process mutex poisoned");
-                                *process_lock = Some(new_child);
-                                drop(process_lock);
+                                match daemon_state.process.lock() {
+                                    Ok(mut process_lock) => {
+                                        *process_lock = Some(new_child);
+                                    }
+                                    Err(e) => {
+                                        log::error!("[daemon] Process mutex poisoned on retry: {}", e);
+                                        break;
+                                    }
+                                }
 
                                 let app_handle_ref = app_handle_clone.clone();
                                 crate::spawn_sidecar_monitor!(
@@ -604,33 +664,11 @@ pub fn spawn_and_monitor_sidecar(
                             }
                         }
                     } else {
-                        daemon_state
-                            .process
-                            .lock()
-                            .expect("process mutex poisoned")
-                            .take();
-
-                        let current_status = *daemon_state
-                            .status
-                            .lock()
-                            .expect("status mutex poisoned");
-                        let target = match current_status {
-                            crate::daemon::DaemonStatus::Stopping => {
-                                crate::daemon::DaemonStatus::Idle
-                            }
-                            crate::daemon::DaemonStatus::Running
-                            | crate::daemon::DaemonStatus::Starting => {
-                                crate::daemon::DaemonStatus::Crashed
-                            }
-                            _ => current_status,
-                        };
-
-                        if target != current_status {
-                            let _ = crate::daemon::transition_and_emit(
-                                &daemon_state,
-                                target,
-                                &app_handle_clone,
-                            );
+                        if finalize_daemon_termination(
+                            &daemon_state,
+                            &app_handle_clone,
+                        ).is_err() {
+                            break;
                         }
                     }
                 }

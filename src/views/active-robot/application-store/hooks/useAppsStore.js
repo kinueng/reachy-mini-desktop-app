@@ -6,6 +6,9 @@ import { useAppFetching, mergeAppsData } from './useAppFetching';
 import { useAppJobs } from './useAppJobs';
 import { useAppUpdates } from './useAppUpdates';
 import { useWindowVisible } from '../../../../hooks/system/useWindowVisible';
+import { closeAppWindow } from '../../../../utils/windowManager';
+
+const APP_ERROR_DISPLAY_DURATION_MS = 10_000;
 
 /**
  * ✅ DRY: Helper to handle permission errors consistently
@@ -88,6 +91,9 @@ export function useAppsStore(isActive) {
 
   // Track if we're currently fetching to avoid duplicate fetches
   const isFetchingRef = useRef(false);
+
+  // Timer for auto-clearing error state after display duration
+  const errorClearTimerRef = useRef(null);
 
   // Cache duration: 1 day (apps don't change that often, filter client-side)
   const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
@@ -279,36 +285,60 @@ export function useAppsStore(isActive) {
           appState === 'done' || appState === 'stopping' || appState === 'error';
 
         if (isAppActive && !hasError) {
-          // ✅ App is active (starting or running): ensure store is locked
+          // App is active: cancel any pending error-clear timer
+          if (errorClearTimerRef.current) {
+            clearTimeout(errorClearTimerRef.current);
+            errorClearTimerRef.current = null;
+          }
+          // App is active (starting or running): ensure store is locked
           if (!store.isAppRunning || store.currentAppName !== appName) {
             store.lockForApp(appName);
           }
         } else if (isAppFinished || hasError) {
-          // ✅ App is finished/crashed/stopping: unlock if locked
           if (store.isAppRunning) {
             let logMessage;
             if (hasError) {
-              logMessage = `❌ ${appName} crashed: ${status.error}`;
+              logMessage = `${appName} crashed: ${status.error}`;
             } else if (appState === 'error') {
-              logMessage = `❌ ${appName} error state`;
+              logMessage = `${appName} error state`;
             } else if (appState === 'done') {
-              logMessage = `✓ ${appName} completed`;
+              logMessage = `${appName} completed`;
             } else if (appState === 'stopping') {
-              logMessage = `⏹️ ${appName} stopping`;
+              logMessage = `${appName} stopping`;
             } else {
-              logMessage = `⚠️ ${appName} stopped (${appState})`;
+              logMessage = `${appName} stopped (${appState})`;
             }
 
             logger.info(logMessage);
             store.unlockApp();
           }
+
+          if (appState === 'done') {
+            setCurrentApp(null);
+          } else if (appState === 'error') {
+            // Keep error visible in the UI; close the dead Tauri window
+            closeAppWindow(appName).catch(() => {});
+
+            // Auto-clear the error after a delay so the user can launch another app
+            if (!errorClearTimerRef.current) {
+              errorClearTimerRef.current = setTimeout(() => {
+                setCurrentApp(null);
+                errorClearTimerRef.current = null;
+              }, APP_ERROR_DISPLAY_DURATION_MS);
+            }
+          }
         }
       } else {
-        // ✅ No app running (status is null or incomplete): unlock if locked (crash detection)
+        // No app running (status is null or incomplete): unlock if locked (crash detection)
         setCurrentApp(null);
 
         if (store.isAppRunning && store.busyReason === 'app-running') {
           const lastAppName = store.currentAppName || 'unknown';
+
+          // Close the dead Tauri window if one was open
+          if (lastAppName !== 'unknown') {
+            closeAppWindow(lastAppName).catch(() => {});
+          }
 
           logger.warning(`App ${lastAppName} stopped unexpectedly`);
           store.unlockApp();
@@ -438,12 +468,32 @@ export function useAppsStore(isActive) {
    */
   const startApp = useCallback(
     async appName => {
+      // Cancel any lingering error-display timer from a previous crash
+      if (errorClearTimerRef.current) {
+        clearTimeout(errorClearTimerRef.current);
+        errorClearTimerRef.current = null;
+      }
+      setCurrentApp(null);
+
+      // Clean up any previous app on the daemon (e.g. crashed app still in ERROR state).
+      // The daemon considers ERROR as "running", so start-app would 400 without this.
+      try {
+        await fetchWithTimeout(
+          buildApiUrl('/api/apps/stop-current-app'),
+          { method: 'POST' },
+          DAEMON_CONFIG.TIMEOUTS.APP_STOP,
+          { silent: true }
+        );
+      } catch {
+        // Expected when no app was running — safe to ignore
+      }
+
       try {
         const response = await fetchWithTimeout(
           buildApiUrl(`/api/apps/start-app/${encodeURIComponent(appName)}`),
           { method: 'POST' },
           DAEMON_CONFIG.TIMEOUTS.APP_START,
-          { label: `Start ${appName}` } // ⚡ Automatic log
+          { label: `Start ${appName}` }
         );
 
         if (!response.ok) {
@@ -488,6 +538,12 @@ export function useAppsStore(isActive) {
 
       const message = await response.json();
 
+      // Close the app's Tauri window if it was open
+      const appInfo = useAppStore.getState().currentApp?.info;
+      if (appInfo?.name) {
+        closeAppWindow(appInfo.name).catch(() => {});
+      }
+
       // Reset state immediately
       setCurrentApp(null);
 
@@ -517,7 +573,13 @@ export function useAppsStore(isActive) {
    * Cleanup: stop all pollings on unmount
    */
   useEffect(() => {
-    return cleanupJobs;
+    return () => {
+      cleanupJobs();
+      if (errorClearTimerRef.current) {
+        clearTimeout(errorClearTimerRef.current);
+        errorClearTimerRef.current = null;
+      }
+    };
   }, [cleanupJobs]);
 
   // ✅ Track if this is the first time isActive becomes true (startup)

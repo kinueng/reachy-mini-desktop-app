@@ -53,7 +53,7 @@ export default function SettingsCacheCard({
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
-          Clear downloaded AI models from HuggingFace to free up disk space on the robot.
+          Free up disk space by clearing downloaded AI models.
         </Typography>
 
         <Button
@@ -86,8 +86,7 @@ export default function SettingsCacheCard({
         </Button>
 
         <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
-          Remove all installed applications from the robot. They will need to be reinstalled from
-          the app store.
+          Uninstall all apps. They can be reinstalled from the store.
         </Typography>
 
         <Button

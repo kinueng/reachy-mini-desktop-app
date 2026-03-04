@@ -6,36 +6,60 @@
  */
 
 /**
- * Compare robotStateFull objects efficiently
- * Structure: { data: any, lastUpdate: number|null, error: string|null }
+ * Compare two numeric arrays (Float64Array or regular arrays) by value.
+ * Returns true if all elements are identical.
+ */
+function arraysEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return a === b;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Compare robotStateFull objects efficiently.
+ * Ignores metadata fields (lastUpdate, dataVersion, timestamp) that change on every
+ * WebSocket message; only compares actual robot data by value.
+ *
+ * Structure: { data: { control_mode, head_pose, head_joints, body_yaw,
+ *              antennas_position, passive_joints, doa, timestamp, dataVersion }, ... }
  *
  * @param {object} prev - Previous state
  * @param {object} next - Next state
- * @returns {boolean} True if equal
+ * @returns {boolean} True if semantically equal
  */
 export function compareRobotStateFull(prev, next) {
   if (prev === next) return true;
   if (!prev || !next) return prev === next;
 
-  // Compare timestamps first (fastest check)
-  if (prev.lastUpdate !== next.lastUpdate) return false;
-
-  // Compare error strings
   if (prev.error !== next.error) return false;
 
-  // Compare data - if both are null/undefined, they're equal
   if (!prev.data && !next.data) return true;
   if (!prev.data || !next.data) return false;
 
-  // For data, do a shallow comparison of keys (most data is nested objects)
-  // This is much faster than deep serialization
-  const prevKeys = Object.keys(prev.data);
-  const nextKeys = Object.keys(next.data);
-  if (prevKeys.length !== nextKeys.length) return false;
+  const a = prev.data;
+  const b = next.data;
 
-  // Quick check: if keys match, assume equal (data structure is usually stable)
-  // For exact comparison, we'd need to recurse, but this is a good balance
-  return prevKeys.every(key => prev.data[key] === next.data[key]);
+  if (a.control_mode !== b.control_mode) return false;
+  if (a.body_yaw !== b.body_yaw) return false;
+
+  if (!arraysEqual(a.head_pose, b.head_pose)) return false;
+  if (!arraysEqual(a.head_joints, b.head_joints)) return false;
+  if (!arraysEqual(a.antennas_position, b.antennas_position)) return false;
+  if (!arraysEqual(a.passive_joints, b.passive_joints)) return false;
+
+  const prevDoa = a.doa;
+  const nextDoa = b.doa;
+  if (prevDoa !== nextDoa) {
+    if (!prevDoa || !nextDoa) return false;
+    if (prevDoa.angle !== nextDoa.angle) return false;
+    if (prevDoa.speech_detected !== nextDoa.speech_detected) return false;
+  }
+
+  return true;
 }
 
 /**
@@ -51,7 +75,6 @@ export function compareStringArray(prev, next) {
   if (!prev || !next) return prev === next;
   if (prev.length !== next.length) return false;
 
-  // For small arrays, direct comparison is fastest
   for (let i = 0; i < prev.length; i++) {
     if (prev[i] !== next[i]) return false;
   }
@@ -71,7 +94,6 @@ export function compareFrontendLogs(prev, next) {
   if (!prev || !next) return prev === next;
   if (prev.length !== next.length) return false;
 
-  // Compare last log entry first (most likely to change)
   if (prev.length > 0 && next.length > 0) {
     const lastPrev = prev[prev.length - 1];
     const lastNext = next[next.length - 1];
@@ -84,8 +106,6 @@ export function compareFrontendLogs(prev, next) {
     }
   }
 
-  // If last entry matches and length is same, assume equal
-  // (logs are append-only, so if last entry and length match, arrays are equal)
   return true;
 }
 
@@ -102,13 +122,11 @@ export function deepEqual(a, b) {
   if (a == null || b == null) return false;
   if (typeof a !== 'object' || typeof b !== 'object') return false;
 
-  // For arrays
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
     return a.every((val, idx) => deepEqual(val, b[idx]));
   }
 
-  // For objects
   if (Array.isArray(a) || Array.isArray(b)) return false;
 
   const keysA = Object.keys(a);
@@ -130,7 +148,6 @@ export function deepEqual(a, b) {
 export function extractChangedUpdates(prevState, newState, relevantKeys) {
   const changedUpdates = {};
 
-  // Guard against undefined state (can happen during initialization)
   if (!prevState || !newState) {
     return changedUpdates;
   }
@@ -139,10 +156,8 @@ export function extractChangedUpdates(prevState, newState, relevantKeys) {
     const prevValue = prevState[key];
     const newValue = newState[key];
 
-    // Fast path: reference equality
     if (prevValue === newValue) return;
 
-    // Specialized comparisons for frequently updated objects
     if (key === 'robotStateFull') {
       if (!compareRobotStateFull(prevValue, newValue)) {
         changedUpdates[key] = newValue;
@@ -161,12 +176,10 @@ export function extractChangedUpdates(prevState, newState, relevantKeys) {
       prevValue !== null &&
       newValue !== null
     ) {
-      // For other objects, use deep comparison
       if (!deepEqual(prevValue, newValue)) {
         changedUpdates[key] = newValue;
       }
     } else {
-      // For primitives, simple comparison
       if (prevValue !== newValue) {
         changedUpdates[key] = newValue;
       }

@@ -51,8 +51,9 @@ fn start_daemon(
     set_external_mode(false);
 
     // Track which frontend connection mode initiated this daemon
-    if let Ok(mut mode) = state.connection_mode.lock() {
-        *mode = connection_mode;
+    match state.connection_mode.lock() {
+        Ok(mut mode) => *mode = connection_mode,
+        Err(e) => log::warn!("[daemon] connection_mode mutex poisoned on start: {}", e),
     }
 
     if sim_mode {
@@ -68,12 +69,16 @@ fn start_daemon(
     })?;
 
     if let Err(e) = spawn_and_monitor_sidecar(app_handle.clone(), &state, sim_mode) {
-        let _ = transition_and_emit(&state, DaemonStatus::Crashed, &app_handle);
+        if let Err(te) = transition_and_emit(&state, DaemonStatus::Crashed, &app_handle) {
+            log::warn!("[daemon] Failed to transition to Crashed after spawn failure: {}", te);
+        }
         add_log(&state, format!("Spawn failed: {}", e));
         return Err(e);
     }
 
-    let _ = transition_and_emit(&state, DaemonStatus::Running, &app_handle);
+    if let Err(te) = transition_and_emit(&state, DaemonStatus::Running, &app_handle) {
+        log::warn!("[daemon] Failed to transition to Running after spawn: {}", te);
+    }
 
     let success_msg = if sim_mode {
         "Daemon started in simulation mode (mockup-sim)"
@@ -89,12 +94,17 @@ fn stop_daemon(
     app_handle: tauri::AppHandle,
     state: State<DaemonState>,
 ) -> Result<String, String> {
-    let _ = transition_and_emit(&state, DaemonStatus::Stopping, &app_handle);
+    if let Err(e) = transition_and_emit(&state, DaemonStatus::Stopping, &app_handle) {
+        log::warn!("[daemon] Failed to transition to Stopping: {}", e);
+    }
     kill_daemon(&state);
-    let _ = transition_and_emit(&state, DaemonStatus::Idle, &app_handle);
+    if let Err(e) = transition_and_emit(&state, DaemonStatus::Idle, &app_handle) {
+        log::warn!("[daemon] Failed to transition to Idle after stop: {}", e);
+    }
 
-    if let Ok(mut mode) = state.connection_mode.lock() {
-        *mode = None;
+    match state.connection_mode.lock() {
+        Ok(mut mode) => *mode = None,
+        Err(e) => log::warn!("[daemon] connection_mode mutex poisoned on stop: {}", e),
     }
 
     add_log(&state, "Daemon stopped".to_string());
@@ -107,23 +117,29 @@ fn set_daemon_external_mode(external: bool) {
 }
 
 #[tauri::command]
-fn get_daemon_status(state: State<DaemonState>) -> serde_json::Value {
-    let status = *state.status.lock().expect("daemon status mutex poisoned");
+fn get_daemon_status(state: State<DaemonState>) -> Result<serde_json::Value, String> {
+    let status = *state
+        .status
+        .lock()
+        .map_err(|e| format!("Failed to read daemon status: {}", e))?;
     let mode = state
         .connection_mode
         .lock()
-        .expect("connection_mode mutex poisoned")
+        .map_err(|e| format!("Failed to read connection mode: {}", e))?
         .clone();
-    serde_json::json!({
+    Ok(serde_json::json!({
         "status": format!("{:?}", status),
         "connectionMode": mode,
-    })
+    }))
 }
 
 #[tauri::command]
-fn get_logs(state: State<DaemonState>) -> Vec<String> {
-    let logs = state.logs.lock().expect("daemon logs mutex poisoned");
-    logs.iter().cloned().collect()
+fn get_logs(state: State<DaemonState>) -> Result<Vec<String>, String> {
+    let logs = state
+        .logs
+        .lock()
+        .map_err(|e| format!("Failed to read logs: {}", e))?;
+    Ok(logs.iter().cloned().collect())
 }
 
 // ============================================================================
@@ -199,8 +215,7 @@ async fn set_local_proxy_target(
     state: State<'_, Arc<LocalProxyState>>,
     host: String,
 ) -> Result<(), String> {
-    local_proxy::set_target_host(&state, host).await;
-    Ok(())
+    local_proxy::set_target_host(&state, host).await
 }
 
 #[tauri::command]
@@ -248,12 +263,17 @@ pub fn run() {
     #[cfg(not(windows))]
     {
         std::thread::spawn(|| {
-            let mut signals =
-                Signals::new(TERM_SIGNALS).expect("Failed to register signal handlers");
-            if let Some(sig) = signals.forever().next() {
-                log::error!("Signal {:?} received - cleaning up daemon", sig);
-                cleanup_system_daemons();
-                std::process::exit(0);
+            match Signals::new(TERM_SIGNALS) {
+                Ok(mut signals) => {
+                    if let Some(sig) = signals.forever().next() {
+                        log::error!("Signal {:?} received - cleaning up daemon", sig);
+                        cleanup_system_daemons();
+                        std::process::exit(0);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Failed to register signal handlers: {} — daemon cleanup on SIGTERM will not work", e);
+                }
             }
         });
     }
@@ -392,7 +412,10 @@ pub fn run() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("error while building tauri application")
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: failed to build Tauri application: {}", e);
+            std::process::exit(1);
+        })
         .run(|_app_handle, event| {
             match event {
                 tauri::RunEvent::ExitRequested { .. } => {

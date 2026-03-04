@@ -38,6 +38,11 @@ const UDP_CLIENT_TIMEOUT: Duration = Duration::from_secs(300);
 /// Maps client address to (remote socket, last activity timestamp)
 type UdpClientMap = Arc<Mutex<HashMap<SocketAddr, (Arc<UdpSocket>, Instant)>>>;
 
+/// Read the current target host from shared state. Returns None if not set.
+async fn get_target_host(state: &LocalProxyState) -> Option<String> {
+    state.target_host.read().await.clone()
+}
+
 /// Shared state for the proxy
 pub struct LocalProxyState {
     pub target_host: RwLock<Option<String>>,
@@ -195,16 +200,9 @@ async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
             }
         };
 
-        // Get target host
-        let target_host = {
-            let host = state.target_host.read().await;
-            match host.as_ref() {
-                Some(h) => h.clone(),
-                None => {
-                    // No target configured, drop packet
-                    continue;
-                }
-            }
+        let target_host = match get_target_host(&state).await {
+            Some(h) => h,
+            None => continue,
         };
 
         let remote_addr: SocketAddr = match format!("{}:{}", target_host, port).parse() {
@@ -297,22 +295,17 @@ async fn handle_tcp_connection(
     addr: std::net::SocketAddr,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Get target host
-    let target_host = {
-        let host = state.target_host.read().await;
-        match host.as_ref() {
-            Some(h) => h.clone(),
-            None => {
-                log::error!("[proxy] No target host configured");
-                let body = "No target host configured";
-                let response = format!(
-                    "HTTP/1.1 502 Bad Gateway\r\nContent-Length: {}\r\n\r\n{}",
-                    body.len(),
-                    body
-                );
-                stream.write_all(response.as_bytes()).await?;
-                return Ok(());
-            }
+    let target_host = match get_target_host(&state).await {
+        Some(h) => h,
+        None => {
+            let body = "No target host configured";
+            let response = format!(
+                "HTTP/1.1 502 Bad Gateway\r\nContent-Length: {}\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            stream.write_all(response.as_bytes()).await?;
+            return Ok(());
         }
     };
 
@@ -505,17 +498,52 @@ async fn handle_http(
     Ok(())
 }
 
-/// Set the target host for the proxy and start the proxy
-pub async fn set_target_host(state: &Arc<LocalProxyState>, host: String) {
-    // Set the target host
+/// Validate that a host is on a private/local network (prevents SSRF to public hosts).
+fn is_private_network_host(host: &str) -> bool {
+    if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+        return true;
+    }
+
+    if host.ends_with(".local") {
+        return true;
+    }
+
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        return match ip {
+            std::net::IpAddr::V4(v4) => v4.is_private() || v4.is_loopback() || v4.is_link_local(),
+            std::net::IpAddr::V6(v6) => {
+                v6.is_loopback()
+                    || v6.segments()[0] == 0xfe80  // link-local
+                    || (v6.segments()[0] & 0xfe00) == 0xfc00  // unique local (fc00::/7)
+            }
+        };
+    }
+
+    false
+}
+
+/// Set the target host for the proxy and start the proxy.
+/// Validates that the host is a private/local network address.
+pub async fn set_target_host(state: &Arc<LocalProxyState>, host: String) -> Result<(), String> {
+    if host.is_empty() {
+        return Err("Proxy target host cannot be empty".to_string());
+    }
+
+    if !is_private_network_host(&host) {
+        return Err(format!(
+            "Proxy target must be a local/private network address, got: {}",
+            host
+        ));
+    }
+
     {
         let mut target = state.target_host.write().await;
         log::info!("[proxy] Target host set to: {}", host);
         *target = Some(host);
     }
 
-    // Start the proxy
     start_local_proxy(state.clone()).await;
+    Ok(())
 }
 
 /// Clear the target host and stop the proxy
