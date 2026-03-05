@@ -146,8 +146,8 @@ export function useWebActiveRobotAdapter() {
       getRobotStatusLabel: store.getRobotStatusLabel,
       lockForApp: store.lockForApp,
       unlockApp: store.unlockApp,
-      lockForInstall: store.lockForInstall,
-      unlockInstall: store.unlockInstall,
+      lockForInstall: store.lockForInstallWithRobot,
+      unlockInstall: store.unlockInstallWithRobot,
       // Use transitionTo instead of legacy setters
       setRobotStateFull: store.setRobotStateFull,
       setActiveMoves: store.setActiveMoves,
