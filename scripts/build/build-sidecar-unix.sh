@@ -66,19 +66,6 @@ echo "📦 Installing sidecar with REACHY_MINI_SOURCE=$REACHY_MINI_SOURCE..."
     --dependencies "reachy-mini" \
     --reachy-mini-source "$REACHY_MINI_SOURCE"
 
-# Install gstreamer from freedesktop GitLab registry
-# Required for media features (camera, audio streaming)
-# See: https://huggingface.co/docs/reachy_mini/SDK/installation
-# Note: gstreamer-cli wheels are only available for macOS and Windows, not Linux
-if [ "$(uname)" = "Darwin" ]; then
-    echo "📦 Installing gstreamer..."
-    UV_PYTHON_INSTALL_DIR="../$DST_DIR" UV_WORKING_DIR="../$DST_DIR" "../$DST_DIR/uv" pip install \
-        --upgrade --index-url https://gitlab.freedesktop.org/api/v4/projects/1340/packages/pypi/simple \
-        "gstreamer==1.28.0"
-else
-    echo "⏭️ Skipping gstreamer (no Linux wheels available, using system GStreamer)"
-fi
-
 # Build uv-trampoline
 echo "🔨 Building uv-trampoline..."
 # Use TARGET_TRIPLET for cross-compilation if provided

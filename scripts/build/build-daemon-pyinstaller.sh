@@ -62,17 +62,6 @@ else
     pip install "git+https://github.com/pollen-robotics/reachy_mini.git@$REACHY_MINI_SOURCE"
 fi
 
-# Install gstreamer from freedesktop GitLab registry
-# Required for media features (camera, audio streaming)
-# Note: gstreamer-cli wheels are only available for macOS and Windows, not Linux
-# On Linux, GStreamer is available as a system package (libgstreamer1.0-dev)
-if [ "$(uname)" = "Darwin" ]; then
-    echo "📥 Installing gstreamer..."
-    pip install --upgrade --index-url https://gitlab.freedesktop.org/api/v4/projects/1340/packages/pypi/simple "gstreamer==1.28.0"
-else
-    echo "⏭️  Skipping gstreamer pip package (no Linux wheels available, using system GStreamer)"
-fi
-
 # Create PyInstaller spec file for better control
 echo "📝 Creating PyInstaller spec file..."
 cat > /tmp/daemon.spec << 'EOF'

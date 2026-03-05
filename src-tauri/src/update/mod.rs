@@ -11,11 +11,6 @@ use crate::daemon::DaemonState;
 
 const GITHUB_REPO: &str = "pollen-robotics/reachy_mini";
 
-/// Pinned GStreamer version for macOS/Windows (no Linux wheels available)
-const GSTREAMER_VERSION: &str = "1.28.0";
-const GSTREAMER_INDEX_URL: &str =
-    "https://gitlab.freedesktop.org/api/v4/projects/1340/packages/pypi/simple";
-
 /// PEP 440 pre-release suffixes mapped to semver labels.
 /// Order matters: checked first-to-last, "rc" before single-char "a"/"b"
 /// to avoid "rc" being split on 'c' by the 'a' or 'b' rule.
@@ -57,10 +52,7 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
             .join("binaries");
 
         if program_files_dir.join(".venv").exists() {
-            log::info!(
-                "[update] Using Program Files venv: {:?}",
-                program_files_dir
-            );
+            log::info!("[update] Using Program Files venv: {:?}", program_files_dir);
             return Ok(program_files_dir);
         }
 
@@ -327,11 +319,16 @@ fn try_parse_pep440_suffix(
     if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
         return None;
     }
-    let clean = format!("{}.{}.{}-{}.{}", major, minor, parts[0], semver_label, parts[1]);
-    Some(
-        semver::Version::parse(&clean)
-            .map_err(|e| format!("Failed to parse {} version '{}': {}", semver_label, clean, e)),
-    )
+    let clean = format!(
+        "{}.{}.{}-{}.{}",
+        major, minor, parts[0], semver_label, parts[1]
+    );
+    Some(semver::Version::parse(&clean).map_err(|e| {
+        format!(
+            "Failed to parse {} version '{}': {}",
+            semver_label, clean, e
+        )
+    }))
 }
 
 /// Parse a PEP 440 version string into semver.
@@ -400,7 +397,12 @@ async fn run_pip(
     args: &[&str],
     context: &str,
 ) -> Result<(String, String), String> {
-    log::info!("[update] Running pip ({}): {:?} {:?}", context, pip_path, args);
+    log::info!(
+        "[update] Running pip ({}): {:?} {:?}",
+        context,
+        pip_path,
+        args
+    );
 
     let output = tokio::process::Command::new(pip_path)
         .args(args)
@@ -482,29 +484,6 @@ pub async fn update_daemon(
     let venv_path = get_local_venv_path(&app_handle)?;
     let pip_path = get_pip_path(&venv_path)?;
     log::info!("[update] Using pip at: {:?}", pip_path);
-
-    // Install gstreamer from freedesktop GitLab registry (macOS/Windows only)
-    #[cfg(not(target_os = "linux"))]
-    {
-        let gst_spec = format!("gstreamer=={}", GSTREAMER_VERSION);
-        let gst_args = vec![
-            "install",
-            "--upgrade",
-            "--index-url",
-            GSTREAMER_INDEX_URL,
-            &gst_spec,
-        ];
-
-        match run_pip(&pip_path, &gst_args, "gstreamer").await {
-            Ok(_) => log::info!("[update] gstreamer installed successfully"),
-            Err(e) => log::warn!("[update] gstreamer install failed (non-fatal): {}", e),
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        log::info!("[update] Skipping gstreamer pip package on Linux (using system GStreamer)");
-    }
 
     // Upgrade reachy-mini
     let mut args = vec!["install", "--upgrade", "reachy-mini"];
