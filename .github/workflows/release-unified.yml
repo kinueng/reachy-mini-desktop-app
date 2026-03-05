@@ -162,7 +162,7 @@ jobs:
           # Update the tauri.macos.conf.json with the exact cpython folder name
           # The config has hardcoded aarch64 path, we need to replace it with the actual folder
           # IMPORTANT: Only replace the exact folder name, not /lib suffix
-          sed -i '' "s|cpython-3.12.12-macos-aarch64-none|$CPYTHON_FOLDER|g" src-tauri/tauri.macos.conf.json
+          sed -i '' "s|cpython-3.12.13-macos-aarch64-none|$CPYTHON_FOLDER|g" src-tauri/tauri.macos.conf.json
           
           echo "✅ Updated tauri.macos.conf.json:"
           cat src-tauri/tauri.macos.conf.json
