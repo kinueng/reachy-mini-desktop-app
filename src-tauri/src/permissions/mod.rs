@@ -17,9 +17,7 @@ pub fn request_all_permissions() {
     log::info!("   - Filesystem/USB: Already granted via entitlements");
     log::info!("Note: Permissions granted to the main app will propagate to child processes");
     log::info!("   (Python daemon and its apps)");
-    log::info!(
-        "Note: App will appear in System Settings > Privacy after first permission request"
-    );
+    log::info!("Note: App will appear in System Settings > Privacy after first permission request");
 }
 
 #[cfg(not(target_os = "macos"))]

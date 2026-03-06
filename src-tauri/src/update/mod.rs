@@ -57,10 +57,7 @@ fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
             .join("binaries");
 
         if program_files_dir.join(".venv").exists() {
-            log::info!(
-                "[update] Using Program Files venv: {:?}",
-                program_files_dir
-            );
+            log::info!("[update] Using Program Files venv: {:?}", program_files_dir);
             return Ok(program_files_dir);
         }
 
@@ -327,11 +324,16 @@ fn try_parse_pep440_suffix(
     if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
         return None;
     }
-    let clean = format!("{}.{}.{}-{}.{}", major, minor, parts[0], semver_label, parts[1]);
-    Some(
-        semver::Version::parse(&clean)
-            .map_err(|e| format!("Failed to parse {} version '{}': {}", semver_label, clean, e)),
-    )
+    let clean = format!(
+        "{}.{}.{}-{}.{}",
+        major, minor, parts[0], semver_label, parts[1]
+    );
+    Some(semver::Version::parse(&clean).map_err(|e| {
+        format!(
+            "Failed to parse {} version '{}': {}",
+            semver_label, clean, e
+        )
+    }))
 }
 
 /// Parse a PEP 440 version string into semver.
@@ -400,7 +402,12 @@ async fn run_pip(
     args: &[&str],
     context: &str,
 ) -> Result<(String, String), String> {
-    log::info!("[update] Running pip ({}): {:?} {:?}", context, pip_path, args);
+    log::info!(
+        "[update] Running pip ({}): {:?} {:?}",
+        context,
+        pip_path,
+        args
+    );
 
     let output = tokio::process::Command::new(pip_path)
         .args(args)

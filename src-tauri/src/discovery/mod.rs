@@ -384,7 +384,11 @@ pub async fn discover_robots(
         for (i, robot) in robots.iter().enumerate() {
             log::info!(
                 "[discovery]   [{}] name={:?} ip={} method={} hostname={:?}",
-                i, robot.name, robot.ip, robot.discovery_method, robot.hostname
+                i,
+                robot.name,
+                robot.ip,
+                robot.discovery_method,
+                robot.hostname
             );
         }
     }

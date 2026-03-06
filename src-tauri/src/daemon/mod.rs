@@ -73,10 +73,7 @@ pub fn transition_status(
     }
 
     *status = new_status;
-    log::info!(
-        "[daemon] Status transition: {:?} -> {:?}",
-        old, new_status
-    );
+    log::info!("[daemon] Status transition: {:?} -> {:?}", old, new_status);
     Ok(old)
 }
 
@@ -140,7 +137,11 @@ pub fn add_log(state: &State<DaemonState>, message: String) {
             }
         }
         Err(e) => {
-            log::error!("[daemon] Logs mutex poisoned, message dropped: {} — {}", message, e);
+            log::error!(
+                "[daemon] Logs mutex poisoned, message dropped: {} — {}",
+                message,
+                e
+            );
         }
     }
 }
@@ -206,11 +207,7 @@ fn kill_pids(pids: &[String], force: bool) {
     use std::process::Command;
 
     for pid in pids {
-        log::info!(
-            "[daemon] Killing PID {} (force={})",
-            pid,
-            force
-        );
+        log::info!("[daemon] Killing PID {} (force={})", pid, force);
 
         #[cfg(not(target_os = "windows"))]
         {
@@ -266,7 +263,13 @@ pub fn cleanup_system_daemons() {
         use std::process::Command;
         // Kill Python processes matching the daemon module name in their command line
         let output = Command::new("wmic")
-            .args(["process", "where", &format!("CommandLine like '%{}%'", DAEMON_PROCESS_PATTERN), "get", "ProcessId"])
+            .args([
+                "process",
+                "where",
+                &format!("CommandLine like '%{}%'", DAEMON_PROCESS_PATTERN),
+                "get",
+                "ProcessId",
+            ])
             .output();
         if let Ok(output) = output {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -298,7 +301,11 @@ pub fn kill_daemon(state: &State<DaemonState>) {
         let pid = child.pid();
         log::info!("[daemon] Killing tracked sidecar (PID {})", pid);
         if let Err(e) = child.kill() {
-            log::warn!("[daemon] Sidecar kill failed (PID {}): {} — falling back to port cleanup", pid, e);
+            log::warn!(
+                "[daemon] Sidecar kill failed (PID {}): {} — falling back to port cleanup",
+                pid,
+                e
+            );
         }
     }
 
@@ -325,12 +332,20 @@ pub fn finalize_daemon_termination(
     app_handle: &tauri::AppHandle,
 ) -> Result<(), ()> {
     match daemon_state.process.lock() {
-        Ok(mut guard) => { guard.take(); }
-        Err(e) => log::error!("[daemon] Process mutex poisoned in terminated handler: {}", e),
+        Ok(mut guard) => {
+            guard.take();
+        }
+        Err(e) => log::error!(
+            "[daemon] Process mutex poisoned in terminated handler: {}",
+            e
+        ),
     }
 
     let current_status = *daemon_state.status.lock().map_err(|e| {
-        log::error!("[daemon] Status mutex poisoned in terminated handler: {}", e);
+        log::error!(
+            "[daemon] Status mutex poisoned in terminated handler: {}",
+            e
+        );
     })?;
 
     let target = terminated_target_status(current_status);
@@ -349,13 +364,17 @@ pub fn handle_daemon_terminated(
     captured_generation: u64,
 ) -> Result<bool, ()> {
     let current_gen = *daemon_state.generation.lock().map_err(|e| {
-        log::error!("[daemon] Generation mutex poisoned in terminated handler: {}", e);
+        log::error!(
+            "[daemon] Generation mutex poisoned in terminated handler: {}",
+            e
+        );
     })?;
 
     if captured_generation != current_gen {
         log::info!(
             "[daemon] Ignoring terminated event for old daemon (gen {} vs current {})",
-            captured_generation, current_gen
+            captured_generation,
+            current_gen
         );
         return Ok(false);
     }
@@ -417,7 +436,8 @@ macro_rules! spawn_sidecar_monitor {
                         if let Some(ref p) = prefix {
                             log::info!(
                                 "[tauri] [{}] Process terminated with status: {:?}",
-                                p, status
+                                p,
+                                status
                             );
                         } else {
                             log::info!(
@@ -430,7 +450,9 @@ macro_rules! spawn_sidecar_monitor {
                                 &daemon_state,
                                 &app_handle_clone,
                                 captured_generation,
-                            ).is_err() {
+                            )
+                            .is_err()
+                            {
                                 break;
                             }
                         }
@@ -533,9 +555,7 @@ pub fn spawn_and_monitor_sidecar(
                         || line_lower.contains("invalid choice")
                     {
                         has_argument_error = true;
-                        log::warn!(
-                            "[tauri] Detected unsupported --preload-datasets argument"
-                        );
+                        log::warn!("[tauri] Detected unsupported --preload-datasets argument");
                     }
                 }
                 CommandEvent::Terminated(status) => {
@@ -544,8 +564,7 @@ pub fn spawn_and_monitor_sidecar(
                         status
                     );
 
-                    let daemon_state =
-                        app_handle_clone.state::<crate::daemon::DaemonState>();
+                    let daemon_state = app_handle_clone.state::<crate::daemon::DaemonState>();
                     let current_gen = match daemon_state.generation.lock() {
                         Ok(gen) => *gen,
                         Err(e) => {
@@ -563,17 +582,16 @@ pub fn spawn_and_monitor_sidecar(
                     }
 
                     if has_argument_error {
-                        log::info!(
-                            "[tauri] Retrying without --preload-datasets..."
-                        );
+                        log::info!("[tauri] Retrying without --preload-datasets...");
 
                         match daemon_state.process.lock() {
-                            Ok(mut guard) => { guard.take(); }
+                            Ok(mut guard) => {
+                                guard.take();
+                            }
                             Err(e) => log::error!("[daemon] Process mutex poisoned: {}", e),
                         }
 
-                        tokio::time::sleep(tokio::time::Duration::from_millis(500))
-                            .await;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
                         use crate::python::build_daemon_args;
                         use tauri_plugin_shell::ShellExt;
@@ -581,10 +599,7 @@ pub fn spawn_and_monitor_sidecar(
                         let daemon_args = match build_daemon_args(sim_mode, false) {
                             Ok(args) => args,
                             Err(e) => {
-                                log::error!(
-                                    "[tauri] Failed to build daemon args: {}",
-                                    e
-                                );
+                                log::error!("[tauri] Failed to build daemon args: {}", e);
                                 let _ = crate::daemon::transition_and_emit(
                                     &daemon_state,
                                     crate::daemon::DaemonStatus::Crashed,
@@ -597,16 +612,10 @@ pub fn spawn_and_monitor_sidecar(
                         let daemon_args_refs: Vec<&str> =
                             daemon_args.iter().map(|s| s.as_str()).collect();
 
-                        let sidecar_cmd = match app_handle_clone
-                            .shell()
-                            .sidecar("uv-trampoline")
-                        {
+                        let sidecar_cmd = match app_handle_clone.shell().sidecar("uv-trampoline") {
                             Ok(cmd) => cmd,
                             Err(e) => {
-                                log::error!(
-                                    "[tauri] Failed to get sidecar: {}",
-                                    e
-                                );
+                                log::error!("[tauri] Failed to get sidecar: {}", e);
                                 let _ = crate::daemon::transition_and_emit(
                                     &daemon_state,
                                     crate::daemon::DaemonStatus::Crashed,
@@ -628,7 +637,10 @@ pub fn spawn_and_monitor_sidecar(
                                         *gen
                                     }
                                     Err(e) => {
-                                        log::error!("[daemon] Generation mutex poisoned on retry: {}", e);
+                                        log::error!(
+                                            "[daemon] Generation mutex poisoned on retry: {}",
+                                            e
+                                        );
                                         break;
                                     }
                                 };
@@ -638,7 +650,10 @@ pub fn spawn_and_monitor_sidecar(
                                         *process_lock = Some(new_child);
                                     }
                                     Err(e) => {
-                                        log::error!("[daemon] Process mutex poisoned on retry: {}", e);
+                                        log::error!(
+                                            "[daemon] Process mutex poisoned on retry: {}",
+                                            e
+                                        );
                                         break;
                                     }
                                 }
@@ -652,10 +667,7 @@ pub fn spawn_and_monitor_sidecar(
                                 );
                             }
                             Err(e) => {
-                                log::error!(
-                                    "[tauri] Failed to spawn fallback daemon: {}",
-                                    e
-                                );
+                                log::error!("[tauri] Failed to spawn fallback daemon: {}", e);
                                 let _ = crate::daemon::transition_and_emit(
                                     &daemon_state,
                                     crate::daemon::DaemonStatus::Crashed,
@@ -664,10 +676,7 @@ pub fn spawn_and_monitor_sidecar(
                             }
                         }
                     } else {
-                        if finalize_daemon_termination(
-                            &daemon_state,
-                            &app_handle_clone,
-                        ).is_err() {
+                        if finalize_daemon_termination(&daemon_state, &app_handle_clone).is_err() {
                             break;
                         }
                     }
