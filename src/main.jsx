@@ -210,7 +210,9 @@ function ThemeWrapper({ children }) {
 // Priority: WebMode > DevMode > Normal App
 const RootComponent = isWebMode ? WebApp : DEV_MODE ? DevPlayground : App;
 
-console.log(`[Main] Mode: ${isWebMode ? 'WEB' : DEV_MODE ? 'DEV' : 'TAURI'}`);
+if (import.meta.env.DEV) {
+  console.log(`[Main] Mode: ${isWebMode ? 'WEB' : DEV_MODE ? 'DEV' : 'TAURI'}`);
+}
 
 // 🚀 No StrictMode for production robot app
 // StrictMode double-invokes effects in dev, causing WebSocket/connection issues
