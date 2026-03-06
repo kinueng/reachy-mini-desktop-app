@@ -3,6 +3,14 @@ fn main() {
     #[cfg(target_os = "macos")]
     {
         println!("cargo:rustc-link-lib=framework=AVFoundation");
+        println!("cargo:rustc-link-lib=framework=Network");
+
+        // Compile the Objective-C NWBrowser helper for local network
+        // permission detection (Apple TN3179 recommended approach).
+        cc::Build::new()
+            .file("src/permissions/nw_local_network.m")
+            .flag("-fobjc-arc")
+            .compile("nw_local_network");
     }
 
     // Link against libX11 on Linux for XInitThreads()

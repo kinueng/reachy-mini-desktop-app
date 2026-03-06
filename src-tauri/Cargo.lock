@@ -4031,6 +4031,7 @@ name = "reachy-mini-control"
 version = "0.9.19"
 dependencies = [
  "block",
+ "cc",
  "cocoa",
  "default-net",
  "dirs",

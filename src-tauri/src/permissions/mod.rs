@@ -1,8 +1,13 @@
 //! Module for managing cross-platform permissions (camera, microphone, local network, etc.)
 //!
-//! Note: Camera/microphone permissions are managed by tauri-plugin-macos-permissions
-//! Local Network permission (macOS Sequoia+) is checked/requested via TCP probe.
-//! This module also provides functions to open System Settings.
+//! Note: Camera/microphone permissions are managed by tauri-plugin-macos-permissions.
+//!
+//! Local Network (macOS Sequoia+): There is no API to silently check permission
+//! status (Apple FB8711182). UDP connect() does not trigger the privacy check;
+//! only real I/O (send_to) or Bonjour operations do. We use a state machine:
+//! - UNKNOWN: check returns None, no I/O is performed (avoids auto-triggering popup)
+//! - REQUESTED: user clicked the card, we do send_to to trigger the dialog and verify
+//! - GRANTED/DENIED: confirmed state, cached for subsequent checks
 
 /// Log configured permissions at app startup (macOS only)
 #[cfg(target_os = "macos")]
@@ -141,60 +146,94 @@ pub fn open_local_network_settings() -> Result<(), String> {
     Ok(())
 }
 
+// Local Network permission state machine (macOS only).
+// 0 = UNKNOWN (never requested), 1 = GRANTED, 2 = DENIED, 3 = REQUESTED (dialog may be showing)
+#[cfg(target_os = "macos")]
+static LOCAL_NETWORK_STATE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+// NWBrowser FFI (compiled from nw_local_network.m).
+// This is the Apple-recommended approach (TN3179) for detecting local network
+// permission: NWBrowser reports .ready when granted, .waiting(PolicyDenied)
+// when denied, and times out while the dialog is still visible.
+#[cfg(target_os = "macos")]
+extern "C" {
+    /// Probe local network permission using NWBrowser.
+    /// Returns: 0 = timeout (dialog showing), 1 = granted, 2 = denied
+    fn nw_probe_local_network(timeout_secs: f64) -> i32;
+}
+
+#[cfg(target_os = "macos")]
+fn probe_local_network(timeout_secs: f64) -> Result<Option<bool>, String> {
+    use std::sync::atomic::Ordering;
+
+    let result = unsafe { nw_probe_local_network(timeout_secs) };
+
+    match result {
+        1 => {
+            log::info!("[permissions] NWBrowser: .ready (permission granted)");
+            LOCAL_NETWORK_STATE.store(1, Ordering::Relaxed);
+            Ok(Some(true))
+        }
+        2 => {
+            log::info!("[permissions] NWBrowser: PolicyDenied (permission denied)");
+            LOCAL_NETWORK_STATE.store(2, Ordering::Relaxed);
+            Ok(Some(false))
+        }
+        _ => {
+            log::debug!("[permissions] NWBrowser: timeout (dialog may be showing)");
+            Ok(None)
+        }
+    }
+}
+
 /// Check Local Network permission status (macOS Sequoia/Tahoe+)
-/// Returns: true if granted, false if denied, None if unknown/pending
 ///
-/// Uses a TCP connection attempt to probe the permission state.
-/// - If connection succeeds or fails with "ConnectionRefused" → permission granted
-/// - If connection fails with "PermissionDenied" (EPERM) → permission denied
+/// Returns: true if granted, false if denied, None if unknown/pending.
 ///
-/// On first call, this will trigger the macOS permission dialog if permission
-/// hasn't been requested before.
+/// When the state is UNKNOWN (user hasn't clicked the card yet), this returns
+/// None WITHOUT performing any network I/O - avoiding auto-triggering the
+/// macOS privacy dialog. Only after request_local_network_permission has been
+/// called does this function perform actual probing via NWBrowser.
 #[tauri::command]
 #[cfg(target_os = "macos")]
 pub async fn check_local_network_permission() -> Result<Option<bool>, String> {
-    use std::time::Duration;
-    use tokio::net::TcpStream;
-    use tokio::time::timeout;
+    use std::sync::atomic::Ordering;
 
-    // Try to connect to localhost on a port that's almost certainly closed (port 1)
-    // This triggers the Local Network permission check without needing an actual service
-    let connect_result = timeout(Duration::from_secs(3), TcpStream::connect("127.0.0.1:1")).await;
-
-    match connect_result {
-        Ok(Ok(_)) => {
-            // Connection succeeded (very unlikely on port 1, but means permission granted)
-            Ok(Some(true))
+    match LOCAL_NETWORK_STATE.load(Ordering::Relaxed) {
+        1 => Ok(Some(true)),
+        2 => {
+            // Denied, but re-probe in case the user toggled it back on in
+            // System Settings.
+            LOCAL_NETWORK_STATE.store(3, Ordering::Relaxed);
+            tokio::task::spawn_blocking(|| probe_local_network(0.5))
+                .await
+                .map_err(|e| format!("spawn_blocking failed: {}", e))?
         }
-        Ok(Err(e)) => {
-            // Connection failed - check the error type
-            let os_error = e.raw_os_error();
-            let error_kind = e.kind();
-
-            // EPERM (error 1) or PermissionDenied means Local Network access denied
-            if os_error == Some(1) || error_kind == std::io::ErrorKind::PermissionDenied {
-                Ok(Some(false))
-            } else {
-                // Other errors (ConnectionRefused, etc.) mean permission is granted
-                // but the port is just not available - this is expected
-                Ok(Some(true))
-            }
+        3 => {
+            // Request was made; probe to detect the user's choice
+            tokio::task::spawn_blocking(|| probe_local_network(0.5))
+                .await
+                .map_err(|e| format!("spawn_blocking failed: {}", e))?
         }
-        Err(_) => {
-            // Timeout - permission dialog might be showing, or network is slow
+        _ => {
+            // UNKNOWN: never requested -> return None, no I/O
             Ok(None)
         }
     }
 }
 
 /// Request Local Network permission (macOS Sequoia/Tahoe+)
-/// This is the same as check - calling it triggers the permission dialog if needed.
-/// Returns: true if granted, false if denied, None if dialog is showing
+///
+/// Creates an NWBrowser which triggers the macOS privacy dialog if the
+/// permission is undetermined. Blocks (on a dedicated thread) for up to
+/// 3 seconds waiting for the user's response.
 #[tauri::command]
 #[cfg(target_os = "macos")]
 pub async fn request_local_network_permission() -> Result<Option<bool>, String> {
-    // Request is the same as check - the act of checking triggers the dialog
-    check_local_network_permission().await
+    LOCAL_NETWORK_STATE.store(3, std::sync::atomic::Ordering::Relaxed);
+    tokio::task::spawn_blocking(|| probe_local_network(3.0))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {}", e))?
 }
 
 // ============================================================================

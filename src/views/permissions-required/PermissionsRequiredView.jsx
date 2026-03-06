@@ -308,62 +308,64 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
   );
 
   // Local Network permission request handler (uses custom Rust command)
+  // Flow mirrors Camera/Microphone: request -> poll -> detect granted/denied.
+  // The Rust side returns None on EPERM because macOS may deny the operation
+  // immediately while the privacy dialog is still visible. We poll until the
+  // user makes a choice instead of opening System Settings prematurely.
   const requestLocalNetworkPermission = useCallback(async () => {
     if (!isMacOS()) {
       return;
     }
 
     try {
-      // Request triggers the permission dialog via NWBrowser
       const result = await invoke('request_local_network_permission');
       dispatch({ type: 'SET_LOCAL_NETWORK_REQUESTED' });
 
       if (result === true) {
-        // Permission granted
         await refreshPermissions();
-      } else if (result === false) {
-        await invoke('open_local_network_settings');
-      } else {
-        // null = unknown/pending, start polling
-        if (permissionPollingRef.current) {
-          clearInterval(permissionPollingRef.current);
-        }
+        return;
+      }
 
-        let checkCount = 0;
-        const maxChecks = 20;
+      // null or false: dialog may be showing, poll for the user's choice
+      if (permissionPollingRef.current) {
+        clearInterval(permissionPollingRef.current);
+      }
 
-        permissionPollingRef.current = setInterval(async () => {
-          checkCount++;
-          await refreshPermissions();
+      let checkCount = 0;
+      const maxChecks = 20;
 
-          try {
-            const status = await invoke('check_local_network_permission');
-            if (status === true) {
-              if (permissionPollingRef.current) {
-                clearInterval(permissionPollingRef.current);
-                permissionPollingRef.current = null;
-              }
-              await refreshPermissions();
-            } else if (status === false) {
-              // Denied
-              if (permissionPollingRef.current) {
-                clearInterval(permissionPollingRef.current);
-                permissionPollingRef.current = null;
-              }
-              await invoke('open_local_network_settings');
-            }
-          } catch (error) {
-            // Ignore errors during polling
-          }
+      permissionPollingRef.current = setInterval(async () => {
+        checkCount++;
 
-          if (checkCount >= maxChecks) {
+        try {
+          const status = await invoke('check_local_network_permission');
+          if (status === true) {
             if (permissionPollingRef.current) {
               clearInterval(permissionPollingRef.current);
               permissionPollingRef.current = null;
             }
+            await refreshPermissions();
+          } else if (status === false) {
+            // User denied - stop polling, open System Settings
+            if (permissionPollingRef.current) {
+              clearInterval(permissionPollingRef.current);
+              permissionPollingRef.current = null;
+            }
+            await refreshPermissions();
+            await invoke('open_local_network_settings');
           }
-        }, 500);
-      }
+        } catch (error) {
+          // Ignore errors during polling
+        }
+
+        if (checkCount >= maxChecks) {
+          if (permissionPollingRef.current) {
+            clearInterval(permissionPollingRef.current);
+            permissionPollingRef.current = null;
+          }
+          await refreshPermissions();
+        }
+      }, 500);
     } catch (error) {
       try {
         await invoke('open_local_network_settings');
