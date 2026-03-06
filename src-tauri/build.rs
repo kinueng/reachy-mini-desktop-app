@@ -50,8 +50,7 @@ fn main() {
                 panic!("Failed to copy icon to {}: {}", safe_icon.display(), e)
             });
 
-            let windows_attrs =
-                tauri_build::WindowsAttributes::new().window_icon_path(&safe_icon);
+            let windows_attrs = tauri_build::WindowsAttributes::new().window_icon_path(&safe_icon);
             let attrs = tauri_build::Attributes::new().windows_attributes(windows_attrs);
             tauri_build::try_build(attrs).expect("Failed to run Tauri build script");
             return;

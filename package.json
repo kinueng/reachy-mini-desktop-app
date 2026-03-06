@@ -110,6 +110,9 @@
     "src/**/*.{js,jsx}": [
       "prettier --write",
       "eslint --fix"
+    ],
+    "src-tauri/src/**/*.rs": [
+      "rustfmt"
     ]
   }
 }

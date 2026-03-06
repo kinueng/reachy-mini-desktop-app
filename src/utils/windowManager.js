@@ -10,13 +10,16 @@
 
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { getAllWindows } from '@tauri-apps/api/window';
+import { PhysicalPosition } from '@tauri-apps/api/dpi';
 import { invoke } from '@tauri-apps/api/core';
 import useAppStore from '../store/useAppStore';
 
 const APP_WINDOW_PREFIX = 'app-';
+const CASCADE_STEP = 20; // logical px offset per window
 
 // Module-level cache: label → WebviewWindow reference
 const windowRefs = new Map();
+let cascadeIndex = 0;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -72,6 +75,9 @@ function purge(label) {
   } catch {
     // Store may be unavailable after HMR
   }
+
+  const hasAppWindows = [...windowRefs.keys()].some(l => l.startsWith(APP_WINDOW_PREFIX));
+  if (!hasAppWindows) cascadeIndex = 0;
 }
 
 /**
@@ -138,6 +144,8 @@ export async function openAppWindow(appName, url, options = {}) {
     }
   }
 
+  const offset = cascadeIndex * CASCADE_STEP;
+
   try {
     const win = new WebviewWindow(label, {
       url,
@@ -151,8 +159,20 @@ export async function openAppWindow(appName, url, options = {}) {
     });
 
     windowRefs.set(label, win);
+    cascadeIndex++;
 
-    win.once('tauri://created', () => {
+    win.once('tauri://created', async () => {
+      // Shift from center so stacked windows fan out visibly
+      if (offset > 0) {
+        try {
+          const factor = await win.scaleFactor();
+          const pos = await win.outerPosition();
+          const px = Math.round(offset * factor);
+          await win.setPosition(new PhysicalPosition(pos.x + px, pos.y + px));
+        } catch {
+          // Positioning is best-effort
+        }
+      }
       try {
         useAppStore.getState().addOpenWindow?.(label);
       } catch {

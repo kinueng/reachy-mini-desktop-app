@@ -124,12 +124,17 @@ jobs:
           echo "🐍 Building reachy-mini daemon with PyInstaller for Linux..."
           
           # Install system dependencies for PyInstaller
+          # libgirepository1.0-dev + gir1.2-glib-2.0 + libcairo2-dev are needed to build PyGObject
           sudo apt-get update
           sudo apt-get install -y \
             python3-dev \
             python3-pip \
             libportaudio2 \
-            portaudio19-dev
+            portaudio19-dev \
+            libgirepository1.0-dev \
+            gir1.2-glib-2.0 \
+            pkg-config \
+            libcairo2-dev
           
           # Run PyInstaller build script (install from PyPI)
           REACHY_MINI_SOURCE=pypi TARGET_TRIPLET=${{ matrix.target }} bash ./scripts/build/build-daemon-pyinstaller.sh
@@ -162,7 +167,7 @@ jobs:
           # Update the tauri.macos.conf.json with the exact cpython folder name
           # The config has hardcoded aarch64 path, we need to replace it with the actual folder
           # IMPORTANT: Only replace the exact folder name, not /lib suffix
-          sed -i '' "s|cpython-3.12.12-macos-aarch64-none|$CPYTHON_FOLDER|g" src-tauri/tauri.macos.conf.json
+          sed -i '' "s|cpython-3.12.13-macos-aarch64-none|$CPYTHON_FOLDER|g" src-tauri/tauri.macos.conf.json
           
           echo "✅ Updated tauri.macos.conf.json:"
           cat src-tauri/tauri.macos.conf.json

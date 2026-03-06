@@ -23,7 +23,10 @@ use daemon::{
 /// Cross-platform path for the crash marker file.
 /// Uses the OS-standard data/log directory instead of hardcoded macOS paths.
 fn crash_marker_path() -> Option<std::path::PathBuf> {
-    dirs::data_local_dir().map(|d| d.join("com.pollen-robotics.reachy-mini").join(".crash_marker"))
+    dirs::data_local_dir().map(|d| {
+        d.join("com.pollen-robotics.reachy-mini")
+            .join(".crash_marker")
+    })
 }
 use discovery::DiscoveryState;
 use local_proxy::LocalProxyState;
@@ -57,7 +60,10 @@ fn start_daemon(
     }
 
     if sim_mode {
-        add_log(&state, "Starting simulation mode (mockup-sim)...".to_string());
+        add_log(
+            &state,
+            "Starting simulation mode (mockup-sim)...".to_string(),
+        );
     }
 
     add_log(&state, "Cleaning up existing daemons...".to_string());
@@ -70,14 +76,20 @@ fn start_daemon(
 
     if let Err(e) = spawn_and_monitor_sidecar(app_handle.clone(), &state, sim_mode) {
         if let Err(te) = transition_and_emit(&state, DaemonStatus::Crashed, &app_handle) {
-            log::warn!("[daemon] Failed to transition to Crashed after spawn failure: {}", te);
+            log::warn!(
+                "[daemon] Failed to transition to Crashed after spawn failure: {}",
+                te
+            );
         }
         add_log(&state, format!("Spawn failed: {}", e));
         return Err(e);
     }
 
     if let Err(te) = transition_and_emit(&state, DaemonStatus::Running, &app_handle) {
-        log::warn!("[daemon] Failed to transition to Running after spawn: {}", te);
+        log::warn!(
+            "[daemon] Failed to transition to Running after spawn: {}",
+            te
+        );
     }
 
     let success_msg = if sim_mode {
@@ -90,10 +102,7 @@ fn start_daemon(
 }
 
 #[tauri::command]
-fn stop_daemon(
-    app_handle: tauri::AppHandle,
-    state: State<DaemonState>,
-) -> Result<String, String> {
+fn stop_daemon(app_handle: tauri::AppHandle, state: State<DaemonState>) -> Result<String, String> {
     if let Err(e) = transition_and_emit(&state, DaemonStatus::Stopping, &app_handle) {
         log::warn!("[daemon] Failed to transition to Stopping: {}", e);
     }
@@ -262,18 +271,16 @@ pub fn run() {
     // Setup signal handler for brutal kill (SIGTERM, SIGINT, etc.) - Unix only
     #[cfg(not(windows))]
     {
-        std::thread::spawn(|| {
-            match Signals::new(TERM_SIGNALS) {
-                Ok(mut signals) => {
-                    if let Some(sig) = signals.forever().next() {
-                        log::error!("Signal {:?} received - cleaning up daemon", sig);
-                        cleanup_system_daemons();
-                        std::process::exit(0);
-                    }
+        std::thread::spawn(|| match Signals::new(TERM_SIGNALS) {
+            Ok(mut signals) => {
+                if let Some(sig) = signals.forever().next() {
+                    log::error!("Signal {:?} received - cleaning up daemon", sig);
+                    cleanup_system_daemons();
+                    std::process::exit(0);
                 }
-                Err(e) => {
-                    log::warn!("Failed to register signal handlers: {} — daemon cleanup on SIGTERM will not work", e);
-                }
+            }
+            Err(e) => {
+                log::warn!("Failed to register signal handlers: {} — daemon cleanup on SIGTERM will not work", e);
             }
         });
     }
@@ -325,7 +332,7 @@ pub fn run() {
 
     // Create shared local proxy state (proxy starts on-demand when WiFi target is set)
     let local_proxy_state = Arc::new(LocalProxyState::new());
-    
+
     // Create discovery state (mDNS + cache + static peers)
     let discovery_state = DiscoveryState::new();
 
@@ -391,25 +398,23 @@ pub fn run() {
             // Network detection (VPN)
             network::detect_vpn
         ])
-        .on_window_event(|window, event| {
-            match event {
-                tauri::WindowEvent::CloseRequested { .. } => {
-                    if window.label() == "main" {
-                        log::info!("[tauri] Main window close requested - killing daemon");
-                        let state: tauri::State<DaemonState> = window.state();
-                        let _ = transition_status(&state.status, DaemonStatus::Stopping);
-                        kill_daemon(&state);
-                        let _ = transition_status(&state.status, DaemonStatus::Idle);
-                    }
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { .. } => {
+                if window.label() == "main" {
+                    log::info!("[tauri] Main window close requested - killing daemon");
+                    let state: tauri::State<DaemonState> = window.state();
+                    let _ = transition_status(&state.status, DaemonStatus::Stopping);
+                    kill_daemon(&state);
+                    let _ = transition_status(&state.status, DaemonStatus::Idle);
                 }
-                tauri::WindowEvent::Destroyed => {
-                    if window.label() == "main" {
-                        log::info!("[tauri] Main window destroyed - final cleanup");
-                        cleanup_system_daemons();
-                    }
-                }
-                _ => {}
             }
+            tauri::WindowEvent::Destroyed => {
+                if window.label() == "main" {
+                    log::info!("[tauri] Main window destroyed - final cleanup");
+                    cleanup_system_daemons();
+                }
+            }
+            _ => {}
         })
         .build(tauri::generate_context!())
         .unwrap_or_else(|e| {

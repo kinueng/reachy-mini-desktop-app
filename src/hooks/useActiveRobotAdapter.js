@@ -160,8 +160,8 @@ export function useActiveRobotAdapter() {
       // App locking
       lockForApp: store.lockForApp,
       unlockApp: store.unlockApp,
-      lockForInstall: store.lockForInstall,
-      unlockInstall: store.unlockInstall,
+      lockForInstall: store.lockForInstallWithRobot,
+      unlockInstall: store.unlockInstallWithRobot,
 
       // Robot state setters (use transitionTo instead of setIsActive/setIsStarting/setIsStopping)
       setRobotStateFull: store.setRobotStateFull,

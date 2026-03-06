@@ -95,7 +95,8 @@ async fn start_local_proxy(state: Arc<LocalProxyState>) {
 
     log::info!(
         "[proxy] Proxy started (TCP: {:?}, UDP: {:?})",
-        TCP_PROXY_PORTS, UDP_PROXY_PORTS
+        TCP_PROXY_PORTS,
+        UDP_PROXY_PORTS
     );
 }
 
@@ -232,7 +233,9 @@ async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
 
                 log::info!(
                     "[proxy] UDP new client {} -> {}:{}",
-                    client_addr, target_host, port
+                    client_addr,
+                    target_host,
+                    port
                 );
 
                 // Spawn a task to forward responses from remote back to this client
@@ -263,7 +266,8 @@ async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
                                 {
                                     log::error!(
                                         "[proxy] UDP failed to send response to {}: {}",
-                                        client_addr_clone, e
+                                        client_addr_clone,
+                                        e
                                     );
                                     break;
                                 }
@@ -359,7 +363,10 @@ async fn handle_websocket(
     let path = request_path.read().await.clone();
     log::info!(
         "[proxy] WS {} -> ws://{}:{}{}",
-        addr, target_host, port, path
+        addr,
+        target_host,
+        port,
+        path
     );
 
     // Build remote URL with the same path and port
@@ -467,7 +474,10 @@ async fn handle_http(
             .to_string();
         log::info!(
             "[proxy] HTTP {} -> {}:{} | {}",
-            addr, target_host, port, first_line
+            addr,
+            target_host,
+            port,
+            first_line
         );
     }
 
@@ -514,7 +524,7 @@ fn is_private_network_host(host: &str) -> bool {
             std::net::IpAddr::V6(v6) => {
                 v6.is_loopback()
                     || v6.segments()[0] == 0xfe80  // link-local
-                    || (v6.segments()[0] & 0xfe00) == 0xfc00  // unique local (fc00::/7)
+                    || (v6.segments()[0] & 0xfe00) == 0xfc00 // unique local (fc00::/7)
             }
         };
     }

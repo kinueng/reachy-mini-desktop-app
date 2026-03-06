@@ -42,10 +42,10 @@ export function useDoA(isActive) {
       // Instant ON - respond immediately to speech
       setDebouncedTalking(true);
     } else {
-      // Delayed OFF - wait 200ms before hiding to prevent flickering
+      // Delayed OFF - wait long enough to bridge natural pauses between words
       timeoutRef.current = setTimeout(() => {
         setDebouncedTalking(false);
-      }, 200);
+      }, 600);
     }
 
     return () => {

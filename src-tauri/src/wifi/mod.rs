@@ -169,7 +169,7 @@ fn is_reachy_hotspot(ssid: &str) -> bool {
 }
 
 /// Sort networks: Reachy hotspots first, then by descending signal strength.
-fn sort_networks(networks: &mut Vec<WifiNetwork>) {
+fn sort_networks(networks: &mut [WifiNetwork]) {
     networks.sort_by(|a, b| {
         if a.is_reachy_hotspot != b.is_reachy_hotspot {
             return b.is_reachy_hotspot.cmp(&a.is_reachy_hotspot);

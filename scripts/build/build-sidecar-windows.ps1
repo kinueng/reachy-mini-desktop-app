@@ -9,7 +9,7 @@ if (Test-Path $DST_DIR) {
     $TempApps = New-TemporaryFile | ForEach-Object { Remove-Item $_; New-Item -ItemType Directory -Path $_ }
     $AppVenvs = Get-ChildItem -Path $DST_DIR -Directory -Filter "*_venv"
     foreach ($venv in $AppVenvs) {
-        Write-Host "💾 Preserving app venv: $($venv.Name)"
+        Write-Host "Preserving app venv: $($venv.Name)"
         Move-Item $venv.FullName $TempApps.FullName
     }
     
@@ -19,7 +19,7 @@ if (Test-Path $DST_DIR) {
     # Restore app venvs
     $RestoredVenvs = Get-ChildItem -Path $TempApps.FullName -Directory -Filter "*_venv" -ErrorAction SilentlyContinue
     foreach ($venv in $RestoredVenvs) {
-        Write-Host "♻️  Restoring app venv: $($venv.Name)"
+        Write-Host "Restoring app venv: $($venv.Name)"
         Move-Item $venv.FullName "$DST_DIR/"
     }
     Remove-Item $TempApps.FullName -Recurse -Force -ErrorAction SilentlyContinue

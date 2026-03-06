@@ -15,18 +15,18 @@ pub struct NetworkContext {
 }
 
 /// Detect if a VPN is currently active
-/// 
+///
 /// This checks the network interface name for common VPN patterns:
 /// - utun* (macOS VPN)
 /// - tun*, tap* (Linux/Windows OpenVPN, WireGuard)
 /// - vpn*, tailscale*, nordvpn*, etc. (Various VPN services)
 #[tauri::command]
 pub fn detect_vpn() -> Result<NetworkContext, String> {
-    let interface = get_default_interface()
-        .map_err(|e| format!("Failed to get network interface: {}", e))?;
-    
+    let interface =
+        get_default_interface().map_err(|e| format!("Failed to get network interface: {}", e))?;
+
     let name = interface.name.to_lowercase();
-    
+
     // Common VPN interface patterns
     let is_vpn = name.contains("utun")       // macOS
         || name.contains("tun")              // Linux/Windows OpenVPN
@@ -37,8 +37,8 @@ pub fn detect_vpn() -> Result<NetworkContext, String> {
         || name.contains("expressvpn")       // ExpressVPN
         || name.contains("protonvpn")        // ProtonVPN
         || name.contains("wireguard")        // WireGuard
-        || name.contains("wg");              // WireGuard short name
-    
+        || name.contains("wg"); // WireGuard short name
+
     let interface_type = if is_vpn {
         "vpn".to_string()
     } else if name.contains("eth") || name.contains("en") {
@@ -48,19 +48,19 @@ pub fn detect_vpn() -> Result<NetworkContext, String> {
     } else {
         "unknown".to_string()
     };
-    
+
     let recommended_mode = if is_vpn {
         "manual".to_string() // VPN detected → recommend manual IP
     } else {
         "auto".to_string() // No VPN → automatic discovery works well
     };
-    
+
     if is_vpn {
         log::warn!("[network] VPN detected on interface: {}", interface.name);
     } else {
         log::info!("[network] No VPN detected (interface: {})", interface.name);
     }
-    
+
     Ok(NetworkContext {
         is_vpn_detected: is_vpn,
         interface_name: interface.name.clone(),
