@@ -188,12 +188,12 @@ fn probe_local_network(timeout_secs: f64) -> Result<Option<bool>, String> {
 
 /// Check Local Network permission status (macOS Sequoia/Tahoe+)
 ///
-/// Returns: true if granted, false if denied, None if unknown/pending.
+/// Returns: true if granted, false if denied, None if pending.
 ///
-/// When the state is UNKNOWN (user hasn't clicked the card yet), this returns
-/// None WITHOUT performing any network I/O - avoiding auto-triggering the
-/// macOS privacy dialog. Only after request_local_network_permission has been
-/// called does this function perform actual probing via NWBrowser.
+/// On UNKNOWN state (first call after app launch), performs a quick probe
+/// to detect if the permission was already granted in a previous session.
+/// Without this, the app would show the permission card on every restart
+/// because the in-memory state resets, causing an infinite restart loop.
 #[tauri::command]
 #[cfg(target_os = "macos")]
 pub async fn check_local_network_permission() -> Result<Option<bool>, String> {
@@ -216,8 +216,12 @@ pub async fn check_local_network_permission() -> Result<Option<bool>, String> {
                 .map_err(|e| format!("spawn_blocking failed: {}", e))?
         }
         _ => {
-            // UNKNOWN: never requested -> return None, no I/O
-            Ok(None)
+            // UNKNOWN: first check after launch. Probe to detect if the
+            // permission was already granted in a previous session.
+            LOCAL_NETWORK_STATE.store(3, Ordering::Relaxed);
+            tokio::task::spawn_blocking(|| probe_local_network(1.0))
+                .await
+                .map_err(|e| format!("spawn_blocking failed: {}", e))?
         }
     }
 }
