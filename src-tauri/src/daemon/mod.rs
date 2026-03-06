@@ -445,8 +445,8 @@ macro_rules! spawn_sidecar_monitor {
                                 status
                             );
                             let daemon_state =
-                                app_handle_clone.state::<crate::daemon::DaemonState>();
-                            if crate::daemon::handle_daemon_terminated(
+                                app_handle_clone.state::<$crate::daemon::DaemonState>();
+                            if $crate::daemon::handle_daemon_terminated(
                                 &daemon_state,
                                 &app_handle_clone,
                                 captured_generation,
@@ -675,10 +675,9 @@ pub fn spawn_and_monitor_sidecar(
                                 );
                             }
                         }
-                    } else {
-                        if finalize_daemon_termination(&daemon_state, &app_handle_clone).is_err() {
-                            break;
-                        }
+                    } else if finalize_daemon_termination(&daemon_state, &app_handle_clone).is_err()
+                    {
+                        break;
                     }
                 }
                 _ => {}

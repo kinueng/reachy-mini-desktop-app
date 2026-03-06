@@ -149,27 +149,64 @@ async fn discover_via_mdns(timeout: Duration) -> Result<Vec<RobotInfo>, String> 
 
     while start.elapsed() < timeout {
         // Check _reachy-mini._tcp events
-        if let Ok(event) = receiver_reachy.recv_timeout(Duration::from_millis(50)) {
-            if let ServiceEvent::ServiceResolved(info) = event {
+        if let Ok(ServiceEvent::ServiceResolved(info)) =
+            receiver_reachy.recv_timeout(Duration::from_millis(50))
+        {
+            if let Some(ip) = pick_best_addr(info.get_addresses()) {
+                if !seen_ips.contains(&ip) {
+                    seen_ips.insert(ip.clone());
+
+                    // Name priority: robot_name TXT property > instance name from fullname > hostname
+                    let name = if let Some(robot_name) = info.get_property_val_str("robot_name") {
+                        robot_name.to_string()
+                    } else {
+                        info.get_fullname()
+                            .split("._reachy-mini._tcp.")
+                            .next()
+                            .unwrap_or(info.get_hostname().trim_end_matches('.'))
+                            .to_string()
+                    };
+
+                    log::info!(
+                        "[discovery] mDNS (_reachy-mini) found: {} at {}:{}",
+                        name,
+                        ip,
+                        info.get_port()
+                    );
+
+                    robots.push(RobotInfo {
+                        name,
+                        ip: ip.clone(),
+                        port: info.get_port(),
+                        discovery_method: "mdns".to_string(),
+                        hostname: Some(info.get_hostname().to_string()),
+                    });
+                }
+            }
+        }
+
+        // Check _http._tcp events (filtered for "reachy")
+        if let Ok(ServiceEvent::ServiceResolved(info)) =
+            receiver_http.recv_timeout(Duration::from_millis(50))
+        {
+            let fullname = info.get_fullname();
+            let hostname = info.get_hostname();
+
+            if fullname.to_lowercase().contains("reachy")
+                || hostname.to_lowercase().contains("reachy")
+            {
                 if let Some(ip) = pick_best_addr(info.get_addresses()) {
                     if !seen_ips.contains(&ip) {
                         seen_ips.insert(ip.clone());
 
-                        // Name priority: robot_name TXT property > instance name from fullname > hostname
-                        let name = if let Some(robot_name) = info.get_property_val_str("robot_name")
-                        {
-                            robot_name.to_string()
-                        } else {
-                            // Extract instance name: "instance._reachy-mini._tcp.local." → "instance"
-                            info.get_fullname()
-                                .split("._reachy-mini._tcp.")
-                                .next()
-                                .unwrap_or(info.get_hostname().trim_end_matches('.'))
-                                .to_string()
-                        };
+                        let name = fullname
+                            .split("._http._tcp.")
+                            .next()
+                            .unwrap_or(hostname.trim_end_matches('.'))
+                            .to_string();
 
                         log::info!(
-                            "[discovery] mDNS (_reachy-mini) found: {} at {}:{}",
+                            "[discovery] mDNS (_http) found: {} at {}:{}",
                             name,
                             ip,
                             info.get_port()
@@ -180,48 +217,8 @@ async fn discover_via_mdns(timeout: Duration) -> Result<Vec<RobotInfo>, String> 
                             ip: ip.clone(),
                             port: info.get_port(),
                             discovery_method: "mdns".to_string(),
-                            hostname: Some(info.get_hostname().to_string()),
+                            hostname: Some(hostname.to_string()),
                         });
-                    }
-                }
-            }
-        }
-
-        // Check _http._tcp events (filtered for "reachy")
-        if let Ok(event) = receiver_http.recv_timeout(Duration::from_millis(50)) {
-            if let ServiceEvent::ServiceResolved(info) = event {
-                let fullname = info.get_fullname();
-                let hostname = info.get_hostname();
-
-                if fullname.to_lowercase().contains("reachy")
-                    || hostname.to_lowercase().contains("reachy")
-                {
-                    if let Some(ip) = pick_best_addr(info.get_addresses()) {
-                        if !seen_ips.contains(&ip) {
-                            seen_ips.insert(ip.clone());
-
-                            // Extract instance name: "instance._http._tcp.local." → "instance"
-                            let name = fullname
-                                .split("._http._tcp.")
-                                .next()
-                                .unwrap_or(hostname.trim_end_matches('.'))
-                                .to_string();
-
-                            log::info!(
-                                "[discovery] mDNS (_http) found: {} at {}:{}",
-                                name,
-                                ip,
-                                info.get_port()
-                            );
-
-                            robots.push(RobotInfo {
-                                name,
-                                ip: ip.clone(),
-                                port: info.get_port(),
-                                discovery_method: "mdns".to_string(),
-                                hostname: Some(hostname.to_string()),
-                            });
-                        }
                     }
                 }
             }
