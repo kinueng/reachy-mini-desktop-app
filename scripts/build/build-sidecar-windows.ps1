@@ -38,14 +38,6 @@ Push-Location uv-wrapper
     # Install reachy-mini (no mujoco - simulation uses lightweight kinematics)
     target/release/uv-bundle.exe --install-dir ..\$DST_DIR --python-version 3.12 --dependencies "reachy-mini" --reachy-mini-source $ReachyMiniSource
 
-    # Install gstreamer from freedesktop GitLab registry
-    # Required for media features (camera, audio streaming)
-    # See: https://huggingface.co/docs/reachy_mini/SDK/installation
-    Write-Host "Installing gstreamer..."
-    $env:UV_PYTHON_INSTALL_DIR = "..\$DST_DIR"
-    $env:UV_WORKING_DIR = "..\$DST_DIR"
-    & ..\$DST_DIR\uv.exe pip install --upgrade --index-url https://gitlab.freedesktop.org/api/v4/projects/1340/packages/pypi/simple "gstreamer==1.28.0"
-
     cargo build --release --bin uv-trampoline
     Copy-Item target/release/uv-trampoline.exe ../$DST_DIR/uv-trampoline-$TRIPLET.exe -Force
 Pop-Location

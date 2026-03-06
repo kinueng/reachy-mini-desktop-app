@@ -11,11 +11,6 @@ use crate::daemon::DaemonState;
 
 const GITHUB_REPO: &str = "pollen-robotics/reachy_mini";
 
-/// Pinned GStreamer version for macOS/Windows (no Linux wheels available)
-const GSTREAMER_VERSION: &str = "1.28.0";
-const GSTREAMER_INDEX_URL: &str =
-    "https://gitlab.freedesktop.org/api/v4/projects/1340/packages/pypi/simple";
-
 /// PEP 440 pre-release suffixes mapped to semver labels.
 /// Order matters: checked first-to-last, "rc" before single-char "a"/"b"
 /// to avoid "rc" being split on 'c' by the 'a' or 'b' rule.
@@ -489,29 +484,6 @@ pub async fn update_daemon(
     let venv_path = get_local_venv_path(&app_handle)?;
     let pip_path = get_pip_path(&venv_path)?;
     log::info!("[update] Using pip at: {:?}", pip_path);
-
-    // Install gstreamer from freedesktop GitLab registry (macOS/Windows only)
-    #[cfg(not(target_os = "linux"))]
-    {
-        let gst_spec = format!("gstreamer=={}", GSTREAMER_VERSION);
-        let gst_args = vec![
-            "install",
-            "--upgrade",
-            "--index-url",
-            GSTREAMER_INDEX_URL,
-            &gst_spec,
-        ];
-
-        match run_pip(&pip_path, &gst_args, "gstreamer").await {
-            Ok(_) => log::info!("[update] gstreamer installed successfully"),
-            Err(e) => log::warn!("[update] gstreamer install failed (non-fatal): {}", e),
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        log::info!("[update] Skipping gstreamer pip package on Linux (using system GStreamer)");
-    }
 
     // Upgrade reachy-mini
     let mut args = vec!["install", "--upgrade", "reachy-mini"];
