@@ -343,6 +343,8 @@ async fn handle_websocket(
     let request_path_clone = request_path.clone();
 
     // Accept with callback to capture path
+    // The Response error type is imposed by tokio-tungstenite's callback API
+    #[allow(clippy::result_large_err)]
     let mut local_ws =
         tokio_tungstenite::accept_hdr_async(stream, |req: &Request, resp: Response| {
             let path = req
