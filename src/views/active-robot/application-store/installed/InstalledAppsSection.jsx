@@ -622,7 +622,7 @@ export default function InstalledAppsSection({
                             }`,
                           }}
                         >
-                          {app.extra?.cardData?.emoji || app.icon || '📦'}
+                          {[...(app.extra?.cardData?.emoji || app.icon || '📦')][0]}
                         </Box>
                       </Box>
 

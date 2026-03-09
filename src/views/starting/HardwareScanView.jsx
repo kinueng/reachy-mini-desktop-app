@@ -604,6 +604,12 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
 
                 setAvailableApps(enrichedApps);
                 setInstalledApps(installed);
+
+                // If website fetch failed, don't cache incomplete data.
+                // ActiveRobotView will retry and get the full store catalog.
+                if (availableAppsFromWebsite.length === 0 && installedAppsFromDaemon.length > 0) {
+                  useAppStore.getState().invalidateAppsCache();
+                }
               } catch {
                 // Apps will be fetched again in ActiveRobotView
               } finally {

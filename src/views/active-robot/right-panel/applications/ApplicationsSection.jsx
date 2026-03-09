@@ -336,6 +336,7 @@ export default function ApplicationsSection({
       <DiscoverModal
         open={discoverModalOpen}
         onClose={closeModal}
+        hidden={!!(installingAppName && installingApp)}
         filteredApps={filteredApps}
         darkMode={effectiveDarkMode}
         isBusy={effectiveIsBusy}

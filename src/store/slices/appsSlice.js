@@ -64,7 +64,6 @@ export const createAppsSlice = (set, get) => ({
       availableApps: apps,
       appsLastFetch: Date.now(),
       appsCacheValid: true,
-      appsError: null,
     }),
 
   setInstalledApps: apps => set({ installedApps: apps }),
@@ -93,15 +92,15 @@ export const createAppsSlice = (set, get) => ({
 
   setActiveJobs: jobs => {
     if (typeof jobs === 'function') {
-      set(state => {
-        const currentJobs =
-          state.activeJobs instanceof Map
-            ? Object.fromEntries(state.activeJobs)
-            : state.activeJobs || {};
-        const newJobs = jobs(new Map(Object.entries(currentJobs)));
-        const jobsObj = newJobs instanceof Map ? Object.fromEntries(newJobs) : newJobs;
-        return { activeJobs: jobsObj };
-      });
+      const currentJobsObj = get().activeJobs || {};
+      const currentMap = new Map(Object.entries(currentJobsObj));
+      const newJobs = jobs(currentMap);
+
+      // Bail out: callback returned same reference, nothing changed
+      if (newJobs === currentMap) return;
+
+      const jobsObj = newJobs instanceof Map ? Object.fromEntries(newJobs) : newJobs;
+      set({ activeJobs: jobsObj });
     } else {
       const jobsObj = jobs instanceof Map ? Object.fromEntries(jobs) : jobs;
       set({ activeJobs: jobsObj || {} });

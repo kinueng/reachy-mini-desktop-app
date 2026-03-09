@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '@config/daemon';
 import useAppStore from '@store/useAppStore';
 import { useLogger } from '@utils/logging';
@@ -248,13 +248,23 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
           const job = prev.get(jobId);
           if (!job) return prev;
 
+          const newStatus = isFinished ? job.status : jobStatus.status;
+          const newLogs = jobStatus.logs || [];
+
+          // Skip update if nothing changed (logs are append-only during install)
+          if (
+            job.status === newStatus &&
+            job.fetchFailCount === 0 &&
+            job.logs?.length === newLogs.length
+          ) {
+            return prev;
+          }
+
           const updated = new Map(prev);
           updated.set(jobId, {
             ...job,
-            // Only update status if job is NOT finished
-            // Otherwise, keep current status until we set 'refreshing'
-            status: isFinished ? job.status : jobStatus.status,
-            logs: jobStatus.logs || [],
+            status: newStatus,
+            logs: newLogs,
             fetchFailCount: 0,
           });
           return updated;
@@ -398,6 +408,23 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
     },
     [fetchJobStatus, stopJobPolling, setActiveJobs, fetchAvailableApps, logger]
   );
+
+  // Reset stale detection timers when page regains visibility.
+  // Without this, background throttling of setInterval causes
+  // Date.now() - lastUpdate.time to exceed STALE_JOB.TIMEOUT,
+  // falsely marking active downloads as failed.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && jobLastLogUpdate.current.size > 0) {
+        const now = Date.now();
+        jobLastLogUpdate.current.forEach((value, key) => {
+          jobLastLogUpdate.current.set(key, { ...value, time: now });
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   /**
    * Cleanup: stop all pollings and timeouts on unmount

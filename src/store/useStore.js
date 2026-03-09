@@ -120,6 +120,15 @@ export const useStore = create(
       const state = get();
       state.transitionTo.ready();
       state.unlockInstall();
+
+      // Safety: if transitionTo.ready() was blocked (hardwareError, connection lost),
+      // force-clear isInstalling to prevent permanent UI lockout
+      if (get().isInstalling) {
+        console.warn(
+          '[Store] unlockInstallWithRobot: transition blocked, force-clearing install lock'
+        );
+        set({ isInstalling: false, busyReason: null });
+      }
     },
 
     // ============================================

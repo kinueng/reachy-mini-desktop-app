@@ -33,7 +33,7 @@ export default function AppCard({
   const lastModified = app.extra?.lastModified || app.extra?.createdAt || null;
   const isPythonApp = app.extra?.isPythonApp !== false;
   const isOfficial = app.isOfficial === true;
-  const emoji = cardData.emoji || (isPythonApp ? '📦' : '🌐');
+  const emoji = [...(cardData.emoji || (isPythonApp ? '📦' : '🌐'))][0];
   const spaceUrl = app.url || `https://huggingface.co/spaces/${app.extra?.id || app.name}`;
 
   // Format date

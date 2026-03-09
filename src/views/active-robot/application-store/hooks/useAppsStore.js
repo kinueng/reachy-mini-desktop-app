@@ -197,6 +197,13 @@ export function useAppsStore(isActive) {
 
         setAvailableApps(enrichedApps);
         setInstalledApps(installed);
+
+        // When website fetch failed, we only have daemon (installed) apps.
+        // Don't keep this as a valid cache - next fetch should retry from website.
+        if (hasNetworkIssue) {
+          invalidateAppsCache();
+        }
+
         setAppsLoading(false);
 
         return enrichedApps;

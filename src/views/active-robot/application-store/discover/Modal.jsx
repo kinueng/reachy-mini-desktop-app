@@ -36,6 +36,7 @@ export default function DiscoverModal({
   totalAppsCount,
   installedApps = [],
   onOpenCreateTutorial, // Callback to open Create App Tutorial modal
+  hidden = false, // Hide when another overlay is on top (avoids stacked blur perf hit)
 }) {
   // Removed debug logs to reduce console spam
 
@@ -53,6 +54,7 @@ export default function DiscoverModal({
       debugName="DiscoverModalLegacy"
       centeredY={false} // Don't center vertically
       showCloseButton={true}
+      hidden={hidden}
     >
       <Box
         sx={{
