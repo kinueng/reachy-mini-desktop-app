@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Box, Typography } from '@mui/material';
 import { getAppWindow } from '../utils/windowUtils';
-import { getVersion } from '@tauri-apps/api/app';
+import { getVersion } from '@utils/tauriCompat';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import useAppStore from '../store/useAppStore';
 import { isSimulationMode } from '../utils/simulationMode';

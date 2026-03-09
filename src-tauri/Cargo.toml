@@ -1,6 +1,6 @@
 [package]
 name = "reachy-mini-control"
-version = "0.9.18"
+version = "0.9.19"
 description = "Reachy Mini Control Application"
 authors = ["Reachy Mini Contributors"]
 edition = "2021"
@@ -16,6 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+cc = "1"
 
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api"] }
@@ -28,16 +29,24 @@ tauri-plugin-macos-permissions = "2.3"
 tauri-plugin-http = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-posthog = "0.2"
+tauri-plugin-automation = "0.1"
+tauri-plugin-os = "2"
+tauri-plugin-log = "2"
+log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serialport = "4.8"
 signal-hook = "0.3"
 reqwest = { version = "0.11", features = ["json"] }
 semver = "1.0"
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "net", "io-util"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "net", "io-util", "process"] }
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 futures-util = "0.3"
 lazy_static = "1.4"
+# Network discovery
+mdns-sd = "0.11"
+default-net = "0.22"
+dirs = "6.0.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.25"

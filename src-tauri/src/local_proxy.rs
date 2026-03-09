@@ -38,6 +38,11 @@ const UDP_CLIENT_TIMEOUT: Duration = Duration::from_secs(300);
 /// Maps client address to (remote socket, last activity timestamp)
 type UdpClientMap = Arc<Mutex<HashMap<SocketAddr, (Arc<UdpSocket>, Instant)>>>;
 
+/// Read the current target host from shared state. Returns None if not set.
+async fn get_target_host(state: &LocalProxyState) -> Option<String> {
+    state.target_host.read().await.clone()
+}
+
 /// Shared state for the proxy
 pub struct LocalProxyState {
     pub target_host: RwLock<Option<String>>,
@@ -66,7 +71,7 @@ async fn start_local_proxy(state: Arc<LocalProxyState>) {
 
     // Don't start if already running
     if !handles.is_empty() {
-        println!("[proxy] ⚠️  Proxy already running");
+        log::warn!("[proxy] Proxy already running");
         return;
     }
 
@@ -88,9 +93,10 @@ async fn start_local_proxy(state: Arc<LocalProxyState>) {
         handles.push(handle);
     }
 
-    println!(
-        "[proxy] 🚀 Proxy started (TCP: {:?}, UDP: {:?})",
-        TCP_PROXY_PORTS, UDP_PROXY_PORTS
+    log::info!(
+        "[proxy] Proxy started (TCP: {:?}, UDP: {:?})",
+        TCP_PROXY_PORTS,
+        UDP_PROXY_PORTS
     );
 }
 
@@ -107,7 +113,7 @@ async fn stop_local_proxy(state: &Arc<LocalProxyState>) {
         handle.abort();
     }
 
-    println!("[proxy] 🛑 Proxy stopped");
+    log::info!("[proxy] Proxy stopped");
 }
 
 /// Start a TCP proxy server for a specific port
@@ -115,14 +121,14 @@ async fn start_tcp_proxy(state: Arc<LocalProxyState>, port: u16) {
     let bind_addr = format!("127.0.0.1:{}", port);
     let listener = match TcpListener::bind(&bind_addr).await {
         Ok(l) => {
-            println!("[proxy] ✅ TCP listening on localhost:{}", port);
+            log::info!("[proxy] TCP listening on localhost:{}", port);
             l
         }
         Err(e) => {
             if e.kind() == std::io::ErrorKind::AddrInUse {
-                println!("[proxy] ⏭️  TCP port {} already in use - skipping", port);
+                log::info!("[proxy] TCP port {} already in use - skipping", port);
             } else {
-                eprintln!("[proxy] ❌ Failed to bind TCP port {}: {}", port, e);
+                log::error!("[proxy] Failed to bind TCP port {}: {}", port, e);
             }
             return;
         }
@@ -134,12 +140,12 @@ async fn start_tcp_proxy(state: Arc<LocalProxyState>, port: u16) {
                 let state_clone = state.clone();
                 tokio::spawn(async move {
                     if let Err(e) = handle_tcp_connection(stream, state_clone, addr, port).await {
-                        eprintln!("[proxy] ❌ TCP error from {} on port {}: {}", addr, port, e);
+                        log::error!("[proxy] TCP error from {} on port {}: {}", addr, port, e);
                     }
                 });
             }
             Err(e) => {
-                eprintln!("[proxy] ❌ TCP accept error on port {}: {}", port, e);
+                log::error!("[proxy] TCP accept error on port {}: {}", port, e);
             }
         }
     }
@@ -150,14 +156,14 @@ async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
     let bind_addr = format!("127.0.0.1:{}", port);
     let local_socket = match UdpSocket::bind(&bind_addr).await {
         Ok(s) => {
-            println!("[proxy] ✅ UDP listening on localhost:{}", port);
+            log::info!("[proxy] UDP listening on localhost:{}", port);
             Arc::new(s)
         }
         Err(e) => {
             if e.kind() == std::io::ErrorKind::AddrInUse {
-                println!("[proxy] ⏭️  UDP port {} already in use - skipping", port);
+                log::info!("[proxy] UDP port {} already in use - skipping", port);
             } else {
-                eprintln!("[proxy] ❌ Failed to bind UDP port {}: {}", port, e);
+                log::error!("[proxy] Failed to bind UDP port {}: {}", port, e);
             }
             return;
         }
@@ -176,7 +182,7 @@ async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
             clients.retain(|addr, (_, last_activity)| {
                 let keep = now.duration_since(*last_activity) < UDP_CLIENT_TIMEOUT;
                 if !keep {
-                    println!("[proxy] 🧹 UDP cleanup: removing stale client {}", addr);
+                    log::info!("[proxy] UDP cleanup: removing stale client {}", addr);
                 }
                 keep
             });
@@ -190,27 +196,20 @@ async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
         let (len, client_addr) = match local_socket.recv_from(&mut buf).await {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("[proxy] ❌ UDP recv error on port {}: {}", port, e);
+                log::error!("[proxy] UDP recv error on port {}: {}", port, e);
                 continue;
             }
         };
 
-        // Get target host
-        let target_host = {
-            let host = state.target_host.read().await;
-            match host.as_ref() {
-                Some(h) => h.clone(),
-                None => {
-                    // No target configured, drop packet
-                    continue;
-                }
-            }
+        let target_host = match get_target_host(&state).await {
+            Some(h) => h,
+            None => continue,
         };
 
         let remote_addr: SocketAddr = match format!("{}:{}", target_host, port).parse() {
             Ok(addr) => addr,
             Err(e) => {
-                eprintln!("[proxy] ❌ UDP invalid remote address: {}", e);
+                log::error!("[proxy] UDP invalid remote address: {}", e);
                 continue;
             }
         };
@@ -227,14 +226,16 @@ async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
                 let new_socket = match UdpSocket::bind("0.0.0.0:0").await {
                     Ok(s) => Arc::new(s),
                     Err(e) => {
-                        eprintln!("[proxy] ❌ UDP failed to create client socket: {}", e);
+                        log::error!("[proxy] UDP failed to create client socket: {}", e);
                         continue;
                     }
                 };
 
-                println!(
-                    "[proxy] 🔗 UDP new client {} -> {}:{}",
-                    client_addr, target_host, port
+                log::info!(
+                    "[proxy] UDP new client {} -> {}:{}",
+                    client_addr,
+                    target_host,
+                    port
                 );
 
                 // Spawn a task to forward responses from remote back to this client
@@ -263,15 +264,16 @@ async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
                                     .send_to(&resp_buf[..len], client_addr_clone)
                                     .await
                                 {
-                                    eprintln!(
-                                        "[proxy] ❌ UDP failed to send response to {}: {}",
-                                        client_addr_clone, e
+                                    log::error!(
+                                        "[proxy] UDP failed to send response to {}: {}",
+                                        client_addr_clone,
+                                        e
                                     );
                                     break;
                                 }
                             }
                             Err(e) => {
-                                eprintln!("[proxy] ❌ UDP recv from remote error: {}", e);
+                                log::error!("[proxy] UDP recv from remote error: {}", e);
                                 break;
                             }
                         }
@@ -285,7 +287,7 @@ async fn start_udp_proxy(state: Arc<LocalProxyState>, port: u16) {
 
         // Forward the packet to remote
         if let Err(e) = remote_socket.send_to(&buf[..len], remote_addr).await {
-            eprintln!("[proxy] ❌ UDP failed to forward to {}: {}", remote_addr, e);
+            log::error!("[proxy] UDP failed to forward to {}: {}", remote_addr, e);
         }
     }
 }
@@ -297,21 +299,21 @@ async fn handle_tcp_connection(
     addr: std::net::SocketAddr,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Get target host
-    let target_host = {
-        let host = state.target_host.read().await;
-        match host.as_ref() {
-            Some(h) => h.clone(),
-            None => {
-                eprintln!("[proxy] ❌ No target host configured");
-                let response = "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 23\r\n\r\nNo target host configured";
-                stream.write_all(response.as_bytes()).await?;
-                return Ok(());
-            }
+    let target_host = match get_target_host(&state).await {
+        Some(h) => h,
+        None => {
+            let body = "No target host configured";
+            let response = format!(
+                "HTTP/1.1 502 Bad Gateway\r\nContent-Length: {}\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            stream.write_all(response.as_bytes()).await?;
+            return Ok(());
         }
     };
 
-    // Peek at the first bytes to read the HTTP request
+    // Peek at the first bytes to detect the request type
     let mut buf = vec![0u8; 8192];
     let n = stream.peek(&mut buf).await?;
     let request_str = String::from_utf8_lossy(&buf[..n]);
@@ -341,6 +343,8 @@ async fn handle_websocket(
     let request_path_clone = request_path.clone();
 
     // Accept with callback to capture path
+    // The Response error type is imposed by tokio-tungstenite's callback API
+    #[allow(clippy::result_large_err)]
     let mut local_ws =
         tokio_tungstenite::accept_hdr_async(stream, |req: &Request, resp: Response| {
             let path = req
@@ -359,9 +363,12 @@ async fn handle_websocket(
 
     // Get the captured path
     let path = request_path.read().await.clone();
-    println!(
-        "[proxy] 🔌 WS {} -> ws://{}:{}{}",
-        addr, target_host, port, path
+    log::info!(
+        "[proxy] WS {} -> ws://{}:{}{}",
+        addr,
+        target_host,
+        port,
+        path
     );
 
     // Build remote URL with the same path and port
@@ -371,7 +378,7 @@ async fn handle_websocket(
     let remote_ws = match connect_async(&remote_url).await {
         Ok((ws, _)) => ws,
         Err(e) => {
-            eprintln!("[proxy] ❌ WS remote connection failed: {}", e);
+            log::error!("[proxy] WS remote connection failed: {}", e);
             // Send a proper close frame to the local client
             let close_frame = CloseFrame {
                 code: CloseCode::Error,
@@ -467,9 +474,12 @@ async fn handle_http(
             .next()
             .unwrap_or("")
             .to_string();
-        println!(
-            "[proxy] 📡 HTTP {} -> {}:{} | {}",
-            addr, target_host, port, first_line
+        log::info!(
+            "[proxy] HTTP {} -> {}:{} | {}",
+            addr,
+            target_host,
+            port,
+            first_line
         );
     }
 
@@ -484,14 +494,14 @@ async fn handle_http(
         result = client_to_server => {
             if let Err(e) = result {
                 if e.kind() != std::io::ErrorKind::NotConnected {
-                    eprintln!("[proxy] ❌ HTTP client->server error: {}", e);
+                    log::error!("[proxy] HTTP client->server error: {}", e);
                 }
             }
         }
         result = server_to_client => {
             if let Err(e) = result {
                 if e.kind() != std::io::ErrorKind::NotConnected {
-                    eprintln!("[proxy] ❌ HTTP server->client error: {}", e);
+                    log::error!("[proxy] HTTP server->client error: {}", e);
                 }
             }
         }
@@ -500,17 +510,52 @@ async fn handle_http(
     Ok(())
 }
 
-/// Set the target host for the proxy and start the proxy
-pub async fn set_target_host(state: &Arc<LocalProxyState>, host: String) {
-    // Set the target host
+/// Validate that a host is on a private/local network (prevents SSRF to public hosts).
+fn is_private_network_host(host: &str) -> bool {
+    if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+        return true;
+    }
+
+    if host.ends_with(".local") {
+        return true;
+    }
+
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        return match ip {
+            std::net::IpAddr::V4(v4) => v4.is_private() || v4.is_loopback() || v4.is_link_local(),
+            std::net::IpAddr::V6(v6) => {
+                v6.is_loopback()
+                    || v6.segments()[0] == 0xfe80  // link-local
+                    || (v6.segments()[0] & 0xfe00) == 0xfc00 // unique local (fc00::/7)
+            }
+        };
+    }
+
+    false
+}
+
+/// Set the target host for the proxy and start the proxy.
+/// Validates that the host is a private/local network address.
+pub async fn set_target_host(state: &Arc<LocalProxyState>, host: String) -> Result<(), String> {
+    if host.is_empty() {
+        return Err("Proxy target host cannot be empty".to_string());
+    }
+
+    if !is_private_network_host(&host) {
+        return Err(format!(
+            "Proxy target must be a local/private network address, got: {}",
+            host
+        ));
+    }
+
     {
         let mut target = state.target_host.write().await;
-        println!("[proxy] 🎯 Target host set to: {}", host);
+        log::info!("[proxy] Target host set to: {}", host);
         *target = Some(host);
     }
 
-    // Start the proxy
     start_local_proxy(state.clone()).await;
+    Ok(())
 }
 
 /// Clear the target host and stop the proxy
@@ -520,6 +565,6 @@ pub async fn clear_target_host(state: &Arc<LocalProxyState>) {
 
     // Clear the target host
     let mut target = state.target_host.write().await;
-    println!("[proxy] 🚫 Target host cleared");
+    log::info!("[proxy] Target host cleared");
     *target = None;
 }

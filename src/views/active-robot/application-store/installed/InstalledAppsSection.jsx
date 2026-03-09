@@ -16,9 +16,12 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import LaunchIcon from '@mui/icons-material/Launch';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import DiscoverAppsButton from '../discover/Button';
 import ReachiesCarousel from '@components/ReachiesCarousel';
 import { getDaemonHostname } from '../../../../config/daemon';
+import { openAppWindow } from '../../../../utils/windowManager';
 import useAppStore from '../../../../store/useAppStore';
 
 // ✅ Timeout for app to transition from "starting" to "running"
@@ -222,7 +225,14 @@ function AppStartingTimeoutWatcher({ isStarting, isRunning, onTimeout, appName }
  * Shows spinner while URL is not yet accessible
  * If URL doesn't respond within 30s, triggers onTimeout callback
  */
-function OpenAppButton({ customAppUrl, isStartingOrRunning, isRunning, darkMode, onTimeout }) {
+function OpenAppButton({
+  appName,
+  customAppUrl,
+  isStartingOrRunning,
+  isRunning,
+  darkMode,
+  onTimeout,
+}) {
   const [hasTimedOut, setHasTimedOut] = useState(false);
 
   // Handle timeout - mark as timed out and notify parent
@@ -264,11 +274,15 @@ function OpenAppButton({ customAppUrl, isStartingOrRunning, isRunning, darkMode,
       const url = new URL(customAppUrl);
       url.hostname = getDaemonHostname();
 
-      try {
-        const { open } = await import('@tauri-apps/plugin-shell');
-        await open(url.toString());
-      } catch {
-        window.open(url.toString(), '_blank', 'noopener,noreferrer');
+      // Open in a dedicated Tauri window (falls back to browser if not in Tauri)
+      const appWindow = await openAppWindow(appName, url.toString());
+      if (!appWindow) {
+        try {
+          const { open } = await import('@tauri-apps/plugin-shell');
+          await open(url.toString());
+        } catch {
+          window.open(url.toString(), '_blank', 'noopener,noreferrer');
+        }
       }
     } catch (err) {
       console.error('Failed to open app web interface:', err);
@@ -364,6 +378,10 @@ export default function InstalledAppsSection({
   isStoppingApp = false,
   handleStartApp,
   handleUninstall,
+  handleUpdate,
+  hasUpdate,
+  isCheckingUpdates,
+  hasCheckedOnce,
   getJobInfo,
   stopCurrentApp,
   onOpenDiscover,
@@ -512,19 +530,24 @@ export default function InstalledAppsSection({
                   sx={{
                     borderRadius: '14px',
                     bgcolor: darkMode ? 'rgba(255, 255, 255, 0.02)' : 'white',
-                    // Green border when running, orange when expanded, default otherwise
                     border: `1px solid ${
-                      isCurrentlyRunning
-                        ? '#22c55e'
-                        : isExpanded
-                          ? '#FF9500'
-                          : darkMode
-                            ? 'rgba(255, 255, 255, 0.08)'
-                            : 'rgba(0, 0, 0, 0.08)'
+                      hasAppError
+                        ? '#ef4444'
+                        : isCurrentlyRunning
+                          ? '#22c55e'
+                          : isExpanded
+                            ? '#FF9500'
+                            : darkMode
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(0, 0, 0, 0.08)'
                     }`,
                     transition: 'opacity 0.25s ease, filter 0.25s ease, border-color 0.2s ease',
                     overflow: 'hidden',
-                    boxShadow: isCurrentlyRunning ? '0 0 0 1px rgba(34, 197, 94, 0.2)' : 'none',
+                    boxShadow: hasAppError
+                      ? '0 0 0 1px rgba(239, 68, 68, 0.2)'
+                      : isCurrentlyRunning
+                        ? '0 0 0 1px rgba(34, 197, 94, 0.2)'
+                        : 'none',
                     opacity: isRemoving ? 0.5 : isBusy && !isCurrentlyRunning ? 0.4 : 1,
                     filter: isBusy && !isCurrentlyRunning ? 'grayscale(50%)' : 'none',
                   }}
@@ -549,11 +572,15 @@ export default function InstalledAppsSection({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      bgcolor: isCurrentlyRunning
+                      bgcolor: hasAppError
                         ? darkMode
-                          ? 'rgba(34, 197, 94, 0.05)'
-                          : 'rgba(34, 197, 94, 0.03)'
-                        : 'transparent',
+                          ? 'rgba(239, 68, 68, 0.06)'
+                          : 'rgba(239, 68, 68, 0.04)'
+                        : isCurrentlyRunning
+                          ? darkMode
+                            ? 'rgba(34, 197, 94, 0.05)'
+                            : 'rgba(34, 197, 94, 0.03)'
+                          : 'transparent',
                     }}
                   >
                     {/* Left: Emoji + Info */}
@@ -595,7 +622,7 @@ export default function InstalledAppsSection({
                             }`,
                           }}
                         >
-                          {app.extra?.cardData?.emoji || app.icon || '📦'}
+                          {[...(app.extra?.cardData?.emoji || app.icon || '📦')][0]}
                         </Box>
                       </Box>
 
@@ -618,10 +645,10 @@ export default function InstalledAppsSection({
                             {app.name}
                           </Typography>
 
-                          {/* Error indicator only */}
+                          {/* Error / Crashed indicator */}
                           {hasAppError && (
                             <Chip
-                              label="Error"
+                              label={currentApp?.error ? 'Crashed' : 'Error'}
                               size="small"
                               sx={{
                                 height: 16,
@@ -635,8 +662,28 @@ export default function InstalledAppsSection({
                           )}
                         </Box>
 
-                        {/* Author or job status */}
+                        {/* Status line: error message, job status, or author */}
                         {(() => {
+                          if (hasAppError && currentApp?.error) {
+                            const firstLine = currentApp.error.split('\n')[0];
+                            return (
+                              <Typography
+                                sx={{
+                                  fontSize: 9,
+                                  fontWeight: 500,
+                                  color: '#ef4444',
+                                  fontFamily: 'monospace',
+                                  letterSpacing: '0.2px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {firstLine}
+                              </Typography>
+                            );
+                          }
+
                           const jobInfo = getJobInfo(app.name);
 
                           if (jobInfo) {
@@ -650,7 +697,11 @@ export default function InstalledAppsSection({
                                   letterSpacing: '0.2px',
                                 }}
                               >
-                                {jobInfo.type === 'remove' ? 'Removing...' : 'Installing...'}
+                                {jobInfo.type === 'remove'
+                                  ? 'Removing...'
+                                  : jobInfo.type === 'update'
+                                    ? 'Updating...'
+                                    : 'Installing...'}
                               </Typography>
                             );
                           }
@@ -676,6 +727,79 @@ export default function InstalledAppsSection({
 
                     {/* Right: Action buttons */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      {/* Update badge */}
+                      {(() => {
+                        const isUpdating = isJobRunning(app.name, 'update');
+
+                        if (isUpdating) {
+                          // Updating: orange spinner
+                          return (
+                            <Tooltip title="Updating..." arrow placement="top">
+                              <CircularProgress
+                                size={14}
+                                thickness={5}
+                                sx={{ color: '#FF9500', flexShrink: 0 }}
+                              />
+                            </Tooltip>
+                          );
+                        }
+
+                        if (hasUpdate && hasUpdate(app.name)) {
+                          // Update available: orange arrow button
+                          return (
+                            <Tooltip title="Update available" arrow placement="top">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  disabled={isCurrentlyRunning || isSleeping}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    if (handleUpdate) handleUpdate(app.name);
+                                  }}
+                                  sx={{
+                                    width: 24,
+                                    height: 24,
+                                    color: '#FF9500',
+                                    border: '1px solid #FF9500',
+                                    borderRadius: '6px',
+                                    transition: 'all 0.2s ease',
+                                    '&:hover': {
+                                      bgcolor: 'rgba(255, 149, 0, 0.1)',
+                                    },
+                                    '&:disabled': {
+                                      color: darkMode ? '#555' : '#999',
+                                      borderColor: darkMode
+                                        ? 'rgba(255, 255, 255, 0.1)'
+                                        : 'rgba(0, 0, 0, 0.12)',
+                                    },
+                                  }}
+                                >
+                                  <ArrowUpwardIcon sx={{ fontSize: 14 }} />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          );
+                        }
+
+                        // Up to date: subtle green check (only after first check completes)
+                        if (hasUpdate && hasCheckedOnce && !isCheckingUpdates) {
+                          return (
+                            <Tooltip title="Up to date" arrow placement="top">
+                              <CheckCircleOutlinedIcon
+                                sx={{
+                                  fontSize: 16,
+                                  color: '#22c55e',
+                                  opacity: 0.7,
+                                  flexShrink: 0,
+                                }}
+                              />
+                            </Tooltip>
+                          );
+                        }
+
+                        return null;
+                      })()}
+
                       {/* Settings button - toggles accordion (disabled when sleeping) */}
                       <Tooltip
                         title={isSleeping ? 'Wake robot first' : 'Settings'}
@@ -729,6 +853,7 @@ export default function InstalledAppsSection({
 
                       {/* Open button - shows when starting (ghost mode) or running (active) */}
                       <OpenAppButton
+                        appName={app.name}
                         customAppUrl={app.extra?.custom_app_url}
                         isStartingOrRunning={isStartingOrRunning}
                         isRunning={isCurrentlyRunning}

@@ -126,6 +126,7 @@ export const handleDaemonError = (errorType, error, context = {}) => {
   telemetry.connectionError({
     mode: connectionMode,
     error_type: errorType,
+    error_message: errorMessage?.slice(0, 200),
   });
 
   return errorObject;

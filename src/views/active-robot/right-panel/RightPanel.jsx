@@ -1,15 +1,12 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Box, Typography } from '@mui/material';
-import WbSunnyOutlinedIcon from '@mui/icons-material/WbSunnyOutlined';
-import PulseButton from '@components/PulseButton';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { Box } from '@mui/material';
 import { ApplicationsSection } from './applications';
 import ControlButtons from './ControlButtons';
+import HfLoginOverlay from './applications/HfLoginOverlay';
 import { ControllerSection } from './controller';
 import ExpressionsSection from './expressions';
 import { useActiveRobotContext } from '../context';
-import { useWakeSleep } from '../hooks/useWakeSleep';
-import useAppStore from '../../../store/useAppStore';
-import SleepingReachyIcon from '@assets/sleeping-reachy.svg';
+import { useHfAuth } from '../../../hooks/auth';
 
 /**
  * Right Panel - Assembles Control Buttons and Applications sections
@@ -29,9 +26,22 @@ export default function RightPanel({
 }) {
   const { robotState } = useActiveRobotContext();
   const { rightPanelView } = robotState;
-  const { robotStatus, safeToShutdown } = useAppStore();
-  const isSleeping = robotStatus === 'sleeping';
-  const { isTransitioning, wakeUp } = useWakeSleep();
+
+  const {
+    isAuthenticated,
+    username,
+    avatarUrl,
+    isLoading: hfLoading,
+    isWaitingForAuth,
+    error: hfError,
+    handleLogin,
+    handleLogout,
+  } = useHfAuth();
+
+  const hfUser = useMemo(
+    () => (isAuthenticated && username ? { username, avatarUrl } : null),
+    [isAuthenticated, username, avatarUrl]
+  );
 
   const scrollRef = useRef(null);
   const [showTopGradient, setShowTopGradient] = useState(false);
@@ -61,13 +71,6 @@ export default function RightPanel({
     return () => clearTimeout(timer);
   }, [rightPanelView, updateGradients]);
 
-  // When sleeping, signal that loading is complete (ApplicationsSection not rendered)
-  useEffect(() => {
-    if (isSleeping && onLoadingChange) {
-      onLoadingChange(false);
-    }
-  }, [isSleeping, onLoadingChange]);
-
   return (
     <Box
       ref={scrollRef}
@@ -77,7 +80,7 @@ export default function RightPanel({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        overflowY: 'scroll', // Force scrollbar to always be visible to prevent content shift
+        overflowY: isAuthenticated ? 'scroll' : 'hidden',
         overflowX: 'hidden',
         pt: 0,
         bgcolor: 'transparent !important',
@@ -119,81 +122,51 @@ export default function RightPanel({
         }}
       />
 
-      {/* Conditional rendering based on rightPanelView and sleeping state */}
-      {isSleeping ? (
-        /* Sleeping state - Show centered wake toggle */
-        <Box
-          sx={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 3,
-            px: 4,
-          }}
-        >
-          <Box
-            component="img"
-            src={SleepingReachyIcon}
-            alt="Sleeping Reachy"
-            sx={{
-              width: 120,
-              height: 120,
-              objectFit: 'contain',
-            }}
-          />
-          <Typography
-            sx={{
-              fontSize: 18,
-              fontWeight: 600,
-              color: darkMode ? '#f5f5f5' : '#333',
-              textAlign: 'center',
-            }}
-          >
-            Reachy is sleeping
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: 13,
-              color: darkMode ? '#888' : '#666',
-              textAlign: 'center',
-              maxWidth: 280,
-              lineHeight: 1.5,
-            }}
-          >
-            Wake up the robot to access apps and controls
-          </Typography>
-          <PulseButton
-            onClick={wakeUp}
-            disabled={isTransitioning || !safeToShutdown}
-            startIcon={<WbSunnyOutlinedIcon />}
+      {/* Content wrapper — relative so the login overlay can cover it */}
+      <Box
+        sx={{
+          position: 'relative',
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* HF Login Overlay — covers content when not authenticated */}
+        {!isAuthenticated && (
+          <HfLoginOverlay
             darkMode={darkMode}
-            sx={{ mt: 1 }}
-          >
-            {isTransitioning ? 'Waking up...' : !safeToShutdown ? 'Sleeping...' : 'Wake Up'}
-          </PulseButton>
-        </Box>
-      ) : rightPanelView === 'controller' ? (
-        <ControllerSection showToast={showToast} isBusy={isBusy} darkMode={darkMode} />
-      ) : rightPanelView === 'expressions' ? (
-        <ExpressionsSection isBusy={isBusy} darkMode={darkMode} />
-      ) : (
-        <>
-          {/* Applications - Default view */}
-          <ApplicationsSection
-            showToast={showToast}
-            onLoadingChange={onLoadingChange}
-            hasQuickActions={quickActions.length > 0 && handleQuickAction}
-            isActive={isActive}
-            isBusy={isBusy}
-            darkMode={darkMode}
+            onLogin={handleLogin}
+            isLoading={hfLoading}
+            isWaitingForAuth={isWaitingForAuth}
+            error={hfError}
           />
+        )}
 
-          {/* Control Buttons - Opens Controller and Expressions in right panel */}
-          <ControlButtons isBusy={isBusy} darkMode={darkMode} />
-        </>
-      )}
+        {/* Conditional rendering based on rightPanelView */}
+        {rightPanelView === 'controller' ? (
+          <ControllerSection showToast={showToast} isBusy={isBusy} darkMode={darkMode} />
+        ) : rightPanelView === 'expressions' ? (
+          <ExpressionsSection isBusy={isBusy} darkMode={darkMode} />
+        ) : (
+          <>
+            {/* Applications - Default view */}
+            <ApplicationsSection
+              showToast={showToast}
+              onLoadingChange={onLoadingChange}
+              hasQuickActions={quickActions.length > 0 && handleQuickAction}
+              isActive={isActive}
+              isBusy={isBusy}
+              darkMode={darkMode}
+              hfUser={hfUser}
+              onLogout={handleLogout}
+            />
+
+            {/* Control Buttons - Opens Controller and Expressions in right panel */}
+            <ControlButtons isBusy={isBusy} darkMode={darkMode} />
+          </>
+        )}
+      </Box>
 
       {/* Bottom gradient for depth effect on scroll - only visible when more content below */}
       <Box

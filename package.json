@@ -1,7 +1,8 @@
 {
   "name": "reachy_mini_desktop_app",
+  "description": "Desktop application for controlling and monitoring Reachy Mini robots, built with Tauri and React",
   "private": true,
-  "version": "0.9.18",
+  "version": "0.9.19",
   "type": "module",
   "engines": {
     "node": ">=24.4.0",
@@ -36,11 +37,14 @@
     "test:updater": "bash ./scripts/test/test-updater.sh",
     "test:update-prod": "bash ./scripts/test/test-update-prod.sh",
     "test:all": "yarn test:sidecar && yarn test:app && yarn test:updater",
+    "test:e2e": "wdio run ./e2e/wdio.conf.js",
     "kill-daemon": "./scripts/daemon/kill-daemon.sh",
     "check-daemon": "./scripts/daemon/check-daemon.sh",
     "kill-zombie-apps": "bash ./scripts/utils/kill-zombie-apps.sh",
     "reset-permissions": "bash ./scripts/utils/reset-macos-permissions.sh",
     "clean": "bash ./scripts/utils/clean.sh",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/",
@@ -48,9 +52,15 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@crabnebula/tauri-driver": "^2.0.8",
+    "@crabnebula/test-runner-backend": "^0.1.18",
     "@eslint/js": "^9.39.2",
     "@tauri-apps/cli": "^2",
     "@vitejs/plugin-react": "^5.1.0",
+    "@wdio/cli": "^9.4.5",
+    "@wdio/local-runner": "^9.4.5",
+    "@wdio/mocha-framework": "^9.4.4",
+    "@wdio/spec-reporter": "^9.4.4",
     "eslint": "^9",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
@@ -61,7 +71,8 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.7.4",
-    "vite": "^7.2.1"
+    "vite": "^7.2.1",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -75,12 +86,14 @@
     "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/plugin-deep-link": "^2.0.0",
     "@tauri-apps/plugin-http": "2.5.6",
+    "@tauri-apps/plugin-os": "^2.3.2",
     "@tauri-apps/plugin-positioner": "^2.3.1",
     "@tauri-apps/plugin-process": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.3.3",
     "@tauri-apps/plugin-updater": "^2.0.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.23.24",
+    "fuse.js": "^7.1.0",
     "gsap": "^3.13.0",
     "leva": "^0.10.1",
     "postprocessing": "^6.37.8",
@@ -97,6 +110,9 @@
     "src/**/*.{js,jsx}": [
       "prettier --write",
       "eslint --fix"
+    ],
+    "src-tauri/src/**/*.rs": [
+      "rustfmt"
     ]
   }
 }

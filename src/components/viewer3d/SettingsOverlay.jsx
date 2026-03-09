@@ -19,17 +19,36 @@ import {
   SettingsCacheCard,
   ChangeWifiOverlay,
 } from './settings';
-import { useWakeSleep } from '../../views/active-robot/hooks';
 
 /**
  * Settings Overlay for 3D Viewer Configuration
  */
 export default function SettingsOverlay({ open, onClose, darkMode }) {
-  const { connectionMode, remoteHost, robotStatus, blacklistRobot, resetAll } = useAppStore();
+  const { connectionMode, remoteHost, robotStatus, blacklistRobot, resetAll, clearApps } =
+    useAppStore();
   const isWifiMode = connectionMode === 'wifi';
 
-  // Wake/Sleep controls - used to put robot to sleep before update
-  const { goToSleep, isSleeping } = useWakeSleep();
+  // Helper to safely park the robot (sleep + disable motors) before update
+  const safelyParkRobot = async () => {
+    try {
+      await fetchWithTimeout(
+        buildApiUrl('/api/move/play/goto_sleep'),
+        { method: 'POST' },
+        DAEMON_CONFIG.TIMEOUTS.COMMAND,
+        { label: 'Goto sleep before update', silent: true }
+      );
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      await fetchWithTimeout(
+        buildApiUrl('/api/motors/set_mode/disabled'),
+        { method: 'POST' },
+        DAEMON_CONFIG.TIMEOUTS.COMMAND,
+        { label: 'Disable motors before update', silent: true }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   // Text colors
   const textPrimary = darkMode ? '#f5f5f5' : '#333';
@@ -88,6 +107,8 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
   const [showChangeWifiOverlay, setShowChangeWifiOverlay] = useState(false);
   const [showClearNetworksConfirm, setShowClearNetworksConfirm] = useState(false);
   const [isClearingNetworks, setIsClearingNetworks] = useState(false);
+  const [showResetAppsConfirm, setShowResetAppsConfirm] = useState(false);
+  const [isResettingApps, setIsResettingApps] = useState(false);
 
   // ═══════════════════════════════════════════════════════════════════
   // TOAST NOTIFICATIONS (global - rendered in App.jsx)
@@ -247,14 +268,10 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
     setIsUpdating(true);
 
     try {
-      // 🛡️ Put robot to sleep before update if not already sleeping
-      // This ensures motors are disabled and robot is in safe position
-      if (!isSleeping) {
-        const sleepSuccess = await goToSleep();
-        if (!sleepSuccess) {
-          console.warn('⚠️ Failed to put robot to sleep, continuing with update anyway');
-        } else {
-        }
+      // Park the robot safely before update (sleep animation + disable motors)
+      const parkSuccess = await safelyParkRobot();
+      if (!parkSuccess) {
+        console.warn('[Update] Failed to park robot, continuing with update anyway');
       }
 
       if (isWifiMode) {
@@ -322,7 +339,7 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
 
       setIsUpdating(false);
     }
-  }, [isWifiMode, preRelease, showToast, isSleeping, goToSleep, connectUpdateWebSocket]);
+  }, [isWifiMode, preRelease, showToast, safelyParkRobot, connectUpdateWebSocket]);
 
   // ═══════════════════════════════════════════════════════════════════
   // WIFI FUNCTIONS
@@ -406,6 +423,42 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
       setIsClearingNetworks(false);
     }
   }, [onClose, showToast, remoteHost, blacklistRobot, resetAll]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // RESET APPS FUNCTIONS
+  // ═══════════════════════════════════════════════════════════════════
+
+  const handleResetAppsClick = useCallback(() => {
+    setShowResetAppsConfirm(true);
+  }, []);
+
+  const confirmResetApps = useCallback(async () => {
+    setShowResetAppsConfirm(false);
+    setIsResettingApps(true);
+
+    try {
+      const response = await fetchWithTimeout(
+        buildApiUrl('/cache/reset-apps'),
+        { method: 'POST' },
+        DAEMON_CONFIG.TIMEOUTS.COMMAND,
+        { label: 'Reset apps cache', silent: true }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        clearApps();
+        showToast(data.message || 'Apps cache reset successfully', 'success');
+      } else {
+        const error = await response.json();
+        showToast(error.detail || 'Failed to reset apps cache', 'error');
+      }
+    } catch (err) {
+      console.error('Failed to reset apps cache:', err);
+      showToast('Connection error', 'error');
+    } finally {
+      setIsResettingApps(false);
+    }
+  }, [clearApps, showToast]);
 
   // Connect to WiFi (called from Change Network overlay)
   const handleWifiConnect = useCallback(async () => {
@@ -669,6 +722,8 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
               darkMode={darkMode}
               cardStyle={cardStyle}
               buttonStyle={buttonStyle}
+              onResetAppsClick={handleResetAppsClick}
+              isResettingApps={isResettingApps}
             />
           )}
         </Box>
@@ -971,6 +1026,120 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
         </Box>
       </FullscreenOverlay>
 
+      {/* Reset Apps Confirmation Overlay */}
+      <FullscreenOverlay
+        open={showResetAppsConfirm}
+        onClose={() => setShowResetAppsConfirm(false)}
+        darkMode={darkMode}
+        zIndex={10003}
+        backdropOpacity={0.85}
+        debugName="ResetAppsConfirm"
+        backdropBlur={12}
+      >
+        <Box
+          sx={{
+            width: '100%',
+            maxWidth: 380,
+            mx: 'auto',
+            px: 3,
+            textAlign: 'center',
+          }}
+        >
+          {/* Warning icon */}
+          <Box
+            sx={{
+              mb: 3,
+              display: 'flex',
+              justifyContent: 'center',
+            }}
+          >
+            <Box
+              sx={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                bgcolor: darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+                border: `2px solid ${darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <ErrorOutlineIcon sx={{ fontSize: 40, color: '#ef4444' }} />
+            </Box>
+          </Box>
+
+          {/* Title */}
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 600,
+              color: 'text.primary',
+              mb: 2,
+            }}
+          >
+            Reset Apps Cache?
+          </Typography>
+
+          {/* Description */}
+          <Typography
+            sx={{
+              color: 'text.secondary',
+              fontSize: 14,
+              lineHeight: 1.6,
+              mb: 3,
+            }}
+          >
+            This will{' '}
+            <strong style={{ color: darkMode ? '#fff' : '#333' }}>
+              remove all installed applications
+            </strong>{' '}
+            from the robot. You will need to reinstall them individually from the app store.
+          </Typography>
+
+          {/* Actions */}
+          <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', alignItems: 'center' }}>
+            <Button
+              onClick={() => setShowResetAppsConfirm(false)}
+              variant="text"
+              sx={{
+                color: 'text.secondary',
+                textTransform: 'none',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+                '&:hover': {
+                  bgcolor: 'transparent',
+                  textDecoration: 'underline',
+                },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmResetApps}
+              variant="contained"
+              disabled={isResettingApps}
+              sx={{
+                minWidth: 160,
+                bgcolor: '#ef4444',
+                color: '#fff',
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': {
+                  bgcolor: '#dc2626',
+                },
+                '&:disabled': {
+                  bgcolor: darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
+                  color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.8)',
+                },
+              }}
+            >
+              Reset all apps
+            </Button>
+          </Box>
+        </Box>
+      </FullscreenOverlay>
+
       {/* Change WiFi Network Overlay */}
       <ChangeWifiOverlay
         open={showChangeWifiOverlay}
@@ -1085,13 +1254,16 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
 
             {/* Logs Container */}
             <Box
+              ref={el => {
+                if (el) el.scrollTop = el.scrollHeight;
+              }}
               sx={{
                 mb: 3,
                 p: 2,
                 borderRadius: '12px',
                 bgcolor: darkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.05)',
                 border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
-                maxHeight: 300,
+                height: 220,
                 overflowY: 'auto',
                 fontFamily: 'monospace',
                 fontSize: 12,

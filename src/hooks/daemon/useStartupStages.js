@@ -122,9 +122,7 @@ export function useStartupStages({
         } else {
           unlisten();
         }
-      } catch (error) {
-        console.error('Failed to setup sidecar-stdout listener for stages:', error);
-      }
+      } catch {}
     };
 
     setupListener();

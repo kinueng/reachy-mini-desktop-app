@@ -66,8 +66,6 @@ export const useUsbDetection = () => {
       setIsUsbConnected(portName !== null);
       setUsbPortName(portName);
     } catch (e) {
-      console.error('Error checking USB:', e);
-
       // Still apply minimum delay even on error for first check
       if (isFirstCheck) {
         const elapsed = Date.now() - startTime;

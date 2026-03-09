@@ -124,12 +124,17 @@ jobs:
           echo "🐍 Building reachy-mini daemon with PyInstaller for Linux..."
           
           # Install system dependencies for PyInstaller
+          # libgirepository1.0-dev + gir1.2-glib-2.0 + libcairo2-dev are needed to build PyGObject
           sudo apt-get update
           sudo apt-get install -y \
             python3-dev \
             python3-pip \
             libportaudio2 \
-            portaudio19-dev
+            portaudio19-dev \
+            libgirepository1.0-dev \
+            gir1.2-glib-2.0 \
+            pkg-config \
+            libcairo2-dev
           
           # Run PyInstaller build script (install from PyPI)
           REACHY_MINI_SOURCE=pypi TARGET_TRIPLET=${{ matrix.target }} bash ./scripts/build/build-daemon-pyinstaller.sh
@@ -162,7 +167,7 @@ jobs:
           # Update the tauri.macos.conf.json with the exact cpython folder name
           # The config has hardcoded aarch64 path, we need to replace it with the actual folder
           # IMPORTANT: Only replace the exact folder name, not /lib suffix
-          sed -i '' "s|cpython-3.12.12-macos-aarch64-none|$CPYTHON_FOLDER|g" src-tauri/tauri.macos.conf.json
+          sed -i '' "s|cpython-3.12.13-macos-aarch64-none|$CPYTHON_FOLDER|g" src-tauri/tauri.macos.conf.json
           
           echo "✅ Updated tauri.macos.conf.json:"
           cat src-tauri/tauri.macos.conf.json
@@ -933,6 +938,248 @@ jobs:
           rm -rf "$TEMP_DIR"
           
           echo "✅ Post-install scripts added to .deb package"
+
+      # ===========================================
+      # E2E Tests - Run directly after Linux build
+      # ===========================================
+      - name: Install E2E test dependencies (Linux only)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          echo "📦 Installing E2E test dependencies..."
+          
+          # System dependencies for running the app and WebDriver
+          sudo apt-get install -y \
+            xvfb \
+            webkit2gtk-driver \
+            at-spi2-core
+          
+          # Install tauri-driver 2.0.x for Tauri v2
+          # IMPORTANT: This project uses Tauri v2, so we need tauri-driver 2.0.x
+          # (tauri-driver 0.1.x was for Tauri v1)
+          echo "🦀 Installing tauri-driver (latest 2.0.x for Tauri v2)..."
+          cargo install tauri-driver --locked
+          
+          # Verify installation
+          echo "✅ tauri-driver installed: $(which tauri-driver)"
+
+      - name: Install .deb and run E2E tests (Linux only)
+        if: matrix.os == 'ubuntu-22.04'
+        env:
+          # Disable DMA-BUF renderer to avoid WebKit crashes on headless CI systems
+          WEBKIT_DISABLE_DMABUF_RENDERER: 1
+        run: |
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+          echo "🧪 E2E TESTS - Validating Linux .deb package"
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+          
+          # Find and install the .deb
+          DEB_FILE=$(find src-tauri/target/${{ matrix.target }}/release/bundle/deb -name "*.deb" | head -1)
+          
+          if [ -z "$DEB_FILE" ]; then
+            echo "❌ No .deb file found"
+            exit 1
+          fi
+          
+          echo "📦 Installing: $DEB_FILE"
+          sudo dpkg -i "$DEB_FILE" || sudo apt-get install -f -y
+          
+          # Verify installation
+          if [ ! -f "/usr/bin/reachy-mini-control" ]; then
+            echo "❌ Application binary not found after installation"
+            exit 1
+          fi
+          echo "✅ Application installed successfully"
+          
+          # Install Node.js test dependencies
+          echo "📦 Installing test dependencies..."
+          yarn install --frozen-lockfile
+          
+          # Run E2E tests with xvfb-run (official Tauri CI approach)
+          # xvfb-run creates a virtual display and runs the command within it
+          echo "🧪 Running E2E tests with xvfb-run..."
+          xvfb-run --auto-servernum yarn test:e2e
+          
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+          echo "🧪 ✅ E2E TESTS PASSED (Linux)"
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+
+      # ===========================================
+      # E2E Tests - Run directly after Windows build
+      # ===========================================
+      - name: Install E2E test dependencies (Windows only)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Write-Host "📦 Installing E2E test dependencies for Windows..."
+          
+          # Install msedgedriver (must match Edge version on runner)
+          # msedgedriver-tool automatically detects and downloads the correct version
+          Write-Host "🌐 Installing msedgedriver-tool..."
+          cargo install --git https://github.com/chippers/msedgedriver-tool
+          
+          # Run msedgedriver-tool to download matching Edge driver
+          Write-Host "🌐 Downloading matching msedgedriver..."
+          & "$env:USERPROFILE\.cargo\bin\msedgedriver-tool.exe"
+          
+          # Add current directory to PATH (msedgedriver is downloaded here)
+          $env:PATH = "$PWD;$env:PATH"
+          [Environment]::SetEnvironmentVariable("PATH", "$PWD;$env:PATH", "Process")
+          
+          # Install tauri-driver 2.0.x for Tauri v2
+          Write-Host "🦀 Installing tauri-driver..."
+          cargo install tauri-driver --locked
+          
+          # Verify installations
+          Write-Host "✅ msedgedriver location: $PWD\msedgedriver.exe"
+          Write-Host "✅ tauri-driver installed"
+
+      - name: Install .msi and run E2E tests (Windows only)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Write-Host "🧪 ════════════════════════════════════════════════════════════════"
+          Write-Host "🧪 E2E TESTS - Validating Windows .msi package"
+          Write-Host "🧪 ════════════════════════════════════════════════════════════════"
+          
+          # Find and install the .msi
+          $MSI_DIR = "src-tauri/target/${{ matrix.target }}/release/bundle/msi"
+          $MSI_FILE = Get-ChildItem -Path $MSI_DIR -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+          
+          if (-not $MSI_FILE) {
+            Write-Error "❌ No .msi file found in: $MSI_DIR"
+            exit 1
+          }
+          
+          Write-Host "📦 Installing: $($MSI_FILE.FullName)"
+          
+          # Install MSI silently
+          $process = Start-Process msiexec.exe -ArgumentList "/i", "`"$($MSI_FILE.FullName)`"", "/quiet", "/norestart" -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            Write-Error "❌ MSI installation failed with exit code: $($process.ExitCode)"
+            exit 1
+          }
+          
+          # Find the installed application
+          # The exe name comes from Cargo.toml package name: reachy-mini-control
+          # The folder name comes from tauri.conf.json productName: Reachy Mini Control
+          # MSI can install to Program Files (perMachine) or LocalAppData (currentUser)
+          $POSSIBLE_PATHS = @(
+            # Program Files paths (perMachine install - default for MSI)
+            "C:\Program Files\Reachy Mini Control\reachy-mini-control.exe",
+            "C:\Program Files\Reachy Mini Control\Reachy Mini Control.exe",
+            "${env:ProgramFiles}\Reachy Mini Control\reachy-mini-control.exe",
+            "${env:ProgramFiles}\Reachy Mini Control\Reachy Mini Control.exe",
+            # LocalAppData paths (currentUser install)
+            "$env:LOCALAPPDATA\Reachy Mini Control\reachy-mini-control.exe",
+            "$env:LOCALAPPDATA\Reachy Mini Control\Reachy Mini Control.exe",
+            # Program Files (x86) just in case
+            "C:\Program Files (x86)\Reachy Mini Control\reachy-mini-control.exe",
+            "C:\Program Files (x86)\Reachy Mini Control\Reachy Mini Control.exe"
+          )
+          
+          Write-Host "🔍 Searching for installed application..."
+          $APP_PATH = $null
+          foreach ($path in $POSSIBLE_PATHS) {
+            Write-Host "   Checking: $path"
+            if (Test-Path $path) {
+              $APP_PATH = $path
+              Write-Host "   ✅ Found!"
+              break
+            }
+          }
+          
+          if (-not $APP_PATH) {
+            Write-Host "❌ Application not found at expected paths"
+            Write-Host ""
+            Write-Host "🔍 Searching entire disk for Reachy files..."
+            Write-Host "   Searching Program Files..."
+            Get-ChildItem -Path "C:\Program Files" -Filter "*reachy*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   Found: $($_.FullName)" }
+            Write-Host "   Searching Program Files (x86)..."
+            Get-ChildItem -Path "C:\Program Files (x86)" -Filter "*reachy*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   Found: $($_.FullName)" }
+            Write-Host "   Searching LocalAppData..."
+            Get-ChildItem -Path "$env:LOCALAPPDATA" -Filter "*reachy*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   Found: $($_.FullName)" }
+            Write-Host "   Searching AppData..."
+            Get-ChildItem -Path "$env:APPDATA" -Filter "*reachy*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   Found: $($_.FullName)" }
+            Write-Error "❌ Could not find installed application"
+            exit 1
+          }
+          
+          Write-Host "✅ Application installed at: $APP_PATH"
+          
+          # Update wdio.conf.js to use Windows path
+          # We need to set the APP_BINARY environment variable
+          $env:E2E_APP_BINARY = $APP_PATH
+          
+          # Ensure msedgedriver is in PATH
+          $env:PATH = "$PWD;$env:PATH"
+          
+          # Install Node.js test dependencies
+          # Note: Not using --frozen-lockfile here as E2E deps may have cross-platform differences
+          Write-Host "📦 Installing test dependencies..."
+          yarn install
+          
+          # Run E2E tests (no xvfb needed on Windows)
+          Write-Host "🧪 Running E2E tests..."
+          yarn test:e2e
+          
+          Write-Host "🧪 ════════════════════════════════════════════════════════════════"
+          Write-Host "🧪 ✅ E2E TESTS PASSED (Windows)"
+          Write-Host "🧪 ════════════════════════════════════════════════════════════════"
+
+      # ===========================================
+      # E2E Tests - Run directly after macOS build
+      # ===========================================
+      - name: Install E2E test dependencies (macOS only)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          echo "📦 Installing E2E test dependencies for macOS..."
+          
+          # Install Node.js test dependencies (includes @crabnebula/tauri-driver)
+          echo "📦 Installing npm dependencies..."
+          yarn install
+          
+          echo "✅ E2E dependencies installed"
+
+      - name: Run E2E tests (macOS only)
+        if: startsWith(matrix.os, 'macos')
+        env:
+          CN_API_KEY: ${{ secrets.CN_API_KEY }}
+        run: |
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+          echo "🧪 E2E TESTS - Validating macOS .app bundle"
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+          
+          # Check if CN_API_KEY is configured
+          if [ -z "$CN_API_KEY" ]; then
+            echo "⚠️ CN_API_KEY not configured - skipping macOS E2E tests"
+            echo "   To enable macOS E2E tests, add CN_API_KEY to GitHub Secrets"
+            echo "   Get one at: https://crabnebula.cloud"
+            echo "🧪 ════════════════════════════════════════════════════════════════"
+            echo "🧪 ⏭️ E2E TESTS SKIPPED (macOS) - No CN_API_KEY"
+            echo "🧪 ════════════════════════════════════════════════════════════════"
+            exit 0
+          fi
+          
+          # Find the built .app bundle
+          APP_BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle/macos/Reachy Mini Control.app"
+          
+          if [ ! -d "$APP_BUNDLE" ]; then
+            echo "❌ App bundle not found: $APP_BUNDLE"
+            exit 1
+          fi
+          
+          echo "✅ App bundle found: $APP_BUNDLE"
+          
+          # Set the app binary path for E2E tests
+          export E2E_APP_BINARY="$APP_BUNDLE"
+          
+          # Run E2E tests
+          echo "🧪 Running E2E tests with CrabNebula WebDriver..."
+          yarn test:e2e
+          
+          echo "🧪 ════════════════════════════════════════════════════════════════"
+          echo "🧪 ✅ E2E TESTS PASSED (macOS - ${{ matrix.target }})"
+          echo "🧪 ════════════════════════════════════════════════════════════════"
 
       - name: Sign all binaries (macOS only)
         if: startsWith(matrix.os, 'macos')

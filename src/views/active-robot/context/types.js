@@ -83,7 +83,7 @@
  * @property {function(string): void} triggerEffect - Trigger 3D visual effect
  * @property {function(): void} stopEffect - Stop current effect
  * @property {function(): void} resetTimeouts - Reset timeout counter
- * @property {function(): void} incrementTimeouts - Increment timeout counter
+ * @property {function(string=): void} incrementTimeouts - Increment timeout counter with failure type ('timeout'|'network'|'backend_error'|'http_error'|'unknown')
  *
  * @property {function(string): void} setRightPanelView - Set right panel view
  * @property {function(boolean): void} setDarkMode - Set dark mode

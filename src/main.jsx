@@ -34,6 +34,7 @@ if (typeof window !== 'undefined' && !window.__TAURI__) {
 import App from './components/App';
 import DevPlayground from './components/DevPlayground';
 import WebApp from './components/WebApp';
+import ErrorBoundary from './components/ErrorBoundary';
 import robotModelCache from './utils/robotModelCache';
 import useAppStore from './store/useAppStore';
 
@@ -209,14 +210,18 @@ function ThemeWrapper({ children }) {
 // Priority: WebMode > DevMode > Normal App
 const RootComponent = isWebMode ? WebApp : DEV_MODE ? DevPlayground : App;
 
-console.log(`[Main] Mode: ${isWebMode ? 'WEB' : DEV_MODE ? 'DEV' : 'TAURI'}`);
+if (import.meta.env.DEV) {
+  console.log(`[Main] Mode: ${isWebMode ? 'WEB' : DEV_MODE ? 'DEV' : 'TAURI'}`);
+}
 
 // 🚀 No StrictMode for production robot app
 // StrictMode double-invokes effects in dev, causing WebSocket/connection issues
 ReactDOM.createRoot(document.getElementById('root')).render(
   <ThemeWrapper>
-    <div style={{ width: '100%', height: '100%' }}>
-      <RootComponent />
-    </div>
+    <ErrorBoundary>
+      <div style={{ width: '100%', height: '100%' }}>
+        <RootComponent />
+      </div>
+    </ErrorBoundary>
   </ThemeWrapper>
 );

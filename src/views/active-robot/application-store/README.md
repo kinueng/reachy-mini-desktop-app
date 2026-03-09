@@ -32,23 +32,20 @@ application-store/
 ├── hooks/                        # Business logic hooks
 │   ├── useApps.js               # Main apps orchestration hook
 │   ├── useAppsStore.js          # Store connection hook
-│   ├── useAppFetching.js        # App list fetching
+│   ├── useAppFetching.js        # App list fetching (website API)
 │   ├── useAppFiltering.js       # Search and category filtering
-│   ├── useAppEnrichment.js      # Enrich apps with metadata
 │   ├── useAppHandlers.js        # Install/uninstall handlers
 │   ├── useAppInstallation.js    # Installation state management
 │   ├── useAppJobs.js            # Job tracking and polling
 │   ├── useAppLogs.js            # App logs management
 │   ├── useModalStack.js         # Modal stack management
 │   ├── index.js                 # Hook exports
-│   ├── installation/            # Installation-specific hooks
-│   │   ├── constants.js         # Installation constants
-│   │   ├── helpers.js           # Pure helper functions
-│   │   ├── useInstallationLifecycle.js  # Installation lifecycle
-│   │   ├── useInstallationPolling.js    # Polling for completion
-│   │   └── README.md            # Installation module docs
-│   └── utils/                   # Hook utilities
-│       └── appMetadata.js       # App metadata helpers
+│   └── installation/            # Installation-specific hooks
+│       ├── constants.js         # Installation constants
+│       ├── helpers.js           # Pure helper functions
+│       ├── useInstallationLifecycle.js  # Installation lifecycle
+│       ├── useInstallationPolling.js    # Polling for completion
+│       └── README.md            # Installation module docs
 └── index.js                      # Main exports
 ```
 
@@ -68,9 +65,8 @@ application-store/
 | ---------------------- | -------------------------------------------- |
 | **useApps**            | Main orchestration hook, combines all others |
 | **useAppsStore**       | Connect to Zustand store for app state       |
-| **useAppFetching**     | Fetch apps from Hugging Face Spaces          |
+| **useAppFetching**     | Fetch apps from website API (pre-enriched)   |
 | **useAppFiltering**    | Filter apps by search query and category     |
-| **useAppEnrichment**   | Enrich app data with metadata                |
 | **useAppHandlers**     | Handle install/uninstall/start/stop actions  |
 | **useAppInstallation** | Manage installation overlay state            |
 | **useAppJobs**         | Track background jobs (install/remove)       |
@@ -92,11 +88,10 @@ flowchart TB
     subgraph Hooks["Data Hooks"]
         Fetching["useAppFetching"]
         Filtering["useAppFiltering"]
-        Enrichment["useAppEnrichment"]
     end
 
     subgraph External["External"]
-        HF["Hugging Face Spaces"]
+        Website["Website API (cached)"]
     end
 
     Button --> Modal
@@ -106,9 +101,8 @@ flowchart TB
     Filters --> Filtering
     Filtering --> Cards
 
-    Fetching --> HF
-    HF --> Enrichment
-    Enrichment --> Filtering
+    Fetching --> Website
+    Website --> Filtering
 ```
 
 ### Installation Flow
@@ -178,7 +172,6 @@ import {
   useAppsStore,
   useAppFetching,
   useAppFiltering,
-  useAppEnrichment,
   useAppHandlers,
   useAppInstallation,
   useAppJobs,
@@ -204,7 +197,7 @@ import { InstallationOverlay } from '@views/active-robot/application-store/insta
 
 - `@store/useAppStore`: Global state management
 - `@components/FullscreenOverlay`: Overlay component
-- `@utils/huggingFaceApi`: Hugging Face API utilities
+- Website API: https://pollen-robotics.hf.space/api/apps (cached app data)
 
 ## 📚 Related Documentation
 

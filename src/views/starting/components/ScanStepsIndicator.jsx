@@ -1,14 +1,15 @@
 /**
  * ScanStepsIndicator - Scan-specific wrapper around StepsProgressIndicator
  *
- * Handles the scan-specific logic for calculating progress and current step,
- * then delegates rendering to the generic StepsProgressIndicator component.
+ * Uses `daemonStep` (a single monotonically-advancing enum) as the sole source
+ * of truth for step progression, plus a high-watermark ref to guarantee steps
+ * never visually regress — even if React renders an intermediate state between
+ * two async state updates.
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import StepsProgressIndicator from '../../../components/ui/StepsProgressIndicator';
 
-// Step definitions for scan flow
 const SCAN_STEPS = [
   { id: 'start', label: 'Start' },
   { id: 'connect', label: 'Connect' },
@@ -16,100 +17,45 @@ const SCAN_STEPS = [
   { id: 'apps', label: 'Apps' },
 ];
 
-/**
- * Calculate progress percentage based on current scan state
- * 🎯 Bar NEVER exceeds the current step - only advances when step is COMPLETE
- * Steps positions: Start=0%, Connect=33%, Healthcheck=66%, Apps=100%
- */
-function getProgress(
+// Mapping from daemonStep enum → visual step index & progress %
+// daemonStep transitions: connecting → detecting → syncing → loading_apps
+const DAEMON_STEP_MAP = {
+  connecting: { step: 1, progress: 33 },
+  initializing: { step: 1, progress: 33 },
+  detecting: { step: 2, progress: 66 },
+  syncing: { step: 2, progress: 66 },
+  loading_apps: { step: 3, progress: 100 },
+};
+
+function ScanStepsIndicator({
   scanComplete,
+  daemonStep,
+  darkMode,
+  // Unused legacy props kept for call-site compat
   waitingForDaemon,
   waitingForMovements,
   waitingForWebSocket,
   waitingForApps,
-  daemonStep,
-  scanProgress
-) {
-  // Start phase: bar stays at 0% (step not complete yet)
-  if (!scanComplete) {
-    return 0;
-  }
-
-  // Start complete → bar reaches Connect (33%)
-  // Connect phase: bar stays at 33% (step not complete yet)
-  if (waitingForDaemon) {
-    return 33;
-  }
-
-  // Connect complete → bar reaches Healthcheck (66%)
-  // Healthcheck phase: bar stays at 66% (step not complete yet)
-  if (waitingForMovements || waitingForWebSocket) {
-    return 66;
-  }
-
-  // Healthcheck complete → bar reaches Apps (100%)
-  // Apps phase: bar at 100%
-  if (waitingForApps) {
-    return 100;
-  }
-
-  // All complete: 100%
-  return 100;
-}
-
-/**
- * Get current step index (0-3, or 4 if complete)
- */
-function getCurrentStepIndex(
-  scanComplete,
-  waitingForDaemon,
-  waitingForMovements,
-  waitingForWebSocket, // 🎯 WebSocket sync phase (part of Healthcheck)
-  waitingForApps,
-  daemonStep
-) {
-  if (!scanComplete) return 0; // Start
-
-  // Handle transitional state - stay on Start as "just completed"
-  const isTransitioning =
-    !waitingForDaemon && !waitingForMovements && !waitingForWebSocket && !waitingForApps;
-  if (isTransitioning) return 1; // Move to Connect
-
-  if (waitingForDaemon) return 1; // Connect
-  // 🎯 WebSocket sync is part of Healthcheck step
-  if (waitingForMovements || waitingForWebSocket) return 2; // Healthcheck
-  if (waitingForApps) return 3; // Apps
-  return 4; // All complete
-}
-
-function ScanStepsIndicator({
-  scanComplete,
-  waitingForDaemon,
-  waitingForMovements,
-  waitingForWebSocket = false, // 🎯 WebSocket sync phase (part of Healthcheck)
-  waitingForApps,
-  daemonStep,
-  darkMode,
-  scanProgress = { current: 0, total: 1 },
+  scanProgress,
+  daemonAttempts,
+  movementAttempts,
 }) {
-  const currentStep = getCurrentStepIndex(
-    scanComplete,
-    waitingForDaemon,
-    waitingForMovements,
-    waitingForWebSocket,
-    waitingForApps,
-    daemonStep
-  );
+  const highWaterRef = useRef({ step: 0, progress: 0 });
 
-  const progress = getProgress(
-    scanComplete,
-    waitingForDaemon,
-    waitingForMovements,
-    waitingForWebSocket,
-    waitingForApps,
-    daemonStep,
-    scanProgress
-  );
+  // Reset watermark when scan restarts (e.g. retry)
+  if (!scanComplete) {
+    highWaterRef.current = { step: 0, progress: 0 };
+  }
+
+  // Derive raw values from single source of truth
+  const mapping = scanComplete
+    ? (DAEMON_STEP_MAP[daemonStep] ?? { step: 1, progress: 33 })
+    : { step: 0, progress: 0 };
+
+  // Monotonic: never go backward
+  const currentStep = Math.max(mapping.step, highWaterRef.current.step);
+  const progress = Math.max(mapping.progress, highWaterRef.current.progress);
+  highWaterRef.current = { step: currentStep, progress };
 
   return (
     <StepsProgressIndicator

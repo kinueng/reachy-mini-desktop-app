@@ -1,35 +1,35 @@
 //! Module for managing cross-platform permissions (camera, microphone, local network, etc.)
 //!
-//! Note: Camera/microphone permissions are managed by tauri-plugin-macos-permissions
-//! Local Network permission (macOS Sequoia+) is checked/requested via TCP probe.
-//! This module also provides functions to open System Settings.
+//! Note: Camera/microphone permissions are managed by tauri-plugin-macos-permissions.
+//!
+//! Local Network (macOS Sequoia+): There is no API to silently check permission
+//! status (Apple FB8711182). UDP connect() does not trigger the privacy check;
+//! only real I/O (send_to) or Bonjour operations do. We use a state machine:
+//! - UNKNOWN: check returns None, no I/O is performed (avoids auto-triggering popup)
+//! - REQUESTED: user clicked the card, we do send_to to trigger the dialog and verify
+//! - GRANTED/DENIED: confirmed state, cached for subsequent checks
 
 /// Log configured permissions at app startup (macOS only)
 #[cfg(target_os = "macos")]
 pub fn request_all_permissions() {
-    println!("🔐 macOS permissions configured:");
-    println!("   📷 Camera: NSCameraUsageDescription declared in Info.plist");
-    println!("   🎤 Microphone: NSMicrophoneUsageDescription declared in Info.plist");
-    println!("   📁 Filesystem: Entitlements configured");
-    println!("   🔌 USB: Entitlements configured");
-    println!();
-    println!("✅ Permissions will be requested automatically when needed:");
-    println!("   - Camera/microphone: macOS will show dialog when first accessed by apps");
-    println!("   - Filesystem/USB: Already granted via entitlements");
-    println!();
-    println!("ℹ️  Note: Permissions granted to the main app will propagate to child processes");
-    println!("   (Python daemon and its apps)");
-    println!();
-    println!(
-        "ℹ️  Note: App will appear in System Settings > Privacy after first permission request"
-    );
+    log::info!("macOS permissions configured:");
+    log::info!("   Camera: NSCameraUsageDescription declared in Info.plist");
+    log::info!("   Microphone: NSMicrophoneUsageDescription declared in Info.plist");
+    log::info!("   Filesystem: Entitlements configured");
+    log::info!("   USB: Entitlements configured");
+    log::info!("Permissions will be requested automatically when needed:");
+    log::info!("   - Camera/microphone: macOS will show dialog when first accessed by apps");
+    log::info!("   - Filesystem/USB: Already granted via entitlements");
+    log::info!("Note: Permissions granted to the main app will propagate to child processes");
+    log::info!("   (Python daemon and its apps)");
+    log::info!("Note: App will appear in System Settings > Privacy after first permission request");
 }
 
 #[cfg(not(target_os = "macos"))]
 #[allow(dead_code)]
 pub fn request_all_permissions() {
     // No-op on non-macOS platforms
-    println!("ℹ️  Permission requests are only needed on macOS");
+    log::info!("Permission requests are only needed on macOS");
 }
 
 /// Open System Settings to Privacy & Security > Camera (macOS)
@@ -146,60 +146,98 @@ pub fn open_local_network_settings() -> Result<(), String> {
     Ok(())
 }
 
-/// Check Local Network permission status (macOS Sequoia/Tahoe+)
-/// Returns: true if granted, false if denied, None if unknown/pending
-///
-/// Uses a TCP connection attempt to probe the permission state.
-/// - If connection succeeds or fails with "ConnectionRefused" → permission granted
-/// - If connection fails with "PermissionDenied" (EPERM) → permission denied
-///
-/// On first call, this will trigger the macOS permission dialog if permission
-/// hasn't been requested before.
-#[tauri::command]
+// Local Network permission state machine (macOS only).
+// 0 = UNKNOWN (never requested), 1 = GRANTED, 2 = DENIED, 3 = REQUESTED (dialog may be showing)
 #[cfg(target_os = "macos")]
-pub async fn check_local_network_permission() -> Result<Option<bool>, String> {
-    use std::time::Duration;
-    use tokio::net::TcpStream;
-    use tokio::time::timeout;
+static LOCAL_NETWORK_STATE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
-    // Try to connect to localhost on a port that's almost certainly closed (port 1)
-    // This triggers the Local Network permission check without needing an actual service
-    let connect_result = timeout(Duration::from_secs(3), TcpStream::connect("127.0.0.1:1")).await;
+// NWBrowser FFI (compiled from nw_local_network.m).
+// This is the Apple-recommended approach (TN3179) for detecting local network
+// permission: NWBrowser reports .ready when granted, .waiting(PolicyDenied)
+// when denied, and times out while the dialog is still visible.
+#[cfg(target_os = "macos")]
+extern "C" {
+    /// Probe local network permission using NWBrowser.
+    /// Returns: 0 = timeout (dialog showing), 1 = granted, 2 = denied
+    fn nw_probe_local_network(timeout_secs: f64) -> i32;
+}
 
-    match connect_result {
-        Ok(Ok(_)) => {
-            // Connection succeeded (very unlikely on port 1, but means permission granted)
+#[cfg(target_os = "macos")]
+fn probe_local_network(timeout_secs: f64) -> Result<Option<bool>, String> {
+    use std::sync::atomic::Ordering;
+
+    let result = unsafe { nw_probe_local_network(timeout_secs) };
+
+    match result {
+        1 => {
+            log::info!("[permissions] NWBrowser: .ready (permission granted)");
+            LOCAL_NETWORK_STATE.store(1, Ordering::Relaxed);
             Ok(Some(true))
         }
-        Ok(Err(e)) => {
-            // Connection failed - check the error type
-            let os_error = e.raw_os_error();
-            let error_kind = e.kind();
-
-            // EPERM (error 1) or PermissionDenied means Local Network access denied
-            if os_error == Some(1) || error_kind == std::io::ErrorKind::PermissionDenied {
-                Ok(Some(false))
-            } else {
-                // Other errors (ConnectionRefused, etc.) mean permission is granted
-                // but the port is just not available - this is expected
-                Ok(Some(true))
-            }
+        2 => {
+            log::info!("[permissions] NWBrowser: PolicyDenied (permission denied)");
+            LOCAL_NETWORK_STATE.store(2, Ordering::Relaxed);
+            Ok(Some(false))
         }
-        Err(_) => {
-            // Timeout - permission dialog might be showing, or network is slow
+        _ => {
+            log::debug!("[permissions] NWBrowser: timeout (dialog may be showing)");
             Ok(None)
         }
     }
 }
 
+/// Check Local Network permission status (macOS Sequoia/Tahoe+)
+///
+/// Returns: true if granted, false if denied, None if pending.
+///
+/// On UNKNOWN state (first call after app launch), performs a quick probe
+/// to detect if the permission was already granted in a previous session.
+/// Without this, the app would show the permission card on every restart
+/// because the in-memory state resets, causing an infinite restart loop.
+#[tauri::command]
+#[cfg(target_os = "macos")]
+pub async fn check_local_network_permission() -> Result<Option<bool>, String> {
+    use std::sync::atomic::Ordering;
+
+    match LOCAL_NETWORK_STATE.load(Ordering::Relaxed) {
+        1 => Ok(Some(true)),
+        2 => {
+            // Denied, but re-probe in case the user toggled it back on in
+            // System Settings.
+            LOCAL_NETWORK_STATE.store(3, Ordering::Relaxed);
+            tokio::task::spawn_blocking(|| probe_local_network(0.5))
+                .await
+                .map_err(|e| format!("spawn_blocking failed: {}", e))?
+        }
+        3 => {
+            // Request was made; probe to detect the user's choice
+            tokio::task::spawn_blocking(|| probe_local_network(0.5))
+                .await
+                .map_err(|e| format!("spawn_blocking failed: {}", e))?
+        }
+        _ => {
+            // UNKNOWN: first check after launch. Probe to detect if the
+            // permission was already granted in a previous session.
+            LOCAL_NETWORK_STATE.store(3, Ordering::Relaxed);
+            tokio::task::spawn_blocking(|| probe_local_network(1.0))
+                .await
+                .map_err(|e| format!("spawn_blocking failed: {}", e))?
+        }
+    }
+}
+
 /// Request Local Network permission (macOS Sequoia/Tahoe+)
-/// This is the same as check - calling it triggers the permission dialog if needed.
-/// Returns: true if granted, false if denied, None if dialog is showing
+///
+/// Creates an NWBrowser which triggers the macOS privacy dialog if the
+/// permission is undetermined. Blocks (on a dedicated thread) for up to
+/// 3 seconds waiting for the user's response.
 #[tauri::command]
 #[cfg(target_os = "macos")]
 pub async fn request_local_network_permission() -> Result<Option<bool>, String> {
-    // Request is the same as check - the act of checking triggers the dialog
-    check_local_network_permission().await
+    LOCAL_NETWORK_STATE.store(3, std::sync::atomic::Ordering::Relaxed);
+    tokio::task::spawn_blocking(|| probe_local_network(3.0))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {}", e))?
 }
 
 // ============================================================================

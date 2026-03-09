@@ -20,3 +20,6 @@ export { useRobotCommands, useRobotStateWebSocket, useActiveMoves } from './robo
 
 // System (global utilities)
 export { useLogs, useUpdater, useUsbDetection, useWindowResize } from './system';
+
+// Auth (Hugging Face)
+export { useHfAuth } from './auth';

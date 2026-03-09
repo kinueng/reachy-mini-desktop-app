@@ -1,5 +1,7 @@
 import { extractChangedUpdates } from '../../utils/stateComparison';
 
+const ROBOT_STATE_THROTTLE_MS = 250; // 4Hz max for robot state IPC sync
+
 /**
  * Middleware to sync store state to other windows via Tauri events
  *
@@ -8,6 +10,7 @@ import { extractChangedUpdates } from '../../utils/stateComparison';
  * - Emits state updates to secondary windows via Tauri events
  * - Only syncs relevant state keys
  * - Uses optimized comparison functions to avoid unnecessary emissions
+ * - Throttles high-frequency state (robotStateFull) to avoid IPC flooding
  *
  * @param {Function} config - Zustand store config function
  * @returns {Function} Zustand middleware
@@ -17,7 +20,23 @@ export const windowSyncMiddleware = config => (set, get, api) => {
   let emitStoreUpdate = null;
   let initPromise = null;
 
-  // Initialize window check and emit function
+  // Throttle state for robotStateFull
+  let pendingRobotState = null;
+  let robotStateThrottleTimer = null;
+
+  const relevantKeys = [
+    'darkMode',
+    'isActive',
+    'robotStatus',
+    'busyReason',
+    'isCommandRunning',
+    'isAppRunning',
+    'isInstalling',
+    'robotStateFull',
+    'activeMoves',
+    'frontendLogs',
+  ];
+
   const initWindowSync = async () => {
     if (initPromise) return initPromise;
 
@@ -31,45 +50,15 @@ export const windowSyncMiddleware = config => (set, get, api) => {
         if (isMainWindow) {
           emitStoreUpdate = async updates => {
             try {
-              // Only emit relevant state that secondary windows need
-              const relevantUpdates = {};
-              const relevantKeys = [
-                'darkMode',
-                'isActive',
-                'robotStatus',
-                'busyReason',
-                'isCommandRunning',
-                'isAppRunning',
-                'isInstalling',
-                'robotStateFull',
-                'activeMoves',
-                'frontendLogs', // Synchronize logs so they appear in main window
-              ];
-
-              // Extract only relevant keys from updates
-              relevantKeys.forEach(key => {
-                if (key in updates) {
-                  relevantUpdates[key] = updates[key];
-                }
-              });
-
-              // Always include darkMode in updates (it's needed for UI consistency)
-              // Get current state to ensure darkMode is always present
-              const currentState = get();
-              if (!('darkMode' in relevantUpdates)) {
-                relevantUpdates.darkMode = currentState.darkMode;
+              if (Object.keys(updates).length > 0) {
+                await emit('store-update', updates);
               }
-
-              // Only emit if there are actual changes
-              if (Object.keys(relevantUpdates).length > 0) {
-                await emit('store-update', relevantUpdates);
-              }
-            } catch (error) {
+            } catch {
               // Silently fail if not in Tauri or event system not available
             }
           };
         }
-      } catch (error) {
+      } catch {
         // Not in Tauri environment, skip sync
       }
     })();
@@ -77,42 +66,40 @@ export const windowSyncMiddleware = config => (set, get, api) => {
     return initPromise;
   };
 
-  // Initialize immediately (fire and forget)
   initWindowSync();
 
-  // Single function to handle state comparison and emission
+  /**
+   * Flush any pending throttled robot state to secondary windows.
+   */
+  const flushRobotState = () => {
+    robotStateThrottleTimer = null;
+    if (pendingRobotState && emitStoreUpdate) {
+      emitStoreUpdate({ robotStateFull: pendingRobotState });
+      pendingRobotState = null;
+    }
+  };
+
+  /**
+   * Process a Zustand state change and emit relevant diffs to secondary windows.
+   * robotStateFull is throttled to avoid serializing a large object 20x/s.
+   */
   const processStateUpdate = prevState => {
     const newState = get();
-    const relevantKeys = [
-      'darkMode',
-      'isActive',
-      'robotStatus',
-      'busyReason',
-      'isCommandRunning',
-      'isAppRunning',
-      'isInstalling',
-      'robotStateFull',
-      'activeMoves',
-      'frontendLogs', // Synchronize logs so they appear in main window
-    ];
-
-    // Use fast comparison functions instead of JSON.stringify
     const changedUpdates = extractChangedUpdates(prevState, newState, relevantKeys);
 
-    // Always include critical UI state for consistency (even if it didn't change)
-    // This ensures secondary windows always have the latest values
-    const currentState = get();
-    if (!('darkMode' in changedUpdates)) {
-      changedUpdates.darkMode = currentState.darkMode;
-    }
-    if (!('isActive' in changedUpdates)) {
-      changedUpdates.isActive = currentState.isActive;
-    }
-    if (!('robotStatus' in changedUpdates)) {
-      changedUpdates.robotStatus = currentState.robotStatus;
+    if (Object.keys(changedUpdates).length === 0) return;
+
+    // Separate robotStateFull from the rest — it needs throttling
+    if ('robotStateFull' in changedUpdates) {
+      pendingRobotState = changedUpdates.robotStateFull;
+      delete changedUpdates.robotStateFull;
+
+      if (!robotStateThrottleTimer) {
+        robotStateThrottleTimer = setTimeout(flushRobotState, ROBOT_STATE_THROTTLE_MS);
+      }
     }
 
-    // Emit if there are changes (or if we added critical state)
+    // Emit non-throttled changes immediately
     if (Object.keys(changedUpdates).length > 0) {
       emitStoreUpdate(changedUpdates);
     }
@@ -120,22 +107,21 @@ export const windowSyncMiddleware = config => (set, get, api) => {
 
   return config(
     (updates, replace) => {
-      // Capture state before update
       const prevState = get();
-
-      // Apply the update
       const result = set(updates, replace);
 
-      // Emit updates from main window only (wait for init if needed)
       if (emitStoreUpdate) {
         processStateUpdate(prevState);
       } else if (initPromise) {
-        // Wait for init to complete, then emit
-        initPromise.then(() => {
-          if (emitStoreUpdate) {
-            processStateUpdate(prevState);
-          }
-        });
+        initPromise
+          .then(() => {
+            if (emitStoreUpdate) {
+              processStateUpdate(prevState);
+            }
+          })
+          .catch(() => {
+            // Not in Tauri environment or init failed — silently skip sync
+          });
       }
 
       return result;

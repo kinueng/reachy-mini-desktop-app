@@ -1,9 +1,7 @@
-import { useRef, useCallback, useEffect } from 'react';
-
 /**
  * Event Bus for Daemon Lifecycle Management
  *
- * Centralizes all daemon-related events to avoid race conditions and improve traceability.
+ * True module-level singleton shared by every consumer.
  * All events are logged for debugging purposes.
  *
  * Events:
@@ -32,28 +30,18 @@ class DaemonEventBus {
   emit(event, data = null) {
     const timestamp = Date.now();
 
-    // Log event for debugging
     const logEntry = { event, data, timestamp };
     this.eventLog.push(logEntry);
 
-    // Keep log size manageable
     if (this.eventLog.length > this.maxLogSize) {
       this.eventLog.shift();
     }
 
-    // Log to console in dev mode (but skip frequent events to avoid spam)
-    const silentEvents = ['daemon:health:success', 'robot:state:updated'];
-    if (process.env.NODE_ENV === 'development' && !silentEvents.includes(event)) {
-    }
-
-    // Notify all listeners
     const handlers = this.listeners.get(event) || [];
     handlers.forEach(handler => {
       try {
         handler(data, logEntry);
-      } catch (error) {
-        console.error(`[DaemonEventBus] Error in handler for ${event}:`, error);
-      }
+      } catch {}
     });
   }
 
@@ -69,7 +57,6 @@ class DaemonEventBus {
     }
     this.listeners.get(event).push(handler);
 
-    // Return unsubscribe function
     return () => {
       const handlers = this.listeners.get(event);
       if (handlers) {
@@ -83,62 +70,13 @@ class DaemonEventBus {
       }
     };
   }
-
-  /**
-   * Remove all listeners for an event
-   * @param {string} event - Event name (optional, removes all if not provided)
-   */
-  off(event = null) {
-    if (event) {
-      this.listeners.delete(event);
-    } else {
-      this.listeners.clear();
-    }
-  }
-
-  /**
-   * Get event log for debugging
-   * @returns {Array} Event log entries
-   */
-  getEventLog() {
-    return [...this.eventLog];
-  }
-
-  /**
-   * Clear event log
-   */
-  clearEventLog() {
-    this.eventLog = [];
-  }
 }
 
+// Module-level singleton — every call to useDaemonEventBus() returns the same instance.
+const daemonEventBus = new DaemonEventBus();
+
 /**
- * Hook to access the daemon event bus
- * Creates a singleton instance that persists across re-renders
+ * Hook to access the daemon event bus (true singleton).
+ * The returned object is referentially stable across renders and components.
  */
-export const useDaemonEventBus = () => {
-  const eventBusRef = useRef(null);
-
-  // Create singleton instance
-  if (!eventBusRef.current) {
-    eventBusRef.current = new DaemonEventBus();
-  }
-
-  const eventBus = eventBusRef.current;
-
-  // Cleanup on unmount (optional, but good practice)
-  useEffect(() => {
-    return () => {
-      // Don't clear listeners on unmount - event bus should persist
-      // Only clear if explicitly needed
-    };
-  }, []);
-
-  return {
-    emit: useCallback((event, data) => eventBus.emit(event, data), [eventBus]),
-    on: useCallback((event, handler) => eventBus.on(event, handler), [eventBus]),
-    off: useCallback(event => eventBus.off(event), [eventBus]),
-    getEventLog: useCallback(() => eventBus.getEventLog(), [eventBus]),
-    clearEventLog: useCallback(() => eventBus.clearEventLog(), [eventBus]),
-  };
-};
+export const useDaemonEventBus = () => daemonEventBus;

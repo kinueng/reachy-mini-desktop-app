@@ -5,17 +5,11 @@ import PowerSettingsNewOutlinedIcon from '@mui/icons-material/PowerSettingsNewOu
 /**
  * Power Button Component - Top left corner power control
  *
- * Only enabled when robot is sleeping AND safe to shutdown (sleep sequence complete) AND not transitioning
+ * Triggers the full shutdown sequence: sleep animation → disable motors → kill daemon
+ * Disabled when robot is busy or already stopping.
  */
-export default function PowerButton({
-  onStopDaemon,
-  isSleeping,
-  safeToShutdown,
-  isWakeSleepTransitioning,
-  isStopping,
-  darkMode,
-}) {
-  const canPowerOff = isSleeping && safeToShutdown && !isWakeSleepTransitioning && !isStopping;
+export default function PowerButton({ onStopDaemon, isStopping, isBusy, darkMode }) {
+  const canPowerOff = !isStopping && !isBusy;
 
   return (
     <IconButton
@@ -37,7 +31,6 @@ export default function PowerButton({
         boxShadow: darkMode
           ? '0 2px 8px rgba(255, 149, 0, 0.2)'
           : '0 2px 8px rgba(255, 149, 0, 0.15)',
-        // z-index hierarchy: 20 = important UI controls (above standard 10)
         zIndex: 20,
         '&:hover': {
           bgcolor: darkMode ? 'rgba(255, 149, 0, 0.12)' : 'rgba(255, 149, 0, 0.08)',
@@ -56,17 +49,7 @@ export default function PowerButton({
           borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
         },
       }}
-      title={
-        isStopping
-          ? 'Stopping...'
-          : isWakeSleepTransitioning
-            ? 'Wait for transition...'
-            : !safeToShutdown
-              ? 'Wait for robot to finish sleeping...'
-              : !isSleeping
-                ? 'Put robot to sleep first'
-                : 'Power Off'
-      }
+      title={isStopping ? 'Stopping...' : isBusy ? 'Wait for robot...' : 'Power Off'}
     >
       {isStopping ? (
         <CircularProgress size={16} thickness={4} sx={{ color: darkMode ? '#666' : '#999' }} />

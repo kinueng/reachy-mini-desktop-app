@@ -7,6 +7,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import useAppStore from '../store/useAppStore';
 import { fetchWithTimeout, buildApiUrl } from '../config/daemon';
+import { ROBOT_STATUS } from '../constants/robotStatus';
 
 // Import the GStreamer WebRTC API
 import '../lib/gstwebrtc-api';
@@ -33,7 +34,7 @@ const WebRTCStreamContext = createContext(null);
 export function WebRTCStreamProvider({ children }) {
   const { connectionMode, remoteHost, robotStatus } = useAppStore();
   const isWifiMode = connectionMode === 'wifi';
-  const isRobotAwake = robotStatus === 'ready' || robotStatus === 'busy';
+  const isRobotAwake = robotStatus === ROBOT_STATUS.READY || robotStatus === ROBOT_STATUS.BUSY;
 
   // Stream state
   const [state, setState] = useState(StreamState.DISCONNECTED);

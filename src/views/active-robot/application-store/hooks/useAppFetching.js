@@ -1,116 +1,90 @@
 import { useCallback } from 'react';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl, fetchExternal } from '@config/daemon';
 
-// Official app list URL - shared across functions
-const OFFICIAL_APP_LIST_URL =
-  'https://huggingface.co/datasets/pollen-robotics/reachy-mini-official-app-store/raw/main/app-list.json';
+// Website API URL - centralized app store with 24h cache
+const WEBSITE_API_URL = 'https://pollen-robotics-reachy-mini.hf.space/api/apps';
+
+/**
+ * Merge website catalog apps with daemon-installed apps into a unified list.
+ * Pure function, no side effects — used by both useAppsStore and HardwareScanView.
+ *
+ * @param {Array} websiteApps - Apps from the website API (may be empty if offline)
+ * @param {Array} daemonApps - Installed apps from the local daemon
+ * @returns {{ enrichedApps: Array, installedApps: Array }}
+ */
+export function mergeAppsData(websiteApps, daemonApps) {
+  const installedAppNames = new Set(daemonApps.map(app => app.name?.toLowerCase()).filter(Boolean));
+  const installedAppsMap = new Map(daemonApps.map(app => [app.name?.toLowerCase(), app]));
+
+  // Apps installed locally but not in the website catalog
+  const availableAppNames = new Set(websiteApps.map(app => app.name?.toLowerCase()));
+  const localOnlyApps = daemonApps
+    .filter(app => !availableAppNames.has(app.name?.toLowerCase()))
+    .map(app => ({
+      ...app,
+      source_kind: app.source_kind || 'local',
+      isOfficial: false,
+    }));
+
+  const allApps = [...websiteApps, ...localOnlyApps];
+
+  const enrichedApps = allApps.map(app => {
+    const appNameLower = app.name?.toLowerCase();
+    const isInstalled = installedAppNames.has(appNameLower);
+    const installedAppData = installedAppsMap.get(appNameLower);
+
+    return {
+      ...app,
+      isInstalled,
+      // custom_app_url is only known by the daemon (local runtime info)
+      ...(isInstalled &&
+        installedAppData?.extra?.custom_app_url && {
+          extra: {
+            ...app.extra,
+            custom_app_url: installedAppData.extra.custom_app_url,
+          },
+        }),
+    };
+  });
+
+  const installedApps = enrichedApps.filter(app => app.isInstalled);
+
+  return { enrichedApps, installedApps };
+}
 
 /**
  * Hook for fetching apps from different sources
- * Handles official apps, all apps, and installed apps
+ * Uses the website API as primary source (cached, pre-enriched data)
+ * Falls back to daemon for installed apps only
  */
 export function useAppFetching() {
   /**
-   * Fetch the list of official app IDs from HF dataset
-   * @returns {Promise<string[]>} Array of official app IDs
+   * Fetch all available apps from the website API
+   * This is the primary source - returns pre-enriched data with:
+   * - Official/community flags
+   * - Likes, downloads, runtime
+   * - Full cardData (emoji, description, sdk, tags)
+   *
+   * @returns {Promise<Array>} Array of apps in desktop-compatible format
    */
-  const fetchOfficialAppIds = useCallback(async () => {
-    const listResponse = await fetchExternal(
-      OFFICIAL_APP_LIST_URL,
-      {},
-      DAEMON_CONFIG.TIMEOUTS.APPS_LIST,
-      { silent: true }
-    );
-    if (!listResponse.ok) {
-      const error = new Error(`HTTP ${listResponse.status}`);
-      error.name = 'NetworkError';
-      throw error;
-    }
-    const authorizedIds = await listResponse.json();
-    return Array.isArray(authorizedIds) ? authorizedIds : [];
-  }, []);
-
-  /**
-   * Fetch official apps using daemon API (which filters by tag "reachy mini")
-   */
-  const fetchOfficialApps = useCallback(async () => {
+  const fetchAppsFromWebsite = useCallback(async () => {
     try {
-      const authorizedIds = await fetchOfficialAppIds();
+      const response = await fetchExternal(WEBSITE_API_URL, {}, DAEMON_CONFIG.TIMEOUTS.APPS_LIST, {
+        silent: true,
+      });
 
-      if (authorizedIds.length === 0) {
-        return [];
+      if (!response.ok) {
+        const error = new Error(`Website API returned ${response.status}`);
+        error.name = 'NetworkError';
+        throw error;
       }
 
-      let daemonSpaces = [];
-      try {
-        const daemonUrl = buildApiUrl('/api/apps/list-available/hf_space');
-        const daemonResponse = await fetchWithTimeout(
-          daemonUrl,
-          {},
-          DAEMON_CONFIG.TIMEOUTS.APPS_LIST,
-          { silent: true }
-        );
+      const data = await response.json();
+      const apps = data.apps || [];
 
-        if (daemonResponse.ok) {
-          daemonSpaces = await daemonResponse.json();
-        }
-      } catch (daemonErr) {
-        // Daemon not available, will return empty
-      }
-
-      // Create a map of spaces by ID for fast lookup
-      const spacesMap = new Map();
-      for (const space of daemonSpaces) {
-        if (space && space.id) {
-          spacesMap.set(space.id, space);
-        }
-        if (space && space.name) {
-          const fullId = space.id || `${space.extra?.id || space.name}`;
-          if (fullId.includes('/')) {
-            spacesMap.set(fullId, space);
-          }
-        }
-      }
-
-      // Build AppInfo list - GUARANTEE all official apps are included
-      const apps = [];
-      for (const officialId of authorizedIds) {
-        let space = spacesMap.get(officialId);
-
-        if (!space) {
-          const officialName = officialId.split('/').pop();
-          space = daemonSpaces.find(
-            s => s.name === officialName || s.id === officialId || s.extra?.id === officialId
-          );
-        }
-
-        if (space) {
-          const spaceData = space.extra || space;
-
-          apps.push({
-            name: space.name || officialId.split('/').pop(),
-            id: space.id || spaceData.id || officialId,
-            description: space.description || spaceData.cardData?.short_description || '',
-            url:
-              space.url ||
-              `https://huggingface.co/spaces/${space.id || spaceData.id || officialId}`,
-            source_kind: 'hf_space',
-            extra: spaceData,
-          });
-        } else {
-          apps.push({
-            name: officialId.split('/').pop(),
-            id: officialId,
-            description: '',
-            url: `https://huggingface.co/spaces/${officialId}`,
-            source_kind: 'hf_space',
-            extra: {
-              id: officialId,
-              cardData: {},
-            },
-          });
-        }
-      }
+      console.log(
+        `[Apps] Fetched ${apps.length} apps from website API (cache age: ${data.cacheAge}s)`
+      );
 
       return apps;
     } catch (error) {
@@ -131,98 +105,10 @@ export function useAppFetching() {
         throw networkError;
       }
 
-      console.error('[Apps] Failed to fetch official apps:', error.message);
+      console.error('[Apps] Failed to fetch apps from website:', error.message);
       throw error;
     }
-  }, [fetchOfficialAppIds]);
-
-  /**
-   * Fetch all apps from daemon (non-official mode)
-   */
-  const fetchAllAppsFromDaemon = useCallback(async () => {
-    try {
-      const url = buildApiUrl(`/api/apps/list-available?official=false`);
-      const response = await fetchWithTimeout(url, {}, DAEMON_CONFIG.TIMEOUTS.APPS_LIST, {
-        silent: true,
-      });
-
-      if (!response.ok) {
-        return [];
-      }
-
-      let daemonApps = await response.json();
-
-      // Deduplicate apps by name
-      const seenNames = new Set();
-      daemonApps = daemonApps.filter(app => {
-        const name = app.name?.toLowerCase();
-        if (!name || seenNames.has(name)) {
-          return false;
-        }
-        seenNames.add(name);
-        return true;
-      });
-
-      // Exclude apps with source_kind 'installed'
-      daemonApps = daemonApps.filter(app => app.source_kind !== 'installed');
-
-      // Exclude official apps from the list
-      const officialAppIds = await fetchOfficialAppIds();
-      if (officialAppIds.length > 0) {
-        const officialIdsSet = new Set(officialAppIds.map(id => id.toLowerCase()));
-        const officialNamesSet = new Set(
-          officialAppIds.map(id => id.split('/').pop().toLowerCase())
-        );
-
-        daemonApps = daemonApps.filter(app => {
-          const appId = (app.id || app.extra?.id || '').toLowerCase();
-          const appName = (app.name || '').toLowerCase();
-          const isOfficial = officialIdsSet.has(appId) || officialNamesSet.has(appName);
-          return !isOfficial;
-        });
-      }
-
-      // Enrich non-official apps with runtime data from Hugging Face API
-      const HF_SPACES_API_URL = 'https://huggingface.co/api/spaces';
-      const runtimePromises = daemonApps.map(async app => {
-        if (app.extra?.runtime) {
-          return app;
-        }
-
-        const spaceId = app.id || app.extra?.id;
-        if (!spaceId) {
-          return app;
-        }
-
-        try {
-          const fullSpaceId = spaceId.includes('/') ? spaceId : `pollen-robotics/${spaceId}`;
-          const spaceResponse = await fetchExternal(
-            `${HF_SPACES_API_URL}/${fullSpaceId}`,
-            {},
-            DAEMON_CONFIG.TIMEOUTS.APPS_LIST,
-            { silent: true }
-          );
-          if (spaceResponse.ok) {
-            const spaceData = await spaceResponse.json();
-            if (spaceData.runtime) {
-              app.extra = {
-                ...app.extra,
-                runtime: spaceData.runtime,
-              };
-            }
-          }
-        } catch (err) {
-          // Skip runtime enrichment on error
-        }
-        return app;
-      });
-
-      daemonApps = await Promise.all(runtimePromises);
-      return daemonApps;
-    } catch (daemonErr) {
-      return [];
-    }
-  }, [fetchOfficialAppIds]);
+  }, []);
 
   /**
    * Fetch installed apps from daemon
@@ -278,8 +164,7 @@ export function useAppFetching() {
   }, []);
 
   return {
-    fetchOfficialApps,
-    fetchAllAppsFromDaemon,
+    fetchAppsFromWebsite,
     fetchInstalledApps,
   };
 }

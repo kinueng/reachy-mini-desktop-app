@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -21,6 +21,12 @@ import { useActiveRobotContext } from '../../context';
  * Displays app details, progress and logs
  * Uses ActiveRobotContext for decoupling from global stores
  */
+const LOG_CONSOLE_SX = {
+  bgcolor: 'transparent',
+  border: 'none',
+  borderRadius: 0,
+};
+
 export default function InstallOverlay({
   appInfo,
   jobInfo,
@@ -61,24 +67,21 @@ export default function InstallOverlay({
   // ✅ Accumulate logs and track maximum progress (never lose data)
   useEffect(() => {
     if (jobInfo?.logs && Array.isArray(jobInfo.logs) && jobInfo.logs.length > 0) {
-      // Use the latest logs from jobInfo (they are already in order)
-      // Keep the maximum length we've seen
       if (jobInfo.logs.length >= persistedLogsRef.current.length) {
-        // New logs are longer or equal: use them (they include previous logs)
-        persistedLogsRef.current = [...jobInfo.logs];
-      } else {
-        // JobInfo logs are shorter (job was reset): keep our persisted logs
-        // But merge any new unique logs
-        const newLogs = jobInfo.logs.filter(log => !persistedLogsRef.current.includes(log));
+        // New logs are longer or equal: use them directly (no copy needed,
+        // the array from jobInfo is already a fresh snapshot from polling)
+        persistedLogsRef.current = jobInfo.logs;
+      } else if (jobInfo.logs.length < persistedLogsRef.current.length) {
+        // JobInfo logs are shorter (job was reset): merge using a Set for O(n) dedup
+        const existing = new Set(persistedLogsRef.current);
+        const newLogs = jobInfo.logs.filter(log => !existing.has(log));
         if (newLogs.length > 0) {
           persistedLogsRef.current = [...persistedLogsRef.current, ...newLogs];
         }
       }
 
-      // Update max progress (never decrease)
-      const currentProgress = persistedLogsRef.current.length;
-      if (currentProgress > maxProgressRef.current) {
-        maxProgressRef.current = currentProgress;
+      if (persistedLogsRef.current.length > maxProgressRef.current) {
+        maxProgressRef.current = persistedLogsRef.current.length;
       }
     }
   }, [jobInfo?.logs]);
@@ -127,31 +130,19 @@ export default function InstallOverlay({
     };
   }, [appInfo, installStartTime, resultState]);
 
-  if (!appInfo) return null;
-
-  const formatTime = seconds => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const isInstalling = jobType === 'install';
-
-  // ✅ Use persisted data: never lose logs or decrease progress
+  // Hooks must be called before any early return (React rules of hooks)
   const currentLogs =
     jobInfo?.logs && jobInfo.logs.length > 0 ? jobInfo.logs : persistedLogsRef.current;
 
-  // ✅ Detect installation phase instead of counting all logs
-  // This gives a clearer indication of progress than raw log count
-  const detectPhase = logs => {
-    if (!logs || logs.length === 0) {
+  const phaseInfo = useMemo(() => {
+    if (!currentLogs || currentLogs.length === 0) {
       return { phase: 'Preparing', step: 0 };
     }
 
-    const logsText = logs.join(' ').toLowerCase();
-    const logCount = logs.length;
+    const tail = currentLogs.slice(-20);
+    const logsText = tail.join(' ').toLowerCase();
+    const logCount = currentLogs.length;
 
-    // Detect phases based on log content
     if (logsText.includes('completed') || logsText.includes('success')) {
       return { phase: 'Finalizing', step: 4 };
     }
@@ -177,15 +168,28 @@ export default function InstallOverlay({
       return { phase: 'Downloading', step: 1 };
     }
 
-    // Default: show progress based on log count (but cap it)
     return { phase: 'Processing', step: Math.min(5, Math.floor(logCount / 10) + 1) };
+  }, [currentLogs]);
+
+  const latestLogs = useMemo(
+    () => (currentLogs.length > 0 ? currentLogs.slice(-5) : []),
+    [currentLogs]
+  );
+
+  if (!appInfo) return null;
+
+  const formatTime = seconds => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const phaseInfo = detectPhase(currentLogs);
-  const latestLogs = currentLogs.length > 0 ? currentLogs.slice(-5) : []; // Display last 5 logs when collapsed
-  const allLogs = currentLogs; // All logs when expanded
+  const isInstalling = jobType === 'install' || jobType === 'update';
+  const jobLabel =
+    jobType === 'update' ? 'Update' : jobType === 'install' ? 'Installation' : 'Uninstallation';
+  const jobLabelProgress =
+    jobType === 'update' ? 'Updating' : jobType === 'install' ? 'Installing' : 'Uninstalling';
 
-  // Determine if showing final result or progress
   const isShowingResult = resultState !== null;
 
   return (
@@ -206,6 +210,8 @@ export default function InstallOverlay({
       }}
       darkMode={darkMode}
       zIndex={10003} // Above DiscoverModal (10002)
+      backdropBlur={0}
+      backdropOpacity={1}
       showCloseButton={isShowingResult && resultState === 'failed'} // Show close button only on error
       centered={true} // Center both horizontally and vertically
     >
@@ -270,7 +276,7 @@ export default function InstallOverlay({
               },
             }}
           >
-            {appInfo.extra?.cardData?.emoji || appInfo.icon || '📦'}
+            {[...(appInfo.extra?.cardData?.emoji || appInfo.icon || '📦')][0]}
           </Box>
         )}
 
@@ -291,11 +297,7 @@ export default function InstallOverlay({
                 },
               }}
             >
-              {isNetworkError
-                ? 'Network Issue'
-                : isInstalling
-                  ? 'Installation Failed'
-                  : 'Uninstallation Failed'}
+              {isNetworkError ? 'Network Issue' : `${jobLabel} Failed`}
             </Typography>
             <Typography
               sx={{
@@ -340,7 +342,7 @@ export default function InstallOverlay({
                 textTransform: 'uppercase',
               }}
             >
-              {isInstalling ? 'Installing' : 'Uninstalling'}
+              {jobLabelProgress}
             </Typography>
             <Typography
               sx={{
@@ -488,6 +490,7 @@ export default function InstallOverlay({
           <Accordion
             expanded={logsExpanded}
             onChange={(e, expanded) => setLogsExpanded(expanded)}
+            TransitionProps={{ timeout: 0 }}
             sx={{
               width: '100%',
               maxWidth: '460px',
@@ -563,18 +566,14 @@ export default function InstallOverlay({
               }}
             >
               <LogConsole
-                logs={allLogs}
+                logs={currentLogs}
                 darkMode={darkMode}
                 includeStoreLogs={false}
                 maxHeight="140px"
                 showTimestamp={false}
                 simpleStyle={true}
                 compact={false}
-                sx={{
-                  bgcolor: 'transparent',
-                  border: 'none',
-                  borderRadius: 0,
-                }}
+                sx={LOG_CONSOLE_SX}
               />
             </AccordionDetails>
           </Accordion>

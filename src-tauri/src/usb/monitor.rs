@@ -3,6 +3,10 @@
 //! This module provides event-driven USB device detection using Windows WM_DEVICECHANGE messages.
 //! This completely eliminates the need for polling, preventing terminal flicker issues on Windows.
 
+/// Reachy Mini CH340 USB-to-serial adapter identifiers
+const REACHY_USB_VID: u16 = 0x1a86;
+const REACHY_USB_PID: u16 = 0x55d3;
+
 #[cfg(target_os = "windows")]
 use std::sync::{Arc, Mutex};
 
@@ -36,10 +40,9 @@ impl UsbMonitorState {
             Ok(ports) => {
                 self.available_ports = ports.clone();
 
-                // Find Reachy Mini port (VID:PID = 1a86:55d3 - CH340 USB-to-serial)
                 self.reachy_port = ports.iter().find_map(|port| {
                     if let serialport::SerialPortType::UsbPort(usb_info) = &port.port_type {
-                        if usb_info.vid == 0x1a86 && usb_info.pid == 0x55d3 {
+                        if usb_info.vid == REACHY_USB_VID && usb_info.pid == REACHY_USB_PID {
                             return Some(port.port_name.clone());
                         }
                     }
@@ -47,7 +50,7 @@ impl UsbMonitorState {
                 });
             }
             Err(e) => {
-                eprintln!("[USB Monitor] Failed to enumerate ports: {}", e);
+                log::error!("[USB Monitor] Failed to enumerate ports: {}", e);
             }
         }
     }
@@ -75,8 +78,7 @@ pub fn get_reachy_port() -> Option<String> {
         match serialport::available_ports() {
             Ok(ports) => ports.iter().find_map(|port| {
                 if let serialport::SerialPortType::UsbPort(usb_info) = &port.port_type {
-                    // Reachy Mini uses CH340 USB-to-serial (VID:PID = 1a86:55d3)
-                    if usb_info.vid == 0x1a86 && usb_info.pid == 0x55d3 {
+                    if usb_info.vid == REACHY_USB_VID && usb_info.pid == REACHY_USB_PID {
                         return Some(port.port_name.clone());
                     }
                 }
@@ -84,14 +86,6 @@ pub fn get_reachy_port() -> Option<String> {
             }),
             Err(_) => None,
         }
-    }
-}
-
-/// Force an immediate update of the USB device list
-#[cfg(target_os = "windows")]
-pub fn force_update() {
-    if let Ok(mut state) = USB_MONITOR.lock() {
-        state.update();
     }
 }
 
@@ -169,7 +163,7 @@ pub fn start_monitor() -> std::result::Result<(), String> {
                 // Register for device notifications (all device interfaces)
                 // Note: We use a simpler approach without DEV_BROADCAST_DEVICEINTERFACE
                 // since WM_DEVICECHANGE will fire anyway for USB events
-                println!(
+                log::info!(
                     "[USB Monitor] Event-driven monitor started successfully on window {:?}",
                     hwnd
                 );
@@ -178,7 +172,7 @@ pub fn start_monitor() -> std::result::Result<(), String> {
                 if let Ok(mut state) = USB_MONITOR.lock() {
                     state.update();
                     if let Some(port) = &state.reachy_port {
-                        println!("[USB Monitor] Reachy Mini detected at: {}", port);
+                        log::info!("[USB Monitor] Reachy Mini detected at: {}", port);
                     }
                 }
 
@@ -192,7 +186,7 @@ pub fn start_monitor() -> std::result::Result<(), String> {
             })();
 
             if let Err(e) = result {
-                eprintln!("[USB Monitor] Failed to start monitor: {}", e);
+                log::error!("[USB Monitor] Failed to start monitor: {}", e);
             }
         }
     });
@@ -203,7 +197,7 @@ pub fn start_monitor() -> std::result::Result<(), String> {
 #[cfg(not(target_os = "windows"))]
 /// Dummy function for non-Windows platforms
 pub fn start_monitor() -> Result<(), String> {
-    println!(
+    log::info!(
         "[USB Monitor] Event-driven monitoring not available on this platform, using direct checks"
     );
     Ok(())

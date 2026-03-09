@@ -1,335 +1,206 @@
+/**
+ * Window Manager — Dedicated Tauri windows for robot app web UIs.
+ *
+ * Manages the full lifecycle: create → focus → close → cleanup.
+ * Each app gets at most one window; re-opening focuses the existing one.
+ *
+ * Cleanup is driven by Tauri events (destroyed / error) so the cache
+ * stays in sync even when a window is closed via its native controls.
+ */
+
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { getAllWindows } from '@tauri-apps/api/window';
+import { PhysicalPosition } from '@tauri-apps/api/dpi';
 import { invoke } from '@tauri-apps/api/core';
 import useAppStore from '../store/useAppStore';
 
-/**
- * Production-ready Window Manager for Tauri v2
- *
- * Features:
- * - Centralized window lifecycle management
- * - Automatic cleanup and state synchronization
- * - Robust error handling with retry logic
- * - Window state validation
- * - Event-driven architecture
- *
- * NOTE: Controller and Expressions are now displayed in the right panel instead of separate windows.
- * This code is kept for potential future use or if window-based display is needed again.
- * Currently, no secondary windows are configured.
- */
+const APP_WINDOW_PREFIX = 'app-';
+const CASCADE_STEP = 20; // logical px offset per window
 
-// Window configuration registry
-const WINDOW_CONFIGS = {};
-
-// Window references cache (for fast access)
+// Module-level cache: label → WebviewWindow reference
 const windowRefs = new Map();
+let cascadeIndex = 0;
 
-// Window state tracking
-const windowStates = new Map();
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
 /**
- * Get window reference with multiple fallback strategies
+ * Convert an app name to a valid Tauri window label.
+ * Tauri labels must be alphanumeric / dashes / underscores only.
  */
-async function getWindowReference(windowLabel) {
-  // Strategy 1: Use cached reference
-  let window = windowRefs.get(windowLabel);
-  if (window) {
-    return window;
+function appNameToLabel(appName) {
+  return APP_WINDOW_PREFIX + appName.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+}
+
+/**
+ * Resolve a window reference with layered fallbacks.
+ * 1. Module cache  2. Tauri label lookup  3. Full enumeration
+ */
+async function resolveWindow(label) {
+  const cached = windowRefs.get(label);
+  if (cached) return cached;
+
+  try {
+    const win = WebviewWindow.getByLabel(label);
+    if (win) {
+      windowRefs.set(label, win);
+      return win;
+    }
+  } catch {
+    // Label lookup unavailable — try enumeration
   }
 
-  // Strategy 2: Use WebviewWindow.getByLabel (Tauri v2 API)
   try {
-    window = WebviewWindow.getByLabel(windowLabel);
-    if (window) {
-      windowRefs.set(windowLabel, window);
-      return window;
+    const all = await getAllWindows();
+    const win = all.find(w => w.label === label);
+    if (win) {
+      windowRefs.set(label, win);
+      return win;
     }
-  } catch (error) {
-    console.warn(`Failed to get window by label ${windowLabel}:`, error);
-  }
-
-  // Strategy 3: Search in all windows
-  try {
-    const allWindows = await getAllWindows();
-    window = allWindows.find(w => w.label === windowLabel);
-    if (window) {
-      windowRefs.set(windowLabel, window);
-      return window;
-    }
-  } catch (error) {
-    console.warn(`Failed to get all windows:`, error);
+  } catch {
+    // Enumeration failed — give up
   }
 
   return null;
 }
 
 /**
- * Close window with retry logic and multiple strategies
+ * Remove all traces of a window from caches and Zustand store.
  */
-async function closeWindowInternal(windowLabel, retries = 3) {
-  for (let attempt = 1; attempt <= retries; attempt++) {
+function purge(label) {
+  windowRefs.delete(label);
+  try {
+    useAppStore.getState().removeOpenWindow?.(label);
+  } catch {
+    // Store may be unavailable after HMR
+  }
+
+  const hasAppWindows = [...windowRefs.keys()].some(l => l.startsWith(APP_WINDOW_PREFIX));
+  if (!hasAppWindows) cascadeIndex = 0;
+}
+
+/**
+ * Close a window with retry and dual-strategy fallback (JS → Rust).
+ */
+async function closeByLabel(label, maxAttempts = 2) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const win = await resolveWindow(label);
+    if (!win) {
+      purge(label);
+      return;
+    }
+
     try {
-      const window = await getWindowReference(windowLabel);
+      await win.close();
+      purge(label);
+      return;
+    } catch {
+      // JS close failed — fall through to Rust
+    }
 
-      if (!window) {
-        // Window doesn't exist, clean up state
-        cleanupWindowState(windowLabel);
-        return true;
-      }
+    try {
+      await invoke('close_window', { windowLabel: label });
+      purge(label);
+      return;
+    } catch {
+      // Both strategies failed — retry after short delay
+    }
 
-      // Strategy 1: Use window.close() method
-      if (typeof window.close === 'function') {
+    if (attempt < maxAttempts) {
+      await new Promise(r => setTimeout(r, 100 * attempt));
+    }
+  }
+
+  // Exhausted retries — purge state regardless
+  purge(label);
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Open an app's web interface in a dedicated Tauri window.
+ * If the window already exists it is focused instead of re-created.
+ * Falls back to `null` on failure so callers can open a browser tab.
+ *
+ * @param {string} appName  Display name of the app
+ * @param {string} url      Full URL to load (e.g. http://localhost:8042/…)
+ * @param {object} [options]  Optional `{ width, height }` overrides
+ * @returns {Promise<WebviewWindow|null>}
+ */
+export async function openAppWindow(appName, url, options = {}) {
+  const label = appNameToLabel(appName);
+
+  // Focus if already open
+  const existing = await resolveWindow(label);
+  if (existing) {
+    try {
+      await existing.setFocus();
+      return existing;
+    } catch {
+      purge(label);
+    }
+  }
+
+  const offset = cascadeIndex * CASCADE_STEP;
+
+  try {
+    const win = new WebviewWindow(label, {
+      url,
+      title: appName,
+      width: options.width ?? 900,
+      height: options.height ?? 700,
+      center: true,
+      resizable: true,
+      decorations: true,
+      focus: true,
+    });
+
+    windowRefs.set(label, win);
+    cascadeIndex++;
+
+    win.once('tauri://created', async () => {
+      // Shift from center so stacked windows fan out visibly
+      if (offset > 0) {
         try {
-          await window.close();
-          cleanupWindowState(windowLabel);
-          return true;
-        } catch (error) {
-          console.warn(`Attempt ${attempt}: window.close() failed:`, error);
+          const factor = await win.scaleFactor();
+          const pos = await win.outerPosition();
+          const px = Math.round(offset * factor);
+          await win.setPosition(new PhysicalPosition(pos.x + px, pos.y + px));
+        } catch {
+          // Positioning is best-effort
         }
       }
-
-      // Strategy 2: Use Rust command (more reliable)
       try {
-        await invoke('close_window', { windowLabel });
-        cleanupWindowState(windowLabel);
-        return true;
-      } catch (error) {
-        console.warn(`Attempt ${attempt}: Rust close_window failed:`, error);
+        useAppStore.getState().addOpenWindow?.(label);
+      } catch {
+        // Store unavailable
       }
+    });
 
-      // If both strategies fail and we have retries left, wait before retrying
-      if (attempt < retries) {
-        await new Promise(resolve => setTimeout(resolve, 100 * attempt));
-      }
-    } catch (error) {
-      console.error(`Close attempt ${attempt} failed for ${windowLabel}:`, error);
-      if (attempt === retries) {
-        // Final attempt failed, clean up state anyway
-        cleanupWindowState(windowLabel);
-        throw error;
-      }
-    }
-  }
+    win.once('tauri://error', () => purge(label));
+    win.once('tauri://destroyed', () => purge(label));
 
-  // All retries exhausted
-  cleanupWindowState(windowLabel);
-  return false;
-}
-
-/**
- * Clean up window state (references, store, etc.)
- */
-function cleanupWindowState(windowLabel) {
-  windowRefs.delete(windowLabel);
-  windowStates.delete(windowLabel);
-
-  // Safely remove from store (may not exist after hot reload)
-  try {
-    const store = useAppStore.getState();
-    if (store && typeof store.removeOpenWindow === 'function') {
-      store.removeOpenWindow(windowLabel);
-    }
-  } catch (error) {
-    // Silently fail if store is not available (e.g., after hot reload)
-    console.debug('Could not remove window from store (expected after hot reload):', error);
+    return win;
+  } catch {
+    purge(label);
+    return null;
   }
 }
 
 /**
- * Send initial state to a newly created window
+ * Close a specific app's window by app name.
  */
-async function sendInitialStateToWindow(windowLabel) {
-  try {
-    const { emit } = await import('@tauri-apps/api/event');
-    const state = useAppStore.getState();
-
-    // Send complete initial state that secondary windows need
-    const initialState = {
-      darkMode: state.darkMode ?? false,
-      isActive: state.isActive ?? false,
-      robotStatus: state.robotStatus ?? 'disconnected',
-      busyReason: state.busyReason ?? null,
-      isCommandRunning: state.isCommandRunning ?? false,
-      isAppRunning: state.isAppRunning ?? false,
-      isInstalling: state.isInstalling ?? false,
-      robotStateFull: state.robotStateFull ?? { data: null, lastUpdate: null, error: null },
-      activeMoves: state.activeMoves ?? [],
-      frontendLogs: state.frontendLogs ?? [], // Include logs in initial state
-    };
-
-    // Send initial state immediately and also after a short delay to ensure it's received
-    // This handles cases where the window is still initializing
-    const sendState = async () => {
-      try {
-        await emit('store-update', initialState);
-        console.log('[WindowManager] Sent initial state', {
-          isActive: initialState.isActive,
-          robotStatus: initialState.robotStatus,
-          hasRobotStateFull: !!initialState.robotStateFull?.data,
-        });
-      } catch (emitError) {
-        console.warn(`Failed to emit initial state to ${windowLabel}:`, emitError);
-      }
-    };
-
-    // Send immediately
-    sendState();
-
-    // Also send after a short delay to catch windows that weren't ready
-    setTimeout(sendState, 500);
-  } catch (error) {
-    console.warn(`Failed to send initial state to ${windowLabel}:`, error);
-  }
+export async function closeAppWindow(appName) {
+  await closeByLabel(appNameToLabel(appName));
 }
 
 /**
- * Setup window event listeners for proper lifecycle management
+ * Close every open app window (e.g. on robot disconnect).
  */
-function setupWindowListeners(window, windowLabel) {
-  // Track window creation
-  window.once('tauri://created', async () => {
-    windowStates.set(windowLabel, 'created');
-
-    try {
-      // Apply transparent titlebar style (macOS)
-      await invoke('apply_transparent_titlebar', { windowLabel });
-
-      // Mark window as ready and track in store
-      windowStates.set(windowLabel, 'ready');
-
-      // Safely add to store (may not exist after hot reload)
-      try {
-        const store = useAppStore.getState();
-        if (store && typeof store.addOpenWindow === 'function') {
-          store.addOpenWindow(windowLabel);
-        }
-      } catch (error) {
-        console.debug('Could not add window to store (expected after hot reload):', error);
-      }
-
-      // Send initial state to the new window (including darkMode, isActive, etc.)
-      await sendInitialStateToWindow(windowLabel);
-    } catch (error) {
-      console.error(`❌ Failed to setup window '${windowLabel}':`, error);
-      windowStates.set(windowLabel, 'error');
-    }
-  });
-
-  // Track window destruction
-  window.once('tauri://destroyed', () => {
-    cleanupWindowState(windowLabel);
-  });
-
-  // Track window errors
-  window.once('tauri://error', error => {
-    console.error(`❌ Error in window '${windowLabel}':`, error);
-    windowStates.set(windowLabel, 'error');
-    cleanupWindowState(windowLabel);
-  });
-}
-
-/**
- * Create a new window with proper configuration and lifecycle management
- */
-async function createWindow(windowLabel) {
-  const config = WINDOW_CONFIGS[windowLabel];
-  if (!config) {
-    throw new Error(`Unknown window label: ${windowLabel}`);
-  }
-
-  // Check if window already exists
-  const existingWindow = await getWindowReference(windowLabel);
-  if (existingWindow) {
-    // Window exists, focus it instead of creating a new one
-    try {
-      await existingWindow.setFocus();
-      return existingWindow;
-    } catch (error) {
-      console.warn(`Failed to focus existing window ${windowLabel}, will create new one:`, error);
-      // Continue to create new window
-    }
-  }
-
-  // Create new window
-  const window = new WebviewWindow(windowLabel, config);
-
-  // Store reference immediately
-  windowRefs.set(windowLabel, window);
-  windowStates.set(windowLabel, 'creating');
-
-  // Setup lifecycle listeners
-  setupWindowListeners(window, windowLabel);
-
-  return window;
-}
-
-/**
- * Public API: Close a window
- */
-export async function closeWindow(windowLabel) {
-  try {
-    await closeWindowInternal(windowLabel);
-  } catch (error) {
-    console.error(`❌ Failed to close window ${windowLabel}:`, error);
-    // Ensure cleanup even on error
-    cleanupWindowState(windowLabel);
-  }
-}
-
-/**
- * Public API: Get window state
- */
-export function getWindowState(windowLabel) {
-  return windowStates.get(windowLabel) || 'unknown';
-}
-
-/**
- * Public API: Check if window is open
- */
-export async function isWindowOpen(windowLabel) {
-  const window = await getWindowReference(windowLabel);
-  return window !== null;
-}
-
-/**
- * Public API: Close all secondary windows
- */
-export async function closeAllSecondaryWindows() {
-  const secondaryWindows = [];
-  const closePromises = secondaryWindows.map(label =>
-    closeWindow(label).catch(error => {
-      console.error(`Failed to close ${label}:`, error);
-    })
-  );
-  await Promise.allSettled(closePromises);
-}
-
-/**
- * Initialize window manager: sync state with actual windows on startup
- */
-export async function initializeWindowManager() {
-  try {
-    const allWindows = await getAllWindows();
-    const secondaryLabels = [];
-
-    for (const label of secondaryLabels) {
-      const window = allWindows.find(w => w.label === label);
-      if (window) {
-        // Window exists, sync state
-        windowRefs.set(label, window);
-        windowStates.set(label, 'ready');
-
-        // Safely add to store (may not exist after hot reload)
-        const store = useAppStore.getState();
-        if (store && typeof store.addOpenWindow === 'function') {
-          store.addOpenWindow(label);
-        }
-
-        // Re-setup listeners for existing windows
-        setupWindowListeners(window, label);
-      }
-    }
-  } catch (error) {
-    console.error('❌ Failed to initialize window manager:', error);
-  }
+export async function closeAllAppWindows() {
+  const labels = [...windowRefs.keys()].filter(l => l.startsWith(APP_WINDOW_PREFIX));
+  await Promise.allSettled(labels.map(l => closeByLabel(l)));
 }

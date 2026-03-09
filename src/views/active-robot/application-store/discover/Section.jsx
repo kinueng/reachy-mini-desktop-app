@@ -253,7 +253,7 @@ export default function DiscoverAppsSection({
                       flexShrink: 0,
                     }}
                   >
-                    {app.extra?.cardData?.emoji || '📦'}
+                    {[...(app.extra?.cardData?.emoji || '📦')][0]}
                   </Box>
 
                   {/* Content */}

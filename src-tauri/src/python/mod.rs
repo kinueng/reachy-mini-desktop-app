@@ -1,7 +1,7 @@
 // Helper to build daemon arguments
 // IMPORTANT: Use .venv/bin/python3 directly instead of "uv run python" to ensure
 // we use the venv Python with all installed packages, not the cpython bundle
-pub fn build_daemon_args(sim_mode: bool) -> Result<Vec<String>, String> {
+pub fn build_daemon_args(sim_mode: bool, preload_datasets: bool) -> Result<Vec<String>, String> {
     // Use Python from .venv directly (not via uv run)
     // This ensures we use the venv with all installed packages
     #[cfg(target_os = "windows")]
@@ -29,7 +29,12 @@ pub fn build_daemon_args(sim_mode: bool) -> Result<Vec<String>, String> {
     // Common daemon arguments
     args.push("--desktop-app-daemon".to_string());
     args.push("--no-wake-up-on-start".to_string()); // Robot starts sleeping, toggle controls wake
-    args.push("--preload-datasets".to_string()); // Pre-download emotions/dances at startup
+
+    // Pre-download emotions/dances at startup (requires newer reachy-mini)
+    // We'll try with this first, and fall back to without it if the daemon doesn't support it
+    if preload_datasets {
+        args.push("--preload-datasets".to_string());
+    }
 
     if sim_mode {
         // Use --mockup-sim for mockup simulation (no MuJoCo required)

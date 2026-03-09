@@ -87,6 +87,7 @@ export function useInstallationLifecycle({
     (shouldCloseModal = false) => {
       const appName = installingAppName; // Capture before unlock
       const isUninstall = installJobType === JOB_TYPES.REMOVE;
+      const isUpdate = installJobType === JOB_TYPES.UPDATE;
 
       // Close immediately - no delay needed
       // Job says "completed", so we trust it and close right away
@@ -99,7 +100,7 @@ export function useInstallationLifecycle({
 
       // Show toast notification
       if (showToast) {
-        const actionType = isUninstall ? 'uninstalled' : 'installed';
+        const actionType = isUninstall ? 'uninstalled' : isUpdate ? 'updated' : 'installed';
         showToast(`${appName} ${actionType} successfully`, 'success');
       }
     },
@@ -117,7 +118,8 @@ export function useInstallationLifecycle({
       // Show toast notification immediately
       if (showToast) {
         const isUninstall = installJobType === JOB_TYPES.REMOVE;
-        const actionVerb = isUninstall ? 'uninstall' : 'install';
+        const isUpdate = installJobType === JOB_TYPES.UPDATE;
+        const actionVerb = isUninstall ? 'uninstall' : isUpdate ? 'update' : 'install';
         showToast(`Failed to ${actionVerb} ${installingAppName}`, 'error');
       }
 

@@ -11,6 +11,9 @@ use uv_wrapper::{get_local_app_data_dir, is_program_files_path, setup_local_venv
 #[cfg(target_os = "linux")]
 use uv_wrapper::{get_xdg_data_home, is_system_lib_path, setup_local_venv_linux};
 
+#[cfg(target_os = "macos")]
+use uv_wrapper::{get_macos_app_support_dir, is_app_bundle_path, setup_local_venv_macos};
+
 #[cfg(not(target_os = "windows"))]
 use signal_hook::{consts::TERM_SIGNALS, flag::register};
 
@@ -27,9 +30,15 @@ fn get_possible_bin_folders() -> Vec<&'static str> {
         "./binaries",  // binaries/ subdirectory (alternative naming, Tauri context)
     ];
     
-    // On macOS, apps are in a bundle with structure App.app/Contents/Resources
+    // On macOS, check Application Support first (persists across Tauri updates),
+    // then fall back to the .app bundle's Resources
     #[cfg(target_os = "macos")]
     {
+        if let Some(local_dir) = get_macos_app_support_dir() {
+            let local_path: &'static str = Box::leak(local_dir.to_string_lossy().into_owned().into_boxed_str());
+            folders.insert(0, local_path);
+        }
+        
         folders.push("../Resources");
         folders.push("../Resources/bin");
         folders.push("../Resources/binaries");
@@ -372,6 +381,37 @@ fn main() -> ExitCode {
                     Err(e) => {
                         eprintln!("⚠️  Failed to setup local venv: {}", e);
                         eprintln!("   Will try to use /usr/lib/ directly (may fail)");
+                    }
+                }
+            }
+        }
+    }
+    
+    // On macOS, if running from a .app bundle, copy venv to ~/Library/Application Support/
+    // This ensures the venv and installed apps persist across Tauri updates
+    #[cfg(target_os = "macos")]
+    {
+        let exe_dir = env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| PathBuf::from("."));
+        
+        if is_app_bundle_path(&exe_dir) {
+            println!("📍 Running from .app bundle, checking local venv...");
+            let bundle_resources = exe_dir
+                .parent() // Contents/
+                .map(|contents| contents.join("Resources"));
+            
+            if let Some(bundle_dir) = bundle_resources {
+                if bundle_dir.exists() {
+                    match setup_local_venv_macos(&bundle_dir) {
+                        Ok(local_dir) => {
+                            println!("✅ Using local venv at {:?}", local_dir);
+                        }
+                        Err(e) => {
+                            eprintln!("⚠️  Failed to setup local venv: {}", e);
+                            eprintln!("   Will try to use app bundle directly");
+                        }
                     }
                 }
             }

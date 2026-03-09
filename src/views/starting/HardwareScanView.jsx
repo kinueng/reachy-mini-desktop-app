@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import Viewer3D from '../../components/viewer3d';
 import useAppStore from '../../store/useAppStore';
+import { useShallow } from 'zustand/react/shallow';
 import { invoke } from '@tauri-apps/api/core';
 import { HARDWARE_ERROR_CONFIGS, getErrorMeshes } from '../../utils/hardwareErrors';
 import { getTotalScanParts, mapMeshToScanPart } from '../../utils/scanParts';
@@ -9,9 +10,26 @@ import { useDaemonStartupLogs } from '../../hooks/daemon/useDaemonStartupLogs';
 import LogConsole from '@components/LogConsole';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '../../config/daemon';
 import { detectMovementChanges } from '../../utils/movementDetection';
-import { useAppFetching, useAppEnrichment } from '../active-robot/application-store/hooks';
+import { useAppFetching, mergeAppsData } from '../active-robot/application-store/hooks';
 import { ScanErrorDisplay, ScanStepsIndicator, TipsCarousel } from './components';
 import { calculatePassiveJointsAsync } from '../../utils/kinematics-wasm/useKinematicsWasm';
+
+/**
+ * Calculate passive joints via WASM and store them in the Zustand store.
+ * @returns {boolean} true if passive_joints were successfully computed and stored
+ */
+async function computeAndStorePassiveJoints(headJoints, headPose) {
+  const joints = await calculatePassiveJointsAsync(headJoints, headPose);
+  if (joints && joints.length === 21) {
+    const { setRobotStateFull } = useAppStore.getState();
+    setRobotStateFull(prev => ({
+      ...prev,
+      data: { ...prev.data, passive_joints: joints },
+    }));
+    return true;
+  }
+  return false;
+}
 
 /**
  * Get connection-specific timeout error messages
@@ -136,17 +154,28 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
     transitionTo,
     robotStatus,
     setRobotStateFull,
-    robotStateFull, // 🎯 For checking WebSocket dataVersion
-    setShouldStreamRobotState, // 🎯 Start WebSocket early
+    setShouldStreamRobotState,
     setAvailableApps,
     setInstalledApps,
     setAppsLoading,
     resetAll,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow(state => ({
+      setHardwareError: state.setHardwareError,
+      darkMode: state.darkMode,
+      transitionTo: state.transitionTo,
+      robotStatus: state.robotStatus,
+      setRobotStateFull: state.setRobotStateFull,
+      setShouldStreamRobotState: state.setShouldStreamRobotState,
+      setAvailableApps: state.setAvailableApps,
+      setInstalledApps: state.setInstalledApps,
+      setAppsLoading: state.setAppsLoading,
+      resetAll: state.resetAll,
+    }))
+  );
 
   // ✅ App fetching hooks for pre-loading apps before transition
-  const { fetchOfficialApps, fetchAllAppsFromDaemon, fetchInstalledApps } = useAppFetching();
-  const { enrichApps } = useAppEnrichment();
+  const { fetchAppsFromWebsite, fetchInstalledApps } = useAppFetching();
   const isStarting = robotStatus === 'starting';
   const {
     logs: startupLogs,
@@ -175,6 +204,7 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
   const movementCheckIntervalRef = useRef(null);
   const elapsedTimerRef = useRef(null); // ✅ Timer for elapsed time
   const lastMovementStateRef = useRef(null); // Track last movement state to detect changes
+  const healthCheckStartedRef = useRef(false); // Guard against multiple startDaemonHealthCheck calls
 
   // ✅ Get message thresholds from config
   const { MESSAGE_THRESHOLDS } = DAEMON_CONFIG.HARDWARE_SCAN;
@@ -277,6 +307,7 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
       setMovementAttempts(0);
       setElapsedSeconds(0); // ✅ Reset elapsed time
       scannedPartsRef.current.clear(); // Reset scanned parts tracking
+      healthCheckStartedRef.current = false; // Allow health check to run again on retry
 
       // Clear all intervals
       clearAllIntervals();
@@ -298,13 +329,12 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
         // Fallback to reload if startDaemon not available
         window.location.reload();
       }
-    } catch (err) {
-      console.error('Failed to retry:', err);
+    } catch {
       setIsRetrying(false);
       // ✅ Keep scan view active - don't reload, let the error be handled by startDaemon
       // startDaemon will set hardwareError if it fails, keeping us in scan view
     }
-  }, [transitionTo, startDaemon, clearAllIntervals, setShouldStreamRobotState]);
+  }, [transitionTo, startDaemon, clearAllIntervals, setShouldStreamRobotState, setHardwareError]);
 
   /**
    * Check daemon health status AND robot ready state
@@ -472,14 +502,22 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
 
           // Start checking for movements
           let movementAttemptCount = 0;
+          let movementsHandled = false;
           const movementStartTime = elapsedSecondsRef.current;
           const checkMovements = async () => {
+            if (movementsHandled) return;
             movementAttemptCount++;
             setMovementAttempts(movementAttemptCount);
 
             const result = await checkDaemonHealth();
 
             if (result.hasMovements) {
+              movementsHandled = true;
+              if (movementCheckIntervalRef.current) {
+                clearInterval(movementCheckIntervalRef.current);
+                movementCheckIntervalRef.current = null;
+              }
+
               // ✅ Movements detected, now start WebSocket and wait for stable data
               setWaitingForMovements(false);
               setWaitingForWebSocket(true);
@@ -496,10 +534,6 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
               const WS_TIMEOUT = 3000; // 3 seconds max
               const wsStartTime = Date.now();
 
-              console.log(
-                '[HardwareScanView] 🔄 Waiting for WebSocket stable data + WASM passive joints...'
-              );
-
               const waitForWebSocketAndWasm = async () => {
                 return new Promise(resolve => {
                   const checkWebSocket = async () => {
@@ -510,52 +544,27 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
                       Array.isArray(data?.head_joints) && data.head_joints.length === 7;
                     const hasHeadPose =
                       Array.isArray(data?.head_pose) && data.head_pose.length === 16;
-
-                    // Debug log every 500ms
                     const elapsed = Date.now() - wsStartTime;
-                    if (elapsed % 500 < WS_CHECK_INTERVAL) {
-                      console.log(
-                        `[HardwareScanView] ⏳ Check: dataVersion=${dataVersion}, hasHeadJoints=${hasHeadJoints}, hasHeadPose=${hasHeadPose}`
-                      );
-                    }
 
-                    // Require dataVersion >= 3 AND head_joints AND head_pose
                     if (dataVersion >= WS_STABLE_FRAMES && hasHeadJoints && hasHeadPose) {
-                      // 🦀 Calculate passive_joints via WASM
-                      console.log('[HardwareScanView] 🦀 Calculating passive joints via WASM...');
                       try {
-                        const passiveJoints = await calculatePassiveJointsAsync(
-                          data.head_joints,
-                          data.head_pose
-                        );
-
-                        if (passiveJoints && passiveJoints.length === 21) {
-                          // Store passive_joints in the store so Viewer3D can use them immediately
-                          const { setRobotStateFull } = useAppStore.getState();
-                          setRobotStateFull(prev => ({
-                            ...prev,
-                            data: {
-                              ...prev.data,
-                              passive_joints: passiveJoints,
-                            },
-                          }));
-
-                          console.log(
-                            `[HardwareScanView] ✅ Ready! (dataVersion=${dataVersion}, passive_joints=${passiveJoints.length})`
-                          );
+                        if (await computeAndStorePassiveJoints(data.head_joints, data.head_pose)) {
                           resolve();
                           return;
                         }
-                      } catch (wasmErr) {
-                        console.warn('[HardwareScanView] ⚠️ WASM error:', wasmErr.message);
-                        // Continue anyway - Viewer3D will calculate via WASM
+                      } catch {
+                        // Continue — Viewer3D will calculate via WASM
                       }
                     }
 
                     if (elapsed > WS_TIMEOUT) {
-                      console.warn(
-                        `[HardwareScanView] ⚠️ Timeout after ${WS_TIMEOUT}ms, proceeding anyway`
-                      );
+                      if (hasHeadJoints && hasHeadPose) {
+                        try {
+                          await computeAndStorePassiveJoints(data.head_joints, data.head_pose);
+                        } catch {
+                          // Proceed without passive_joints — Viewer3D will calculate them
+                        }
+                      }
                       resolve();
                       return;
                     }
@@ -577,70 +586,32 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
               try {
                 setAppsLoading(true);
 
-                // Fetch all apps in parallel (official + community + installed)
-                const [officialResult, communityResult, installedResult] = await Promise.allSettled(
-                  [fetchOfficialApps(), fetchAllAppsFromDaemon(), fetchInstalledApps()]
-                );
+                // Fetch apps from website API + installed from daemon (2 requests only!)
+                const [websiteResult, installedResult] = await Promise.allSettled([
+                  fetchAppsFromWebsite(),
+                  fetchInstalledApps(),
+                ]);
 
-                // Extract results
-                let officialApps =
-                  officialResult.status === 'fulfilled' ? officialResult.value || [] : [];
-                let communityApps =
-                  communityResult.status === 'fulfilled' ? communityResult.value || [] : [];
+                const availableAppsFromWebsite =
+                  websiteResult.status === 'fulfilled' ? websiteResult.value || [] : [];
                 const installedAppsFromDaemon =
                   installedResult.status === 'fulfilled' ? installedResult.value?.apps || [] : [];
 
-                // Mark apps with isOfficial flag
-                officialApps = officialApps.map(app => ({ ...app, isOfficial: true }));
-                communityApps = communityApps.map(app => ({ ...app, isOfficial: false }));
-
-                // Merge all apps
-                let allApps = [...officialApps, ...communityApps];
-
-                // Add local-only installed apps
-                const availableAppNames = new Set(allApps.map(app => app.name?.toLowerCase()));
-                const localOnlyApps = installedAppsFromDaemon
-                  .filter(app => !availableAppNames.has(app.name?.toLowerCase()))
-                  .map(app => ({
-                    ...app,
-                    source_kind: app.source_kind || 'local',
-                    isOfficial: false,
-                  }));
-
-                if (localOnlyApps.length > 0) {
-                  allApps = [...allApps, ...localOnlyApps];
-                }
-
-                // Create lookup structures for installed apps
-                const installedAppNames = new Set(
-                  installedAppsFromDaemon.map(app => app.name?.toLowerCase()).filter(Boolean)
-                );
-                const installedAppsMap = new Map(
-                  installedAppsFromDaemon.map(app => [app.name?.toLowerCase(), app])
+                const { enrichedApps, installedApps: installed } = mergeAppsData(
+                  availableAppsFromWebsite,
+                  installedAppsFromDaemon
                 );
 
-                // Enrich apps with metadata
-                const { enrichedApps, installed } = await enrichApps(
-                  allApps,
-                  installedAppNames,
-                  installedAppsMap,
-                  officialApps
-                );
-
-                // Preserve isOfficial flag after enrichment
-                const enrichedAppsWithFlag = enrichedApps.map(app => {
-                  const original = allApps.find(a => a.name === app.name);
-                  return { ...app, isOfficial: original?.isOfficial ?? false };
-                });
-
-                // Store in global store (will be used immediately by ActiveRobotView)
-                setAvailableApps(enrichedAppsWithFlag);
+                setAvailableApps(enrichedApps);
                 setInstalledApps(installed);
-              } catch (err) {
-                console.warn(
-                  '⚠️ Failed to pre-fetch apps (will retry in ActiveRobotView):',
-                  err.message
-                );
+
+                // If website fetch failed, don't cache incomplete data.
+                // ActiveRobotView will retry and get the full store catalog.
+                if (availableAppsFromWebsite.length === 0 && installedAppsFromDaemon.length > 0) {
+                  useAppStore.getState().invalidateAppsCache();
+                }
+              } catch {
+                // Apps will be fetched again in ActiveRobotView
               } finally {
                 setAppsLoading(false);
                 // ✅ FIX: Don't reset waitingForApps here - keep it true during the delay
@@ -667,9 +638,6 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
 
             if (movementElapsed >= MOVEMENT_TIMEOUT_SECONDS) {
               const currentConnectionMode = useAppStore.getState().connectionMode;
-              console.error(
-                `❌ Movement check timeout after ${movementElapsed}s (limit: ${MOVEMENT_TIMEOUT_SECONDS}s, mode: ${currentConnectionMode})`
-              );
               setWaitingForMovements(false);
               clearAllIntervals();
 
@@ -696,9 +664,6 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
 
         if (currentElapsed >= DAEMON_TIMEOUT_SECONDS && !daemonReady) {
           const currentConnectionMode = useAppStore.getState().connectionMode;
-          console.error(
-            `❌ Daemon healthcheck timeout after ${currentElapsed}s (limit: ${DAEMON_TIMEOUT_SECONDS}s, mode: ${currentConnectionMode})`
-          );
           setWaitingForDaemon(false);
           clearAllIntervals();
 
@@ -725,34 +690,30 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
     clearAllIntervals,
     setHardwareError,
     setShouldStreamRobotState, // 🎯 Start WebSocket early
-    fetchOfficialApps,
-    fetchAllAppsFromDaemon,
+    fetchAppsFromWebsite,
     fetchInstalledApps,
-    enrichApps,
     setAvailableApps,
     setInstalledApps,
     setAppsLoading,
   ]);
 
   const handleScanComplete = useCallback(() => {
-    // ✅ Don't mark scan as complete if there's an error - stay in error state
+    // Guard: only start health check flow once (ScanEffect can fire onComplete multiple times)
+    if (healthCheckStartedRef.current) return;
+
     const currentState = useAppStore.getState();
     if (
       currentState.hardwareError ||
       (startupError && typeof startupError === 'object' && startupError.type)
     ) {
-      console.warn(
-        '[HardwareScanView] ⚠️ Scan visual completed but error detected, not completing scan'
-      );
-      return; // Don't complete scan, stay in error state
+      return;
     }
 
+    healthCheckStartedRef.current = true;
     setScanProgress(prev => ({ ...prev, current: prev.total }));
     setCurrentPart(null);
     setScanComplete(true);
 
-    // ✅ NEW: Wait for daemon healthcheck before proceeding
-    // This ensures daemon is ready before fetching apps
     startDaemonHealthCheck();
   }, [startupError, startDaemonHealthCheck]);
 
@@ -956,41 +917,39 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
         )}
       </Box>
 
-      {/* ✅ Daemon startup logs - fixed at the bottom, visible, scrollable */}
-      {/* Always show logs if available, even if not starting (error state) */}
-      {startupLogs.length > 0 && (
-        <Box
+      {/* ✅ Daemon startup logs - fixed at the bottom, always visible with final height */}
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)',
+          maxWidth: '420px',
+          zIndex: 1000,
+          opacity: 0.2, // Very subtle by default
+          transition: 'opacity 0.3s ease-in-out',
+          '&:hover': {
+            opacity: 1, // Full opacity on hover
+          },
+        }}
+      >
+        <LogConsole
+          logs={startupLogs}
+          darkMode={darkMode}
+          includeStoreLogs={true}
+          compact={true}
+          showTimestamp={false}
+          lines={2}
+          emptyMessage="Waiting for logs..."
           sx={{
-            position: 'fixed',
-            bottom: 16,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: 'calc(100% - 32px)',
-            maxWidth: '420px',
-            zIndex: 1000,
-            opacity: 0.2, // Very subtle by default
-            transition: 'opacity 0.3s ease-in-out',
-            '&:hover': {
-              opacity: 1, // Full opacity on hover
-            },
+            bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
+            border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
           }}
-        >
-          <LogConsole
-            logs={startupLogs}
-            darkMode={darkMode}
-            includeStoreLogs={true}
-            compact={true}
-            showTimestamp={false}
-            lines={3}
-            sx={{
-              bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
-              border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-            }}
-          />
-        </Box>
-      )}
+        />
+      </Box>
     </Box>
   );
 }

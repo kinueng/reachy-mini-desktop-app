@@ -35,6 +35,23 @@ pub fn get_xdg_data_home() -> Option<PathBuf> {
     None
 }
 
+/// Gets the Application Support directory for macOS
+/// Returns ~/Library/Application Support/com.pollen-robotics.reachy-mini/
+#[cfg(target_os = "macos")]
+pub fn get_macos_app_support_dir() -> Option<PathBuf> {
+    env::var("HOME").ok().map(|home| {
+        PathBuf::from(home)
+            .join("Library")
+            .join("Application Support")
+            .join("com.pollen-robotics.reachy-mini")
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn get_macos_app_support_dir() -> Option<PathBuf> {
+    None
+}
+
 /// Check if we're running from /usr/lib/ (read-only system directory on Linux)
 #[cfg(target_os = "linux")]
 pub fn is_system_lib_path(path: &std::path::Path) -> bool {
@@ -56,6 +73,17 @@ pub fn is_program_files_path(path: &std::path::Path) -> bool {
 
 #[cfg(not(target_os = "windows"))]
 pub fn is_program_files_path(_path: &std::path::Path) -> bool {
+    false
+}
+
+/// Check if we're running from inside a .app bundle (macOS production)
+#[cfg(target_os = "macos")]
+pub fn is_app_bundle_path(path: &std::path::Path) -> bool {
+    path.to_string_lossy().contains(".app/Contents")
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn is_app_bundle_path(_path: &std::path::Path) -> bool {
     false
 }
 
@@ -319,6 +347,100 @@ pub fn setup_local_venv_linux(_system_lib_dir: &std::path::Path) -> Result<PathB
     Err("setup_local_venv_linux is only available on Linux".to_string())
 }
 
+/// Setup local venv on macOS by copying from .app bundle to ~/Library/Application Support/
+/// Returns the local directory path if setup was successful or already done
+#[cfg(target_os = "macos")]
+pub fn setup_local_venv_macos(bundle_dir: &std::path::Path) -> Result<PathBuf, String> {
+    let local_dir = get_macos_app_support_dir()
+        .ok_or_else(|| "HOME environment variable not set".to_string())?;
+    
+    let local_venv = local_dir.join(".venv");
+    let local_pyvenv_cfg = local_venv.join("pyvenv.cfg");
+    
+    if local_pyvenv_cfg.exists() {
+        let content = fs::read_to_string(&local_pyvenv_cfg)
+            .map_err(|e| format!("Failed to read local pyvenv.cfg: {}", e))?;
+        
+        for line in content.lines() {
+            if line.starts_with("home = ") {
+                let home_path = line.trim_start_matches("home = ");
+                if std::path::Path::new(home_path).exists() {
+                    println!("✅ Local venv already configured at {:?}", local_dir);
+                    return Ok(local_dir);
+                }
+            }
+        }
+        println!("⚠️  Local venv exists but has invalid paths, reconfiguring...");
+    }
+    
+    println!("📦 Setting up local Python environment...");
+    println!("   Source: {:?}", bundle_dir);
+    println!("   Target: {:?}", local_dir);
+    
+    fs::create_dir_all(&local_dir)
+        .map_err(|e| format!("Failed to create local directory: {}", e))?;
+    
+    let src_venv = bundle_dir.join(".venv");
+    if src_venv.exists() {
+        println!("   📁 Copying .venv...");
+        if local_venv.exists() {
+            fs::remove_dir_all(&local_venv)
+                .map_err(|e| format!("Failed to remove old local venv: {}", e))?;
+        }
+        copy_dir_recursive(&src_venv, &local_venv)?;
+        println!("   ✅ .venv copied");
+    } else {
+        return Err(format!(".venv not found at {:?}", src_venv));
+    }
+    
+    let cpython_folder = find_cpython_folder(bundle_dir)?;
+    let src_cpython = bundle_dir.join(&cpython_folder);
+    let dst_cpython = local_dir.join(&cpython_folder);
+    
+    if src_cpython.exists() {
+        println!("   📁 Copying {}...", cpython_folder);
+        if dst_cpython.exists() {
+            fs::remove_dir_all(&dst_cpython)
+                .map_err(|e| format!("Failed to remove old cpython: {}", e))?;
+        }
+        copy_dir_recursive(&src_cpython, &dst_cpython)?;
+        println!("   ✅ {} copied", cpython_folder);
+    } else {
+        return Err(format!("cpython folder not found at {:?}", src_cpython));
+    }
+    
+    for bin in &["uv", "uvx"] {
+        let src_bin = bundle_dir.join(bin);
+        let dst_bin = local_dir.join(bin);
+        if src_bin.exists() {
+            fs::copy(&src_bin, &dst_bin)
+                .map_err(|e| format!("Failed to copy {}: {}", bin, e))?;
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = fs::metadata(&dst_bin)
+                    .map_err(|e| format!("Failed to get permissions for {}: {}", bin, e))?
+                    .permissions();
+                perms.set_mode(0o755);
+                fs::set_permissions(&dst_bin, perms)
+                    .map_err(|e| format!("Failed to set permissions for {}: {}", bin, e))?;
+            }
+            println!("   ✅ {} copied", bin);
+        }
+    }
+    
+    println!("   🔧 Patching pyvenv.cfg...");
+    patching_pyvenv_cfg(&local_dir, &cpython_folder)?;
+    println!("   ✅ pyvenv.cfg patched");
+    
+    println!("✅ Local Python environment ready at {:?}", local_dir);
+    Ok(local_dir)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn setup_local_venv_macos(_bundle_dir: &std::path::Path) -> Result<PathBuf, String> {
+    Err("setup_local_venv_macos is only available on macOS".to_string())
+}
+
 /// Gets the folder containing the current executable
 /// 
 /// Returns the parent directory of the executable, or the current directory
@@ -337,7 +459,12 @@ pub fn lookup_bin_folder(possible_folders: &[&str], bin: &str) -> Option<std::pa
     for abs_path in possible_abs_bin(possible_folders) {
         let candidate = abs_path.join(bin);
         if candidate.exists() {
-            return Some(abs_path);
+            // Verify the folder also contains cpython and .venv — this prevents
+            // matching incomplete folders (e.g. target/debug/ in dev mode where
+            // Tauri copies uv as a resource but glob-based cpython copy fails)
+            if find_cpython_folder(&abs_path).is_ok() && abs_path.join(".venv").exists() {
+                return Some(abs_path);
+            }
         }
     }
     None

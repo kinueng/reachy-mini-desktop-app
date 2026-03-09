@@ -15,21 +15,21 @@ import { useActiveRobotAdapter } from '../useActiveRobotAdapter';
 import useAppStore from '../../store/useAppStore';
 
 /**
- * Hook to determine which view to display based on app state
+ * Hook to determine which view to display based on app state.
+ * Uses a priority-based system where the first matching condition wins.
  *
  * Priority order:
- * 0. Permissions (macOS only) - Blocks app until permissions granted
- * 1. Update view - Always first, before everything else
- * 2. First time WiFi setup - Guided setup for WiFi connection
- * 3. Finding robot view - User selects connection (USB/WiFi/Sim) and clicks Start
- * 4. Starting daemon (visual scan)
- * 5. Stopping daemon - Show spinner
- * 6. Active robot - Full control view (handles its own loading state)
- *
- * 🌐 WiFi mode: Also passes through scan view for consistent UX
+ * 0.   Permissions (macOS only) - Blocks app until permissions granted
+ * 1.   Update view - Check and download updates
+ * 2.   First time WiFi setup - Guided WiFi configuration wizard
+ * 2.5. Bluetooth support - Links to external Bluetooth reset tool
+ * 3.   Finding robot - User selects connection (USB/WiFi/Sim) and clicks Start
+ * 4.   Starting daemon (visual scan) - Also used for WiFi mode
+ * 5.   Stopping daemon - Shutdown spinner
+ * 6.   Active robot - Full control view (handles its own loading state)
  *
  * @param {object} props - View routing props
- * @returns {object} { viewComponent, viewProps }
+ * @returns {object} { viewComponent, viewProps, showTopBar, needsContext }
  */
 export function useViewRouter({
   // Permissions

@@ -13,6 +13,7 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 import ActiveRobotModule from '../views/active-robot/ActiveRobotModule';
 import { useWebActiveRobotAdapter } from '../hooks/useWebActiveRobotAdapter';
 import useAppStore from '../store/useAppStore';
+import { ROBOT_STATUS } from '../constants/robotStatus';
 
 /**
  * Web-only App component
@@ -56,11 +57,14 @@ export default function WebApp() {
           if (data.state === 'running' || data.state === 'error') {
             setIsConnected(true);
             setDaemonVersion(data.version || 'web');
-            // Update store with daemon state
-            useAppStore.getState().update({
-              isActive: data.state === 'running',
-              robotStatus: data.state === 'running' ? 'ready' : 'error',
-            });
+            if (data.state === 'running') {
+              const store = useAppStore.getState();
+              // Web mode: daemon is already running, walk through the proper transition path
+              if (store.robotStatus === ROBOT_STATUS.DISCONNECTED) {
+                store.startConnection('web', {});
+              }
+              store.transitionTo.ready();
+            }
           } else {
             setError(`Daemon is ${data.state}. Please start the daemon first.`);
           }

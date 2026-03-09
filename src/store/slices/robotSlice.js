@@ -10,48 +10,25 @@
  * 🎯 STATE MACHINE: robotStatus is the SINGLE SOURCE OF TRUTH
  * All boolean states (isActive, isStarting, etc.) are DERIVED from robotStatus
  */
-import { logConnect, logDisconnect, logReset, logReady, logBusy, logCrash } from '../storeLogger';
-import { telemetry } from '../../utils/telemetry';
+import { logConnect, logDisconnect } from '../storeLogger';
+import {
+  ROBOT_STATUS,
+  BUSY_REASON,
+  validateTransition,
+  buildDerivedState,
+} from '../../constants/robotStatus';
 
 // ============================================================================
 // SELECTORS - Derive boolean states from robotStatus
 // ============================================================================
 
 /**
- * @param {Object} state - Store state
- * @returns {boolean} True if robot is active (ready or busy)
- */
-export const selectIsActive = state =>
-  state.robotStatus === 'ready' || state.robotStatus === 'busy';
-
-/**
- * @param {Object} state - Store state
- * @returns {boolean} True if daemon is starting
- */
-export const selectIsStarting = state => state.robotStatus === 'starting';
-
-/**
- * @param {Object} state - Store state
- * @returns {boolean} True if daemon is stopping
- */
-export const selectIsStopping = state => state.robotStatus === 'stopping';
-
-/**
- * @param {Object} state - Store state
- * @returns {boolean} True if daemon has crashed
- */
-export const selectIsDaemonCrashed = state => state.robotStatus === 'crashed';
-
-/**
- * @param {Object} state - Store state
- * @returns {boolean} True if robot is busy (cannot accept new interactions)
- *
  * Note: sleeping with safeToShutdown=true is NOT busy (allows Settings access for shutdown)
  */
 export const selectIsBusy = state => {
   return (
-    (state.robotStatus === 'sleeping' && !state.safeToShutdown) ||
-    state.robotStatus === 'busy' ||
+    (state.robotStatus === ROBOT_STATUS.SLEEPING && !state.safeToShutdown) ||
+    state.robotStatus === ROBOT_STATUS.BUSY ||
     state.isCommandRunning ||
     state.isAppRunning ||
     state.isInstalling ||
@@ -60,12 +37,8 @@ export const selectIsBusy = state => {
   );
 };
 
-/**
- * @param {Object} state - Store state
- * @returns {boolean} True if robot is ready (not busy with any action)
- */
 export const selectIsReady = state =>
-  state.robotStatus === 'ready' &&
+  state.robotStatus === ROBOT_STATUS.READY &&
   !state.isCommandRunning &&
   !state.isAppRunning &&
   !state.isInstalling &&
@@ -85,9 +58,7 @@ export const selectIsReady = state =>
  * ⚠️ DO NOT use setIsActive/setIsStarting/setIsStopping - use transitionTo instead!
  */
 export const robotInitialState = {
-  // ✨ Main robot state (State Machine) - SINGLE SOURCE OF TRUTH
-  // Possible states: 'disconnected', 'ready-to-start', 'starting', 'ready', 'busy', 'stopping', 'crashed'
-  robotStatus: 'disconnected',
+  robotStatus: ROBOT_STATUS.DISCONNECTED,
 
   // ✨ Reason if status === 'busy'
   // Possible values: null, 'moving', 'command', 'app-running', 'installing'
@@ -108,6 +79,7 @@ export const robotInitialState = {
   startupError: null,
   hardwareError: null,
   consecutiveTimeouts: 0,
+  healthFailureReasons: [],
   startupTimeoutId: null,
 
   // Robot connection state
@@ -166,217 +138,76 @@ export const createRobotSlice = (set, get) => ({
   // These are the ONLY way to change robot state. They keep booleans in sync.
   // ============================================================================
 
-  transitionTo: {
-    disconnected: () => {
-      set({
-        robotStatus: 'disconnected',
-        busyReason: null,
-        safeToShutdown: false,
-        isWakeSleepTransitioning: false,
-        // Derived booleans (kept in sync)
-        isActive: false,
-        isStarting: false,
-        isStopping: false,
-        isDaemonCrashed: false,
-        isCommandRunning: false,
-        isAppRunning: false,
-        isInstalling: false,
-      });
-    },
-
-    readyToStart: () => {
-      set({
-        robotStatus: 'ready-to-start',
-        busyReason: null,
-        safeToShutdown: false,
-        isWakeSleepTransitioning: false,
-        // Derived booleans
-        isActive: false,
-        isStarting: false,
-        isStopping: false,
-        isDaemonCrashed: false,
-      });
-    },
-
-    starting: () => {
-      set({
-        robotStatus: 'starting',
-        busyReason: null,
-        safeToShutdown: false,
-        isWakeSleepTransitioning: false,
-        // Derived booleans
-        isActive: false,
-        isStarting: true,
-        isStopping: false,
-        isDaemonCrashed: false,
-      });
-    },
-
-    sleeping: (options = {}) => {
+  /**
+   * Validated state machine transition. Every transitionTo.xxx() method
+   * goes through applyTransition which validates + applies common fields.
+   */
+  transitionTo: (() => {
+    // Shared transition logic: validate, build base fields, merge extras.
+    // Returns false if blocked (invalid transition or failed precondition).
+    const apply = (get, set, target, extras = {}) => {
       const state = get();
-      const { safeToShutdown = false } = options;
-
-      // 🛡️ Guard: Don't transition if stopping (prevents chaos during shutdown)
-      if (state.robotStatus === 'stopping') {
-        console.warn('[Store] ⚠️ sleeping BLOCKED: robotStatus is stopping');
-        return;
+      if (!validateTransition(state.robotStatus, target)) {
+        console.warn(`[Store] BLOCKED: ${state.robotStatus} -> ${target}`);
+        return false;
       }
+      set({
+        robotStatus: target,
+        busyReason: null,
+        safeToShutdown: false,
+        isWakeSleepTransitioning: false,
+        ...buildDerivedState(target),
+        ...extras,
+      });
+      return true;
+    };
 
-      // 🛡️ Guard: Don't transition if no connection (prevents crash after resetAll)
+    const CLEAR_LOCKS = { isCommandRunning: false, isAppRunning: false, isInstalling: false };
+
+    const requireConnection = (state, target) => {
       if (!state.connectionMode) {
-        console.warn('[Store] ⚠️ sleeping BLOCKED: connectionMode is null/undefined');
-        return;
+        console.warn(`[Store] BLOCKED ${target}: connectionMode is null`);
+        return false;
       }
+      return true;
+    };
 
-      // 📊 Telemetry - Track successful connection (only when coming from 'starting')
-      // This ensures we only count ACTUAL successful connections, not reconnects
-      if (state.robotStatus === 'starting') {
-        telemetry.robotConnected({ mode: state.connectionMode });
-      }
+    return {
+      disconnected: () => apply(get, set, ROBOT_STATUS.DISCONNECTED, CLEAR_LOCKS),
+      readyToStart: () => apply(get, set, ROBOT_STATUS.READY_TO_START),
+      starting: () => apply(get, set, ROBOT_STATUS.STARTING),
 
-      set({
-        robotStatus: 'sleeping',
-        busyReason: null,
-        safeToShutdown,
-        isWakeSleepTransitioning: false,
-        // Derived booleans
-        isActive: true, // Still active (connected), but sleeping
-        isStarting: false,
-        isStopping: false,
-        isDaemonCrashed: false,
-        isCommandRunning: false,
-        isAppRunning: false,
-        isInstalling: false,
-      });
-    },
+      sleeping: (options = {}) => {
+        if (!requireConnection(get(), ROBOT_STATUS.SLEEPING)) return;
+        apply(get, set, ROBOT_STATUS.SLEEPING, {
+          safeToShutdown: options.safeToShutdown ?? false,
+          ...CLEAR_LOCKS,
+        });
+      },
 
-    ready: () => {
-      const state = get();
+      ready: () => {
+        const state = get();
+        if (state.hardwareError) {
+          console.warn('[Store] BLOCKED ready: hardware error present');
+          return;
+        }
+        if (!requireConnection(state, ROBOT_STATUS.READY)) return;
+        apply(get, set, ROBOT_STATUS.READY, CLEAR_LOCKS);
+      },
 
-      // Don't transition to ready if there's a hardware error
-      if (state.hardwareError) {
-        console.warn('[Store] ⚠️ BLOCKED: hardware error present');
-        return;
-      }
+      busy: reason => {
+        if (!requireConnection(get(), ROBOT_STATUS.BUSY)) return;
+        const locks = {};
+        if (reason === BUSY_REASON.COMMAND) locks.isCommandRunning = true;
+        if (reason === BUSY_REASON.APP_RUNNING) locks.isAppRunning = true;
+        if (reason === BUSY_REASON.INSTALLING) locks.isInstalling = true;
+        apply(get, set, ROBOT_STATUS.BUSY, { busyReason: reason, ...locks });
+      },
 
-      // 🛡️ Guard: Don't transition if stopping (prevents chaos during shutdown)
-      if (state.robotStatus === 'stopping') {
-        console.warn('[Store] ⚠️ BLOCKED: robotStatus is stopping');
-        return;
-      }
-
-      // 🛡️ Guard: Don't transition if no connection (prevents crash after resetAll)
-      if (!state.connectionMode) {
-        console.warn('[Store] ⚠️ BLOCKED: connectionMode is null/undefined');
-        return;
-      }
-
-      // 🛡️ Guard: Don't log/transition if already ready (prevents flicker)
-      if (state.robotStatus === 'ready') {
-        console.warn('[Store] ⚠️ BLOCKED: already ready');
-        return;
-      }
-
-      // 📊 Telemetry - Track successful connection (only when coming from 'starting')
-      // This ensures we only count ACTUAL successful connections, not wake-ups
-      if (state.robotStatus === 'starting') {
-        telemetry.robotConnected({ mode: state.connectionMode });
-      }
-
-      logReady();
-      set({
-        robotStatus: 'ready',
-        busyReason: null,
-        safeToShutdown: false,
-        isWakeSleepTransitioning: false,
-        // Derived booleans
-        isActive: true,
-        isStarting: false,
-        isStopping: false,
-        isDaemonCrashed: false,
-        isCommandRunning: false,
-        isAppRunning: false,
-        isInstalling: false,
-      });
-    },
-
-    busy: reason => {
-      const state = get();
-
-      // 🛡️ Guard: Don't transition if stopping (prevents chaos during shutdown)
-      if (state.robotStatus === 'stopping') {
-        console.warn('[Store] ⚠️ busy BLOCKED: robotStatus is stopping');
-        return; // Silently ignore during shutdown
-      }
-
-      // 🛡️ Guard: Don't transition if no connection (prevents issues after resetAll)
-      if (!state.connectionMode) {
-        console.warn('[Store] ⚠️ busy BLOCKED: connectionMode is null');
-        return; // Silently ignore after disconnect
-      }
-
-      logBusy(reason);
-      set(() => {
-        const updates = {
-          robotStatus: 'busy',
-          busyReason: reason,
-          safeToShutdown: false,
-          isWakeSleepTransitioning: false,
-          // Derived booleans
-          isActive: true,
-          isStarting: false,
-          isStopping: false,
-          isDaemonCrashed: false,
-        };
-
-        if (reason === 'command') updates.isCommandRunning = true;
-        if (reason === 'app-running') updates.isAppRunning = true;
-        if (reason === 'installing') updates.isInstalling = true;
-
-        return updates;
-      });
-    },
-
-    stopping: () => {
-      set({
-        robotStatus: 'stopping',
-        busyReason: null,
-        safeToShutdown: false,
-        isWakeSleepTransitioning: false,
-        // Derived booleans
-        isActive: false,
-        isStarting: false,
-        isStopping: true,
-        isDaemonCrashed: false,
-        // 🛡️ Reset timeouts to prevent false crash detection during intentional stop
-        consecutiveTimeouts: 0,
-      });
-    },
-
-    crashed: () => {
-      const state = get();
-      logCrash();
-
-      // 📊 Télémétrie - Track crash détecté via health check (3 timeouts consécutifs)
-      telemetry.connectionError({
-        mode: state.connectionMode,
-        error_type: 'crash_health_timeout',
-        error_message: `Daemon unresponsive after ${state.consecutiveTimeouts} consecutive health check failures`,
-      });
-
-      set({
-        robotStatus: 'crashed',
-        busyReason: null,
-        safeToShutdown: false,
-        isWakeSleepTransitioning: false,
-        // Derived booleans
-        isActive: false,
-        isStarting: false,
-        isStopping: false,
-        isDaemonCrashed: true,
-      });
-    },
-  },
+      stopping: () => apply(get, set, ROBOT_STATUS.STOPPING, { consecutiveTimeouts: 0 }),
+      crashed: () => apply(get, set, ROBOT_STATUS.CRASHED),
+    };
+  })(),
 
   // ============================================================================
   // HELPER METHODS
@@ -395,24 +226,25 @@ export const createRobotSlice = (set, get) => ({
     const state = get();
     const { robotStatus, busyReason } = state;
 
-    if (robotStatus === 'busy' && busyReason) {
+    if (robotStatus === ROBOT_STATUS.BUSY && busyReason) {
       const reasonLabels = {
-        moving: 'Moving',
-        command: 'Executing Command',
-        'app-running': 'Running App',
-        installing: 'Installing',
+        [BUSY_REASON.MOVING]: 'Moving',
+        [BUSY_REASON.COMMAND]: 'Executing Command',
+        [BUSY_REASON.APP_RUNNING]: 'Running App',
+        [BUSY_REASON.INSTALLING]: 'Installing',
       };
       return reasonLabels[busyReason] || 'Busy';
     }
 
     const statusLabels = {
-      disconnected: 'Disconnected',
-      'ready-to-start': 'Ready to Start',
-      starting: 'Starting',
-      ready: 'Ready',
-      busy: 'Busy',
-      stopping: 'Stopping',
-      crashed: 'Crashed',
+      [ROBOT_STATUS.DISCONNECTED]: 'Disconnected',
+      [ROBOT_STATUS.READY_TO_START]: 'Ready to Start',
+      [ROBOT_STATUS.STARTING]: 'Starting',
+      [ROBOT_STATUS.SLEEPING]: 'Sleeping',
+      [ROBOT_STATUS.READY]: 'Ready',
+      [ROBOT_STATUS.BUSY]: 'Busy',
+      [ROBOT_STATUS.STOPPING]: 'Stopping',
+      [ROBOT_STATUS.CRASHED]: 'Crashed',
     };
 
     return statusLabels[robotStatus] || 'Unknown';
@@ -423,7 +255,7 @@ export const createRobotSlice = (set, get) => ({
   // ============================================================================
 
   lockForApp: appName => {
-    get().transitionTo.busy('app-running');
+    get().transitionTo.busy(BUSY_REASON.APP_RUNNING);
     set({ currentAppName: appName });
   },
 
@@ -468,13 +300,9 @@ export const createRobotSlice = (set, get) => ({
     logDisconnect(prevState.connectionMode);
 
     set({
-      robotStatus: 'disconnected',
+      robotStatus: ROBOT_STATUS.DISCONNECTED,
       busyReason: null,
-      // Derived booleans
-      isActive: false,
-      isStarting: false,
-      isStopping: false,
-      isDaemonCrashed: false,
+      ...buildDerivedState(ROBOT_STATUS.DISCONNECTED),
       // Connection
       connectionMode: null,
       remoteHost: null,
@@ -486,6 +314,7 @@ export const createRobotSlice = (set, get) => ({
       shouldStreamRobotState: false, // 🎯 Reset WebSocket streaming flag
       activeMoves: [],
       consecutiveTimeouts: 0,
+      healthFailureReasons: [],
     });
   },
 
@@ -498,17 +327,14 @@ export const createRobotSlice = (set, get) => ({
       remoteHost: remoteHost || null,
       isUsbConnected: mode !== 'wifi',
       usbPortName: portName || null,
-      robotStatus: 'starting',
+      robotStatus: ROBOT_STATUS.STARTING,
       busyReason: null,
-      // Derived booleans
-      isActive: false,
-      isStarting: true,
-      isStopping: false,
-      isDaemonCrashed: false,
+      ...buildDerivedState(ROBOT_STATUS.STARTING),
       // Metadata
       hardwareError: null,
       startupError: null,
       consecutiveTimeouts: 0,
+      healthFailureReasons: [],
       robotStateFull: { data: null, lastUpdate: null, error: null },
       shouldStreamRobotState: false, // 🎯 Reset WebSocket streaming flag
       activeMoves: [],
@@ -540,8 +366,8 @@ export const createRobotSlice = (set, get) => ({
   setIsCommandRunning: value => {
     const state = get();
     if (value) {
-      state.transitionTo.busy('command');
-    } else if (state.busyReason === 'command') {
+      state.transitionTo.busy(BUSY_REASON.COMMAND);
+    } else if (state.busyReason === BUSY_REASON.COMMAND) {
       state.transitionTo.ready();
     }
     set({ isCommandRunning: value });
@@ -551,19 +377,32 @@ export const createRobotSlice = (set, get) => ({
   // TIMEOUT/CRASH MANAGEMENT
   // ============================================================================
 
-  incrementTimeouts: () => {
+  incrementTimeouts: (failureType = 'unknown') => {
     const state = get();
     const newCount = state.consecutiveTimeouts + 1;
-    const shouldCrash = newCount >= 3;
+    const newReasons = [...state.healthFailureReasons, failureType];
+    const maxTimeouts = 4;
+    const shouldCrash = newCount >= maxTimeouts;
 
-    if (shouldCrash && state.robotStatus !== 'crashed') {
+    set({ consecutiveTimeouts: newCount, healthFailureReasons: newReasons });
+
+    if (shouldCrash && state.robotStatus !== ROBOT_STATUS.CRASHED) {
       state.transitionTo.crashed();
     }
-
-    set({ consecutiveTimeouts: newCount });
   },
 
-  resetTimeouts: () => set({ consecutiveTimeouts: 0, isDaemonCrashed: false }),
+  resetTimeouts: () => {
+    // Only reset consecutiveTimeouts counter.
+    // isDaemonCrashed is derived from robotStatus via transitionTo - don't set it directly
+    // to avoid state desync between isDaemonCrashed and robotStatus.
+    const state = get();
+    if (state.robotStatus === ROBOT_STATUS.CRASHED) {
+      // If already crashed, don't just reset the counter - a proper reconnect
+      // flow (via resetAll / startConnection) should handle the transition
+      return;
+    }
+    set({ consecutiveTimeouts: 0, healthFailureReasons: [] });
+  },
 
   markDaemonCrashed: () => {
     get().transitionTo.crashed();

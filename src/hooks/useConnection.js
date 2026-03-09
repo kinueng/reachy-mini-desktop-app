@@ -40,6 +40,7 @@ export const ConnectionMode = {
   USB: 'usb',
   WIFI: 'wifi',
   SIMULATION: 'simulation',
+  EXTERNAL: 'external',
 };
 
 /**
@@ -73,16 +74,12 @@ export function useConnection() {
       // ⚠️ Block connection if already connected, connecting, OR stopping
       // This prevents race conditions when rapidly cycling connections
       if (isStarting || isActive || isStopping) {
-        console.warn(
-          `Cannot connect: isStarting=${isStarting}, isActive=${isActive}, isStopping=${isStopping}`
-        );
         return false;
       }
 
       switch (mode) {
         case ConnectionMode.USB:
           if (!options.portName) {
-            console.error('USB mode requires portName option');
             return false;
           }
           startConnection('usb', { portName: options.portName });
@@ -90,16 +87,12 @@ export function useConnection() {
 
         case ConnectionMode.WIFI:
           if (!options.host) {
-            console.error('WiFi mode requires host option');
             return false;
           }
           // Set local proxy target for WiFi mode (bypasses browser PNA restrictions)
           try {
             await invoke('set_local_proxy_target', { host: options.host });
-            console.log(`[Local Proxy] Target set to: ${options.host}`);
-          } catch (e) {
-            console.warn('[Local Proxy] Failed to set target:', e);
-          }
+          } catch (e) {}
           startConnection('wifi', { remoteHost: options.host });
           break;
 
@@ -108,8 +101,15 @@ export function useConnection() {
           startConnection('simulation', { portName: 'simulation' });
           break;
 
+        case ConnectionMode.EXTERNAL:
+          // Tell Rust backend to skip daemon cleanup on app close
+          try {
+            await invoke('set_daemon_external_mode', { external: true });
+          } catch (e) {}
+          startConnection('external');
+          break;
+
         default:
-          console.error(`Unknown connection mode: ${mode}`);
           return false;
       }
 
@@ -121,8 +121,6 @@ export function useConnection() {
             await startDaemon();
             resolve(true);
           } catch (e) {
-            console.error('Connection failed:', e);
-
             // 📊 Télémétrie - Track échec de connexion (safety net)
             // Note: La plupart des erreurs passent par handleDaemonError() via eventBus
             // Ce catch n'est atteint que pour des erreurs JS inattendues
@@ -147,7 +145,6 @@ export function useConnection() {
    */
   const disconnect = useCallback(async () => {
     if (!isActive && !isStarting) {
-      console.warn('Not connected');
       return false;
     }
 
@@ -155,14 +152,10 @@ export function useConnection() {
       // Clear local proxy target
       try {
         await invoke('clear_local_proxy_target');
-        console.log('[Local Proxy] Target cleared');
-      } catch (e) {
-        console.warn('[Local Proxy] Failed to clear target:', e);
-      }
+      } catch (e) {}
       await stopDaemon();
       return true;
     } catch (e) {
-      console.error('Disconnect failed:', e);
       return false;
     }
   }, [isActive, isStarting, stopDaemon]);

@@ -302,7 +302,7 @@ export default function SearchBar({
                   pr: 1.5, // Padding right after text
                 }}
               >
-                Official
+                Official only
               </Typography>
             }
             sx={{

@@ -1,12 +1,16 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '@config/daemon';
 import useAppStore from '@store/useAppStore';
 import { useLogger } from '@utils/logging';
 import { invoke } from '@utils/tauriCompat';
 import { TIMINGS, NETWORK_ERROR_MESSAGE } from './installation/constants';
 
+/** Map job type to human-readable label */
+const jobTypeLabel = type =>
+  type === 'install' ? 'Install' : type === 'update' ? 'Update' : 'Uninstall';
+
 /**
- * Hook for managing app installation/uninstallation jobs
+ * Hook for managing app installation/uninstallation/update jobs
  * Handles polling, status updates, and error handling
  * Uses tauriCompat for web mode support
  */
@@ -132,7 +136,7 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
               // Log to LogConsole
               if (job.appName) {
                 logger.warning(
-                  `${job.type === 'install' ? 'Install' : 'Uninstall'} ${job.appName} timeout - daemon not responsive`
+                  `${jobTypeLabel(job.type)} ${job.appName} timeout - daemon not responsive`
                 );
               }
 
@@ -187,7 +191,8 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
         const isSuccessInLogs =
           logsText.includes('completed successfully') ||
           logsText.includes("job 'install' completed") ||
-          logsText.includes("job 'remove' completed");
+          logsText.includes("job 'remove' completed") ||
+          logsText.includes("job 'update' completed");
         const isFinished =
           jobStatus.status === 'completed' || jobStatus.status === 'failed' || isSuccessInLogs;
 
@@ -208,18 +213,16 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
               console.error('❌ Job failed with logs:', jobStatus.logs);
               const errorSummary = jobStatus.logs?.slice(-2).join(' | ') || 'Unknown error';
               logger.error(
-                `${jobInfo.type === 'install' ? 'Install' : 'Uninstall'} ${jobInfo.appName} failed: ${errorSummary}`
+                `${jobTypeLabel(jobInfo.type)} ${jobInfo.appName} failed: ${errorSummary}`
               );
             } else {
-              logger.success(
-                `${jobInfo.type === 'install' ? 'Install' : 'Uninstall'} ${jobInfo.appName} completed`
-              );
+              logger.success(`${jobTypeLabel(jobInfo.type)} ${jobInfo.appName} completed`);
 
               // ✅ macOS: Re-sign Python binaries after successful installation
               // This fixes Team ID mismatch issues with pip-installed packages
               // The Rust command handles platform detection, so safe to call on all platforms
               // Run asynchronously to avoid blocking the UI (signing can take 10-30s)
-              if (jobInfo.type === 'install') {
+              if (jobInfo.type === 'install' || jobInfo.type === 'update') {
                 // Don't await - let it run in background to avoid UI freeze
                 invoke('sign_python_binaries')
                   .then(result => {
@@ -245,13 +248,23 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
           const job = prev.get(jobId);
           if (!job) return prev;
 
+          const newStatus = isFinished ? job.status : jobStatus.status;
+          const newLogs = jobStatus.logs || [];
+
+          // Skip update if nothing changed (logs are append-only during install)
+          if (
+            job.status === newStatus &&
+            job.fetchFailCount === 0 &&
+            job.logs?.length === newLogs.length
+          ) {
+            return prev;
+          }
+
           const updated = new Map(prev);
           updated.set(jobId, {
             ...job,
-            // Only update status if job is NOT finished
-            // Otherwise, keep current status until we set 'refreshing'
-            status: isFinished ? job.status : jobStatus.status,
-            logs: jobStatus.logs || [],
+            status: newStatus,
+            logs: newLogs,
             fetchFailCount: 0,
           });
           return updated;
@@ -395,6 +408,23 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
     },
     [fetchJobStatus, stopJobPolling, setActiveJobs, fetchAvailableApps, logger]
   );
+
+  // Reset stale detection timers when page regains visibility.
+  // Without this, background throttling of setInterval causes
+  // Date.now() - lastUpdate.time to exceed STALE_JOB.TIMEOUT,
+  // falsely marking active downloads as failed.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && jobLastLogUpdate.current.size > 0) {
+        const now = Date.now();
+        jobLastLogUpdate.current.forEach((value, key) => {
+          jobLastLogUpdate.current.set(key, { ...value, time: now });
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   /**
    * Cleanup: stop all pollings and timeouts on unmount

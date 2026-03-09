@@ -8,7 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import useAppStore from '../../store/useAppStore';
 import { usePermissions } from '../../hooks/system';
-import { logInfo, logError } from '../../utils/logging/logger';
+
 import { isMacOS } from '../../utils/platform';
 import LogConsole from '@components/LogConsole';
 import LockedReachy from '../../assets/locked-reachy.svg';
@@ -196,7 +196,7 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
           const message =
             typeof event.payload === 'string' ? event.payload : event.payload?.toString() || '';
           if (message.includes('❌') || message.includes('error') || message.includes('Error')) {
-            logError(message);
+            // Error detected in Rust log
           }
         });
 
@@ -228,8 +228,7 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
       try {
         await invoke('plugin:macos-permissions|check_camera_permission');
       } catch (error) {
-        const errorMsg = error?.message || error?.toString() || 'Unknown plugin error';
-        logError(`[Permissions] ❌ Plugin error: ${errorMsg}`);
+        // Plugin error - non-critical
       }
     };
     testPlugin();
@@ -239,7 +238,6 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
   const requestPermission = useCallback(
     async type => {
       if (!isMacOS()) {
-        logInfo(`[Permissions] ℹ️ Non-macOS platform - permissions handled automatically`);
         return;
       }
 
@@ -299,14 +297,10 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
           await invoke(settingsCommand);
         }
       } catch (error) {
-        const errorMsg = error?.message || error?.toString() || 'Unknown error';
-        logError(`[Permissions] ${type}: ${errorMsg}`);
         try {
           await invoke(`open_${type}_settings`);
-        } catch (settingsError) {
-          const settingsErrorMsg =
-            settingsError?.message || settingsError?.toString() || 'Unknown error';
-          logError(`[Permissions] ❌ Failed to open settings: ${settingsErrorMsg}`);
+        } catch {
+          // Failed to open settings
         }
       }
     },
@@ -314,122 +308,84 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
   );
 
   // Local Network permission request handler (uses custom Rust command)
+  // Flow mirrors Camera/Microphone: request -> poll -> detect granted/denied.
+  // The Rust side returns None on EPERM because macOS may deny the operation
+  // immediately while the privacy dialog is still visible. We poll until the
+  // user makes a choice instead of opening System Settings prematurely.
   const requestLocalNetworkPermission = useCallback(async () => {
     if (!isMacOS()) {
-      logInfo(`[Permissions] ℹ️ Non-macOS platform - local network permission not needed`);
       return;
     }
 
     try {
-      // Request triggers the permission dialog via NWBrowser
       const result = await invoke('request_local_network_permission');
       dispatch({ type: 'SET_LOCAL_NETWORK_REQUESTED' });
 
       if (result === true) {
-        // Permission granted
-        logInfo('✅ Local Network permission granted');
         await refreshPermissions();
-      } else if (result === false) {
-        // Permission denied - open settings
-        logInfo('[Permissions] Local Network denied, opening settings...');
-        await invoke('open_local_network_settings');
-      } else {
-        // null = unknown/pending, start polling
-        if (permissionPollingRef.current) {
-          clearInterval(permissionPollingRef.current);
-        }
+        return;
+      }
 
-        let checkCount = 0;
-        const maxChecks = 20;
+      // null or false: dialog may be showing, poll for the user's choice
+      if (permissionPollingRef.current) {
+        clearInterval(permissionPollingRef.current);
+      }
 
-        permissionPollingRef.current = setInterval(async () => {
-          checkCount++;
-          await refreshPermissions();
+      let checkCount = 0;
+      const maxChecks = 20;
 
-          try {
-            const status = await invoke('check_local_network_permission');
-            if (status === true) {
-              if (permissionPollingRef.current) {
-                clearInterval(permissionPollingRef.current);
-                permissionPollingRef.current = null;
-              }
-              logInfo('✅ Local Network permission granted');
-              await refreshPermissions();
-            } else if (status === false) {
-              // Denied
-              if (permissionPollingRef.current) {
-                clearInterval(permissionPollingRef.current);
-                permissionPollingRef.current = null;
-              }
-              await invoke('open_local_network_settings');
-            }
-          } catch (error) {
-            // Ignore errors during polling
-          }
+      permissionPollingRef.current = setInterval(async () => {
+        checkCount++;
 
-          if (checkCount >= maxChecks) {
+        try {
+          const status = await invoke('check_local_network_permission');
+          if (status === true) {
             if (permissionPollingRef.current) {
               clearInterval(permissionPollingRef.current);
               permissionPollingRef.current = null;
             }
+            await refreshPermissions();
+          } else if (status === false) {
+            // User denied - stop polling, open System Settings
+            if (permissionPollingRef.current) {
+              clearInterval(permissionPollingRef.current);
+              permissionPollingRef.current = null;
+            }
+            await refreshPermissions();
+            await invoke('open_local_network_settings');
           }
-        }, 500);
-      }
+        } catch (error) {
+          // Ignore errors during polling
+        }
+
+        if (checkCount >= maxChecks) {
+          if (permissionPollingRef.current) {
+            clearInterval(permissionPollingRef.current);
+            permissionPollingRef.current = null;
+          }
+          await refreshPermissions();
+        }
+      }, 500);
     } catch (error) {
-      const errorMsg = error?.message || error?.toString() || 'Unknown error';
-      logError(`[Permissions] Local Network: ${errorMsg}`);
-      // Fallback to opening settings
       try {
         await invoke('open_local_network_settings');
-      } catch (settingsError) {
-        const settingsErrorMsg =
-          settingsError?.message || settingsError?.toString() || 'Unknown error';
-        logError(`[Permissions] ❌ Failed to open settings: ${settingsErrorMsg}`);
+      } catch {
+        // Failed to open settings
       }
     }
   }, [refreshPermissions]);
 
   const openSettings = useCallback(async type => {
     if (!isMacOS()) {
-      logInfo(`[Permissions] ℹ️ Non-macOS platform - no settings to open`);
       return;
     }
 
     try {
       await invoke(`open_${type}_settings`);
     } catch (error) {
-      const errorMsg = error?.message || error?.toString() || 'Unknown error';
-      logError(`[Permissions] ❌ Failed to open ${type} settings: ${errorMsg}`);
+      // Failed to open settings
     }
   }, []);
-
-  // Track permission changes for logging
-  const prevCameraGranted = useRef(null);
-  const prevMicrophoneGranted = useRef(null);
-  const prevLocalNetworkGranted = useRef(null);
-
-  useEffect(() => {
-    if (prevCameraGranted.current === null) {
-      prevCameraGranted.current = cameraGranted;
-      prevMicrophoneGranted.current = microphoneGranted;
-      prevLocalNetworkGranted.current = localNetworkGranted;
-      return;
-    }
-
-    if (!prevCameraGranted.current && cameraGranted) {
-      logInfo('✅ Camera permission granted');
-    }
-    if (!prevMicrophoneGranted.current && microphoneGranted) {
-      logInfo('✅ Microphone permission granted');
-    }
-    if (!prevLocalNetworkGranted.current && localNetworkGranted) {
-      logInfo('✅ Local Network permission granted');
-    }
-
-    prevCameraGranted.current = cameraGranted;
-    prevMicrophoneGranted.current = microphoneGranted;
-    prevLocalNetworkGranted.current = localNetworkGranted;
-  }, [cameraGranted, microphoneGranted, localNetworkGranted]);
 
   const bgColor = darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(253, 252, 250, 0.85)';
 
@@ -466,7 +422,8 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
           includeStoreLogs={true}
           compact={true}
           showTimestamp={false}
-          lines={3}
+          lines={2}
+          emptyMessage="Waiting for logs..."
           sx={{
             bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
             border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,

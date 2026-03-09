@@ -2,50 +2,47 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Autoriser les connexions réseau entrantes (pour le daemon sur port 8000) -->
+	<!-- Allow incoming network connections (for daemon on port 8000) -->
 	<key>com.apple.security.network.server</key>
 	<true/>
 	
-	<!-- Autoriser les connexions réseau sortantes -->
+	<!-- Allow outgoing network connections -->
 	<key>com.apple.security.network.client</key>
 	<true/>
 	
-	<!-- Autoriser l'accès au système de fichiers (pour installation d'apps) -->
+	<!-- Allow file system access (for app installation) -->
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 	
 	<key>com.apple.security.files.downloads.read-write</key>
 	<true/>
 	
-	<!-- Autoriser l'exécution de processus enfants (sidecar Python) -->
-	<!-- Note: Ces permissions permettent au sidecar Python de s'exécuter -->
+	<!-- Allow child process execution (Python sidecar) -->
 	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
 	<true/>
 	
-	<!-- Autoriser l'exécution de scripts Python -->
+	<!-- Allow JIT compilation (Python scripts) -->
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
 	
-	<!-- Désactiver le sandbox pour permettre l'exécution du sidecar -->
-	<!-- Important: Nécessaire pour que le daemon Python embarqué fonctionne -->
+	<!-- Disable library validation for embedded Python daemon -->
 	<key>com.apple.security.cs.disable-library-validation</key>
 	<true/>
 	
-	<!-- Autoriser l'accès aux ports série (USB) -->
+	<!-- Allow serial port access (USB) -->
 	<key>com.apple.security.device.serial</key>
 	<true/>
 	
-	<!-- Autoriser l'accès USB -->
+	<!-- Allow USB device access -->
 	<key>com.apple.security.device.usb</key>
 	<true/>
 	
-	<!-- Autoriser l'accès à la caméra (nécessaire pour demander la permission) -->
+	<!-- Allow camera access (required for permission request) -->
 	<key>com.apple.security.device.camera</key>
 	<true/>
 	
-	<!-- Autoriser l'accès au microphone (nécessaire pour demander la permission) -->
+	<!-- Allow microphone access (required for permission request) -->
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
 </dict>
 </plist>
-

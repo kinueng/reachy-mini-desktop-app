@@ -29,11 +29,4 @@ export { useStore, default } from './useStore';
 export { createRobotSlice, createLogsSlice, createUISlice, createAppsSlice } from './slices';
 
 // Selectors - derive state from robotStatus
-export {
-  selectIsActive,
-  selectIsStarting,
-  selectIsStopping,
-  selectIsDaemonCrashed,
-  selectIsBusy,
-  selectIsReady,
-} from './slices';
+export { selectIsBusy, selectIsReady } from './slices';

@@ -12,7 +12,8 @@ import { useStore } from '../store';
 export const DAEMON_CONFIG = {
   // API timeouts (in milliseconds)
   TIMEOUTS: {
-    HEALTHCHECK: 1333, // Ping every ~1.33s to detect crash in 4s (3 timeouts)
+    HEALTHCHECK: 2000, // Health check timeout (2s) - must be < HEALTHCHECK_POLLING (3s)
+    HEALTHCHECK_WIFI: 3500, // WiFi health check timeout (3.5s) - higher latency on wireless
     STATE_FULL: 10000, // Read full state with all motors (10s for WiFi)
     COMMAND: 10000, // Movement commands (can be long)
     STARTUP_CHECK: 10000, // Per startup attempt (10s for WiFi after idle)
@@ -30,7 +31,8 @@ export const DAEMON_CONFIG = {
   // Polling intervals (in milliseconds)
   // Note: Robot state is now streamed via WebSocket (useRobotStateWebSocket) at 20Hz
   INTERVALS: {
-    HEALTHCHECK_POLLING: 2500, // Health check every 2.5s (crash detection)
+    HEALTHCHECK_POLLING: 3000, // Health check every 3s (crash detection)
+    HEALTHCHECK_POLLING_WIFI: 5000, // WiFi health check every 5s (higher latency, avoid false positives)
     LOGS_FETCH: 1000, // Logs every 1s
     USB_CHECK: 3000, // USB every 3s (reduced to prevent terminal flicker on Windows)
     VERSION_FETCH: 10000, // Version every 10s
@@ -41,7 +43,7 @@ export const DAEMON_CONFIG = {
 
   // Crash detection
   CRASH_DETECTION: {
-    MAX_TIMEOUTS: 3, // Crash after 3 timeouts over ~7.5 seconds (2.5s polling × 3)
+    MAX_TIMEOUTS: 4, // Crash after 4 consecutive timeouts (~12s USB / ~20s WiFi)
     STARTUP_MAX_ATTEMPTS: 15, // 15 attempts of 1s = 15s max on startup
     STARTUP_RETRY_DELAY: 1000, // Wait 1s between each attempt
     JOB_MAX_FAILS: 20, // 20 polling failures = job failed
@@ -51,7 +53,7 @@ export const DAEMON_CONFIG = {
   // Startup timeouts (in milliseconds)
   STARTUP: {
     TIMEOUT_NORMAL: 30000, // 30s for normal mode (robot connected)
-    TIMEOUT_SIMULATION: 60000, // 1 minute for simulation mode (mockup-sim is fast)
+    TIMEOUT_SIMULATION: 90000, // 1.5 minutes for simulation mode (extra buffer for first launch)
     ACTIVITY_RESET_DELAY: 15000, // Reset timeout when we see activity (logs from sidecar)
   },
 
@@ -420,18 +422,6 @@ export function getDaemonHostname() {
 export function isInstalling() {
   if (!appStoreInstance) return false;
   return appStoreInstance.getState().isInstalling;
-}
-
-/**
- * Check if device is online
- * @returns {boolean} True if online, false if offline
- */
-export function isOnline() {
-  if (typeof navigator !== 'undefined' && 'onLine' in navigator) {
-    return navigator.onLine;
-  }
-  // Default to online if navigator not available
-  return true;
 }
 
 /**

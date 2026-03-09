@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
-import { getVersion } from '@tauri-apps/api/app';
+import { getVersion } from '@utils/tauriCompat';
 import useAppStore from '../../store/useAppStore';
 
 /**

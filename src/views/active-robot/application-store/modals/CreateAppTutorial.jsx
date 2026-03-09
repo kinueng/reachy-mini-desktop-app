@@ -25,7 +25,7 @@ export default function CreateAppTutorialModal({
       icon: ExploratorIcon,
       title: 'Explore',
       description: 'Discover the REST API endpoints',
-      url: 'https://github.com/pollen-robotics/reachy_mini/blob/main/docs/old_doc/rest-api.md',
+      url: 'https://huggingface.co/docs/reachy_mini/API/rest-api',
     },
     {
       id: 'create',

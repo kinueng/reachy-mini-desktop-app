@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 
-import { useDaemon, useDaemonHealthCheck } from '../hooks/daemon';
-import { telemetry, initTelemetry, updateTelemetryContext } from '../utils/telemetry';
+import { useDaemon, useDaemonHealthCheck, useDaemonReconciliation } from '../hooks/daemon';
+import {
+  telemetry,
+  initTelemetry,
+  updateTelemetryContext,
+  setupGlobalErrorHandlers,
+  checkPreviousCrash,
+} from '../utils/telemetry';
 import {
   useUsbDetection,
   useLogs,
@@ -11,6 +17,7 @@ import {
   usePermissions,
   useUsbCheckTiming,
   useDeepLink,
+  useWindowVisible,
 } from '../hooks/system';
 import { useViewRouter, ViewRouterWrapper } from '../hooks/system/useViewRouter';
 import { useRobotCommands, useRobotStateWebSocket, useActiveMoves } from '../hooks/robot';
@@ -18,6 +25,7 @@ import { DAEMON_CONFIG, setAppStoreInstance } from '../config/daemon';
 import { isDevMode } from '../utils/devMode';
 import { isSimulationMode, disableSimulationMode } from '../utils/simulationMode';
 import useAppStore from '../store/useAppStore';
+import { useShallow } from 'zustand/react/shallow';
 
 // 🧹 CRITICAL: Clean stale simMode at module load (BEFORE React mounts)
 // This ensures useUsbDetection sees simMode=false on first check
@@ -37,6 +45,9 @@ function App() {
     setAppStoreInstance(useAppStore);
   }, []);
 
+  // Reconcile JS store with Rust daemon state on mount/HMR
+  useDaemonReconciliation();
+
   const {
     daemonVersion,
     hardwareError,
@@ -49,8 +60,23 @@ function App() {
     isCommandRunning,
     darkMode,
     setPendingDeepLinkInstall,
-    shouldStreamRobotState, // 🎯 Flag to start WebSocket early (during HardwareScanView)
-  } = useAppStore();
+    shouldStreamRobotState,
+  } = useAppStore(
+    useShallow(state => ({
+      daemonVersion: state.daemonVersion,
+      hardwareError: state.hardwareError,
+      connectionMode: state.connectionMode,
+      isAppRunning: state.isAppRunning,
+      robotStatus: state.robotStatus,
+      busyReason: state.busyReason,
+      isInstalling: state.isInstalling,
+      isStoppingApp: state.isStoppingApp,
+      isCommandRunning: state.isCommandRunning,
+      darkMode: state.darkMode,
+      setPendingDeepLinkInstall: state.setPendingDeepLinkInstall,
+      shouldStreamRobotState: state.shouldStreamRobotState,
+    }))
+  );
   const {
     isActive,
     isStarting,
@@ -63,11 +89,12 @@ function App() {
   const { isUsbConnected, usbPortName, checkUsbRobot } = useUsbDetection();
   const { sendCommand, playRecordedMove } = useRobotCommands(); // Note: isCommandRunning comes from store
   const { logs, fetchLogs } = useLogs();
+  const isWindowVisible = useWindowVisible();
 
   // 🍞 Global toast for deep link feedback
   const { toast, toastProgress, showToast, handleCloseToast } = useToast();
 
-  // 📊 Telemetry: Initialize and track app lifecycle
+  // 📊 Telemetry: Initialize, track app lifecycle, and install crash handlers
   useEffect(() => {
     const init = async () => {
       // eslint-disable-next-line no-undef
@@ -76,11 +103,19 @@ function App() {
       // Initialize telemetry with super properties (OS, versions)
       await initTelemetry({ appVersion });
 
+      // Catch uncaught JS errors and send them to PostHog
+      setupGlobalErrorHandlers();
+
+      // Check for a previous Rust-side crash and report it
+      await checkPreviousCrash();
+
       // Track app started
       telemetry.appStarted({ version: appVersion });
     };
 
-    init();
+    init().catch(err => {
+      console.error('[App] Telemetry init failed:', err);
+    });
 
     // Track app closed on unmount/window close
     const handleBeforeUnload = () => {
@@ -109,7 +144,6 @@ function App() {
   // Note: Toast is shown in ActiveRobotView when processing completes (with accurate status)
   const handleDeepLinkInstall = useCallback(
     appName => {
-      console.log('[App] Deep link install requested for:', appName);
       // Store pending install - ActiveRobotView will pick it up and process it
       setPendingDeepLinkInstall(appName);
     },
@@ -181,12 +215,6 @@ function App() {
             await relaunch();
             // If relaunch succeeds, this code won't execute (app will restart)
           } catch (error) {
-            console.error('[App] ❌ Failed to restart app:', error);
-            console.error('[App] Error details:', {
-              message: error.message,
-              name: error.name,
-              code: error.code,
-            });
             // Reset state so user can try again
             setIsRestarting(false);
             restartStartedRef.current = false;
@@ -222,12 +250,6 @@ function App() {
     silent: false,
   });
 
-  // 🔍 DEBUG: Force update check in dev mode for testing
-  useEffect(() => {
-    if (isDev) {
-    }
-  }, [isDev, checkForUpdates]);
-
   // ✨ Update view state management with useReducer
   // Handles all cases: dev mode, production mode, minimum display time, errors
   const shouldShowUpdateView = useUpdateViewState({
@@ -244,8 +266,8 @@ function App() {
   // 🕐 USB check timing - manages when to start USB check after update view
   const { shouldShowUsbCheck } = useUsbCheckTiming(shouldShowUpdateView);
 
-  // 🎯 Daemon health check (POST /health-check every 2.5s)
-  // Handles crash detection via timeout counting (3 consecutive timeouts = crash)
+  // Daemon health check (GET /api/daemon/status, USB 3s / WiFi 5s)
+  // 4 consecutive timeouts → transitionTo.crashed()
   useDaemonHealthCheck(isActive);
 
   // 🚀 Unified WebSocket for ALL robot state
@@ -273,8 +295,6 @@ function App() {
         const currentWindow = getCurrentWindow();
 
         unlisten = await currentWindow.onCloseRequested(async () => {
-          console.log('[App] Window close requested - cleaning up WiFi daemon');
-
           try {
             const remoteHost = useAppStore.getState().remoteHost;
             if (remoteHost) {
@@ -287,19 +307,14 @@ function App() {
                 method: 'POST',
                 connectTimeout: 2000,
               }).catch(() => {});
-
-              console.log('[App] WiFi daemon stop sent');
             }
           } catch (e) {
             // Ignore errors during cleanup
-            console.warn('[App] WiFi cleanup error:', e.message);
           }
 
           // Don't prevent close - let it proceed
         });
-      } catch (e) {
-        console.warn('[App] Failed to setup close listener:', e.message);
-      }
+      } catch (e) {}
     };
 
     setupCloseListener();
@@ -331,24 +346,19 @@ function App() {
   useWindowResize(currentView);
 
   useEffect(() => {
-    // Fetch logs and version on mount
+    if (!isWindowVisible) return;
+
     fetchLogs();
     fetchDaemonVersion();
 
-    // 🔌 USB polling: ONLY when searching for a robot (not connected)
-    // Once connected, the daemon handles everything (healthcheck detects disconnection)
-    // This prevents race conditions where polling could set isUsbConnected=false during startup
     const shouldPollUsb = !connectionMode;
 
-    // ⚠️ IMPORTANT: Don't check USB until update check is complete
-    // This ensures UpdateView is shown FIRST, before USB check
     if (!shouldShowUpdateView && shouldPollUsb) {
       checkUsbRobot();
     }
 
     const logsInterval = setInterval(fetchLogs, DAEMON_CONFIG.INTERVALS.LOGS_FETCH);
     const usbInterval = setInterval(() => {
-      // Only check USB if update check is complete AND we should poll
       if (!shouldShowUpdateView && shouldPollUsb) {
         checkUsbRobot();
       }
@@ -359,7 +369,14 @@ function App() {
       clearInterval(usbInterval);
       clearInterval(versionInterval);
     };
-  }, [fetchLogs, checkUsbRobot, fetchDaemonVersion, shouldShowUpdateView, connectionMode]);
+  }, [
+    fetchLogs,
+    checkUsbRobot,
+    fetchDaemonVersion,
+    shouldShowUpdateView,
+    connectionMode,
+    isWindowVisible,
+  ]);
 
   // ✅ USB disconnection detection is handled by:
   // 1. Daemon health check (daemon stops responding → crash detection)

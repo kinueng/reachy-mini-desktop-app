@@ -2,9 +2,13 @@ import { useEffect, useCallback, useRef, useMemo } from 'react';
 import useAppStore from '@store/useAppStore';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '@config/daemon';
 import { useLogger } from '@utils/logging';
-import { useAppFetching } from './useAppFetching';
-import { useAppEnrichment } from './useAppEnrichment';
+import { useAppFetching, mergeAppsData } from './useAppFetching';
 import { useAppJobs } from './useAppJobs';
+import { useAppUpdates } from './useAppUpdates';
+import { useWindowVisible } from '../../../../hooks/system/useWindowVisible';
+import { closeAppWindow } from '../../../../utils/windowManager';
+
+const APP_ERROR_DISPLAY_DURATION_MS = 10_000;
 
 /**
  * ✅ DRY: Helper to handle permission errors consistently
@@ -30,7 +34,7 @@ const handlePermissionError = (err, action, appName, logger, setAppsError) => {
 /**
  * ✅ DRY: Helper to create and track a job
  */
-const createJob = (jobId, jobType, appName, appInfo, setActiveJobs, startJobPollingRef) => {
+export const createJob = (jobId, jobType, appName, appInfo, setActiveJobs, startJobPollingRef) => {
   setActiveJobs(prev => {
     const updated = new Map(prev instanceof Map ? prev : new Map(Object.entries(prev || {})));
     updated.set(jobId, {
@@ -61,24 +65,21 @@ const createJob = (jobId, jobType, appName, appInfo, setActiveJobs, startJobPoll
  * All components should use this hook instead of useApps directly.
  */
 export function useAppsStore(isActive) {
-  const appStore = useAppStore();
   const logger = useLogger();
-  const {
-    availableApps,
-    installedApps,
-    currentApp,
-    activeJobs: activeJobsObj, // Store uses Object, we convert to Map for convenience
-    appsLoading,
-    appsError,
-    isStoppingApp,
-    setAvailableApps,
-    setInstalledApps,
-    setCurrentApp,
-    setActiveJobs,
-    setAppsLoading,
-    setAppsError,
-    invalidateAppsCache,
-  } = appStore;
+  const availableApps = useAppStore(s => s.availableApps);
+  const installedApps = useAppStore(s => s.installedApps);
+  const currentApp = useAppStore(s => s.currentApp);
+  const activeJobsObj = useAppStore(s => s.activeJobs);
+  const appsLoading = useAppStore(s => s.appsLoading);
+  const appsError = useAppStore(s => s.appsError);
+  const isStoppingApp = useAppStore(s => s.isStoppingApp);
+  const setAvailableApps = useAppStore(s => s.setAvailableApps);
+  const setInstalledApps = useAppStore(s => s.setInstalledApps);
+  const setCurrentApp = useAppStore(s => s.setCurrentApp);
+  const setActiveJobs = useAppStore(s => s.setActiveJobs);
+  const setAppsLoading = useAppStore(s => s.setAppsLoading);
+  const setAppsError = useAppStore(s => s.setAppsError);
+  const invalidateAppsCache = useAppStore(s => s.invalidateAppsCache);
 
   // ✅ OPTIMIZED: Convert activeJobs Object to Map with useMemo to avoid re-creation on every render
   const activeJobs = useMemo(() => {
@@ -86,19 +87,21 @@ export function useAppsStore(isActive) {
   }, [activeJobsObj]);
 
   // Specialized hooks
-  const { fetchOfficialApps, fetchAllAppsFromDaemon, fetchInstalledApps } = useAppFetching();
-  const { enrichApps } = useAppEnrichment();
+  const { fetchAppsFromWebsite, fetchInstalledApps } = useAppFetching();
 
   // Track if we're currently fetching to avoid duplicate fetches
   const isFetchingRef = useRef(false);
+
+  // Timer for auto-clearing error state after display duration
+  const errorClearTimerRef = useRef(null);
 
   // Cache duration: 1 day (apps don't change that often, filter client-side)
   const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
   /**
-   * Fetch ALL available apps (official + community) in a single request
+   * Fetch ALL available apps from website API (single request)
+   * Website API provides pre-enriched data with official/community flags
    * Uses cache if available and valid (1 day)
-   * Filtering by official/community is done client-side in useAppFiltering
    * @param {boolean} forceRefresh - Force refresh even if cache is valid
    */
   const fetchAvailableApps = useCallback(
@@ -108,23 +111,19 @@ export function useAppsStore(isActive) {
         return useAppStore.getState().availableApps;
       }
 
-      // ✅ Read current state DIRECTLY from store (avoid stale closure issues)
+      // Read current state DIRECTLY from store (avoid stale closure issues)
       const storeState = useAppStore.getState();
       const currentAvailableApps = storeState.availableApps;
       const currentInstalledApps = storeState.installedApps;
       const currentCacheValid = storeState.appsCacheValid;
       const currentLastFetch = storeState.appsLastFetch;
 
-      // ✅ Check cache validity using fresh store values
+      // Check cache validity using fresh store values
       const isCacheFresh =
         currentCacheValid && currentLastFetch && Date.now() - currentLastFetch < CACHE_DURATION;
 
       // Use cache if valid and not forcing refresh
       if (!forceRefresh && isCacheFresh && currentAvailableApps.length > 0) {
-        const remainingTime = Math.round(
-          (CACHE_DURATION - (Date.now() - currentLastFetch)) / 1000 / 60 / 60
-        );
-
         // Re-check network status
         if (!navigator.onLine && currentInstalledApps.length > 0) {
           setAppsError(
@@ -139,48 +138,23 @@ export function useAppsStore(isActive) {
         return currentAvailableApps;
       }
 
-      // Force refresh if cache is empty
-      if (!forceRefresh && isCacheFresh && currentAvailableApps.length === 0) {
-      }
-
       try {
         isFetchingRef.current = true;
         setAppsLoading(true);
         setAppsError(null);
 
         // ========================================
-        // STEP 1: Fetch ALL apps (official + community) in parallel
+        // STEP 1: Fetch ALL apps from website API (single request!)
         // ========================================
-
-        let officialApps = [];
-        let communityApps = [];
+        let availableAppsFromWebsite = [];
         let fetchError = null;
 
-        // Fetch both in parallel for speed
-        const [officialResult, communityResult] = await Promise.allSettled([
-          fetchOfficialApps(),
-          fetchAllAppsFromDaemon(),
-        ]);
-
-        if (officialResult.status === 'fulfilled') {
-          officialApps = officialResult.value || [];
-        } else {
-          fetchError = officialResult.reason;
-          console.error(`❌ Failed to fetch official apps:`, officialResult.reason);
+        try {
+          availableAppsFromWebsite = await fetchAppsFromWebsite();
+        } catch (err) {
+          fetchError = err;
+          console.error('❌ Failed to fetch apps from website:', err.message);
         }
-
-        if (communityResult.status === 'fulfilled') {
-          communityApps = communityResult.value || [];
-        } else {
-          console.warn(`⚠️ Failed to fetch community apps:`, communityResult.reason);
-        }
-
-        // Mark apps with isOfficial flag
-        officialApps = officialApps.map(app => ({ ...app, isOfficial: true }));
-        communityApps = communityApps.map(app => ({ ...app, isOfficial: false }));
-
-        // Merge all apps (official first, then community)
-        let availableAppsFromSource = [...officialApps, ...communityApps];
 
         // ========================================
         // STEP 2: Fetch installed apps from daemon
@@ -194,7 +168,7 @@ export function useAppsStore(isActive) {
 
         // Check for network issues
         const hasNetworkIssue =
-          availableAppsFromSource.length === 0 && (fetchError || !navigator.onLine);
+          availableAppsFromWebsite.length === 0 && (fetchError || !navigator.onLine);
 
         if (hasNetworkIssue) {
           if (installedAppsFromDaemon.length === 0) {
@@ -214,55 +188,25 @@ export function useAppsStore(isActive) {
         }
 
         // ========================================
-        // STEP 3: Create lookup structures for installed apps
+        // STEP 3: Merge website + daemon apps
         // ========================================
-        const installedAppNames = new Set(
-          installedAppsFromDaemon.map(app => app.name?.toLowerCase()).filter(Boolean)
-        );
-        const installedAppsMap = new Map(
-          installedAppsFromDaemon.map(app => [app.name?.toLowerCase(), app])
+        const { enrichedApps, installedApps: installed } = mergeAppsData(
+          availableAppsFromWebsite,
+          installedAppsFromDaemon
         );
 
-        // ========================================
-        // STEP 4: Merge local-only installed apps
-        // ========================================
-        const availableAppNames = new Set(
-          availableAppsFromSource.map(app => app.name?.toLowerCase())
-        );
+        setAvailableApps(enrichedApps);
+        setInstalledApps(installed);
 
-        const localOnlyApps = installedAppsFromDaemon
-          .filter(app => !availableAppNames.has(app.name?.toLowerCase()))
-          .map(app => ({
-            ...app,
-            source_kind: app.source_kind || 'local',
-            isOfficial: false, // Local apps are not official
-          }));
-
-        if (localOnlyApps.length > 0) {
-          availableAppsFromSource = [...availableAppsFromSource, ...localOnlyApps];
+        // When website fetch failed, we only have daemon (installed) apps.
+        // Don't keep this as a valid cache - next fetch should retry from website.
+        if (hasNetworkIssue) {
+          invalidateAppsCache();
         }
 
-        // ========================================
-        // STEP 5: Enrich apps with metadata
-        // ========================================
-        const { enrichedApps, installed } = await enrichApps(
-          availableAppsFromSource,
-          installedAppNames,
-          installedAppsMap,
-          officialApps // Use official apps for enrichment
-        );
-
-        // Preserve isOfficial flag after enrichment
-        const enrichedAppsWithFlag = enrichedApps.map(app => {
-          const original = availableAppsFromSource.find(a => a.name === app.name);
-          return { ...app, isOfficial: original?.isOfficial ?? false };
-        });
-
-        setAvailableApps(enrichedAppsWithFlag);
-        setInstalledApps(installed);
         setAppsLoading(false);
 
-        return enrichedAppsWithFlag;
+        return enrichedApps;
       } catch (err) {
         console.error('❌ Failed to fetch apps:', err);
         setAppsError(err.message);
@@ -273,10 +217,8 @@ export function useAppsStore(isActive) {
       }
     },
     [
-      fetchOfficialApps,
-      fetchAllAppsFromDaemon,
+      fetchAppsFromWebsite,
       fetchInstalledApps,
-      enrichApps,
       setAvailableApps,
       setInstalledApps,
       setAppsLoading,
@@ -302,6 +244,16 @@ export function useAppsStore(isActive) {
   // Store startJobPolling in ref for use in installApp/removeApp
   const startJobPollingRef = useRef(startJobPolling);
   startJobPollingRef.current = startJobPolling;
+
+  // Initialize app updates hook
+  const {
+    checkForUpdates,
+    hasUpdate,
+    getAppUpdateStatus,
+    triggerUpdate,
+    isCheckingUpdates,
+    hasCheckedOnce,
+  } = useAppUpdates(isActive, installedApps, setActiveJobs, startJobPollingRef);
 
   /**
    * Fetch current app status
@@ -340,36 +292,60 @@ export function useAppsStore(isActive) {
           appState === 'done' || appState === 'stopping' || appState === 'error';
 
         if (isAppActive && !hasError) {
-          // ✅ App is active (starting or running): ensure store is locked
+          // App is active: cancel any pending error-clear timer
+          if (errorClearTimerRef.current) {
+            clearTimeout(errorClearTimerRef.current);
+            errorClearTimerRef.current = null;
+          }
+          // App is active (starting or running): ensure store is locked
           if (!store.isAppRunning || store.currentAppName !== appName) {
             store.lockForApp(appName);
           }
         } else if (isAppFinished || hasError) {
-          // ✅ App is finished/crashed/stopping: unlock if locked
           if (store.isAppRunning) {
             let logMessage;
             if (hasError) {
-              logMessage = `❌ ${appName} crashed: ${status.error}`;
+              logMessage = `${appName} crashed: ${status.error}`;
             } else if (appState === 'error') {
-              logMessage = `❌ ${appName} error state`;
+              logMessage = `${appName} error state`;
             } else if (appState === 'done') {
-              logMessage = `✓ ${appName} completed`;
+              logMessage = `${appName} completed`;
             } else if (appState === 'stopping') {
-              logMessage = `⏹️ ${appName} stopping`;
+              logMessage = `${appName} stopping`;
             } else {
-              logMessage = `⚠️ ${appName} stopped (${appState})`;
+              logMessage = `${appName} stopped (${appState})`;
             }
 
             logger.info(logMessage);
             store.unlockApp();
           }
+
+          if (appState === 'done') {
+            setCurrentApp(null);
+          } else if (appState === 'error') {
+            // Keep error visible in the UI; close the dead Tauri window
+            closeAppWindow(appName).catch(() => {});
+
+            // Auto-clear the error after a delay so the user can launch another app
+            if (!errorClearTimerRef.current) {
+              errorClearTimerRef.current = setTimeout(() => {
+                setCurrentApp(null);
+                errorClearTimerRef.current = null;
+              }, APP_ERROR_DISPLAY_DURATION_MS);
+            }
+          }
         }
       } else {
-        // ✅ No app running (status is null or incomplete): unlock if locked (crash detection)
+        // No app running (status is null or incomplete): unlock if locked (crash detection)
         setCurrentApp(null);
 
         if (store.isAppRunning && store.busyReason === 'app-running') {
           const lastAppName = store.currentAppName || 'unknown';
+
+          // Close the dead Tauri window if one was open
+          if (lastAppName !== 'unknown') {
+            closeAppWindow(lastAppName).catch(() => {});
+          }
 
           logger.warning(`App ${lastAppName} stopped unexpectedly`);
           store.unlockApp();
@@ -499,12 +475,32 @@ export function useAppsStore(isActive) {
    */
   const startApp = useCallback(
     async appName => {
+      // Cancel any lingering error-display timer from a previous crash
+      if (errorClearTimerRef.current) {
+        clearTimeout(errorClearTimerRef.current);
+        errorClearTimerRef.current = null;
+      }
+      setCurrentApp(null);
+
+      // Clean up any previous app on the daemon (e.g. crashed app still in ERROR state).
+      // The daemon considers ERROR as "running", so start-app would 400 without this.
+      try {
+        await fetchWithTimeout(
+          buildApiUrl('/api/apps/stop-current-app'),
+          { method: 'POST' },
+          DAEMON_CONFIG.TIMEOUTS.APP_STOP,
+          { silent: true }
+        );
+      } catch {
+        // Expected when no app was running — safe to ignore
+      }
+
       try {
         const response = await fetchWithTimeout(
           buildApiUrl(`/api/apps/start-app/${encodeURIComponent(appName)}`),
           { method: 'POST' },
           DAEMON_CONFIG.TIMEOUTS.APP_START,
-          { label: `Start ${appName}` } // ⚡ Automatic log
+          { label: `Start ${appName}` }
         );
 
         if (!response.ok) {
@@ -549,6 +545,12 @@ export function useAppsStore(isActive) {
 
       const message = await response.json();
 
+      // Close the app's Tauri window if it was open
+      const appInfo = useAppStore.getState().currentApp?.info;
+      if (appInfo?.name) {
+        closeAppWindow(appInfo.name).catch(() => {});
+      }
+
       // Reset state immediately
       setCurrentApp(null);
 
@@ -578,7 +580,13 @@ export function useAppsStore(isActive) {
    * Cleanup: stop all pollings on unmount
    */
   useEffect(() => {
-    return cleanupJobs;
+    return () => {
+      cleanupJobs();
+      if (errorClearTimerRef.current) {
+        clearTimeout(errorClearTimerRef.current);
+        errorClearTimerRef.current = null;
+      }
+    };
   }, [cleanupJobs]);
 
   // ✅ Track if this is the first time isActive becomes true (startup)
@@ -593,22 +601,21 @@ export function useAppsStore(isActive) {
    * HardwareScanView and stored globally. Clearing should only happen on actual
    * daemon disconnect (handled by transitionTo.disconnected), not when components unmount.
    */
+  const isWindowVisible = useWindowVisible();
+
   useEffect(() => {
-    if (!isActive) {
-      // Don't fetch when inactive, but also don't clear apps (they're globally cached)
-      isFirstActiveRef.current = true;
+    if (!isActive || !isWindowVisible) {
+      if (!isActive) isFirstActiveRef.current = true;
       return;
     }
 
-    // Fetch apps (will use cache if valid - up to 1 day)
     fetchAvailableApps(false);
 
-    // Start polling current app status
     fetchCurrentAppStatus();
     const interval = setInterval(fetchCurrentAppStatus, DAEMON_CONFIG.INTERVALS.APP_STATUS);
 
     return () => clearInterval(interval);
-  }, [isActive, fetchAvailableApps, fetchCurrentAppStatus]);
+  }, [isActive, isWindowVisible, fetchAvailableApps, fetchCurrentAppStatus]);
 
   return {
     // Data from store
@@ -629,5 +636,13 @@ export function useAppsStore(isActive) {
     fetchCurrentAppStatus,
     startJobPolling, // Expose for useAppHandlers
     invalidateCache: invalidateAppsCache,
+
+    // Update-related
+    checkForUpdates,
+    hasUpdate,
+    getAppUpdateStatus,
+    triggerUpdate,
+    isCheckingUpdates,
+    hasCheckedOnce,
   };
 }

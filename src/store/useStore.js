@@ -7,8 +7,9 @@ import {
   createAppsSlice,
   setupSystemPreferenceListener,
 } from './slices';
-import { logReset, logInstallStart, logInstallEnd } from './storeLogger';
+import { logReset } from './storeLogger';
 import { disableSimulationMode } from '../utils/simulationMode';
+import { ROBOT_STATUS, BUSY_REASON, buildDerivedState } from '../constants/robotStatus';
 
 /**
  * ✨ Unified Store with Slices Architecture
@@ -52,14 +53,9 @@ export const useStore = create(
       disableSimulationMode();
 
       set({
-        // Robot state reset (robotStatus is the source of truth)
-        robotStatus: 'disconnected',
+        robotStatus: ROBOT_STATUS.DISCONNECTED,
         busyReason: null,
-        // Derived booleans (kept in sync)
-        isActive: false,
-        isStarting: false,
-        isStopping: false,
-        isDaemonCrashed: false,
+        ...buildDerivedState(ROBOT_STATUS.DISCONNECTED),
         // Connection
         connectionMode: null,
         remoteHost: null,
@@ -112,7 +108,7 @@ export const useStore = create(
      */
     lockForInstallWithRobot: (appName, jobType = 'install') => {
       const state = get();
-      state.transitionTo.busy('installing');
+      state.transitionTo.busy(BUSY_REASON.INSTALLING);
       state.lockForInstall(appName, jobType);
     },
 
@@ -124,6 +120,15 @@ export const useStore = create(
       const state = get();
       state.transitionTo.ready();
       state.unlockInstall();
+
+      // Safety: if transitionTo.ready() was blocked (hardwareError, connection lost),
+      // force-clear isInstalling to prevent permanent UI lockout
+      if (get().isInstalling) {
+        console.warn(
+          '[Store] unlockInstallWithRobot: transition blocked, force-clearing install lock'
+        );
+        set({ isInstalling: false, busyReason: null });
+      }
     },
 
     // ============================================
@@ -131,16 +136,65 @@ export const useStore = create(
     // ============================================
 
     /**
-     * Generic update for backwards compatibility
-     * Accepts any state updates
+     * Generic update for backwards compatibility.
+     * Protected fields (robotStatus and derived booleans) are stripped
+     * to prevent bypassing the state machine. Use transitionTo instead.
      */
-    update: updates => set(updates),
+    update: updates => {
+      const PROTECTED = ['robotStatus', 'isActive', 'isStarting', 'isStopping', 'isDaemonCrashed'];
+      const safe = { ...updates };
+      let stripped = false;
+      for (const key of PROTECTED) {
+        if (key in safe) {
+          delete safe[key];
+          stripped = true;
+        }
+      }
+      if (stripped) {
+        console.warn(
+          '[Store] update() stripped protected fields. Use transitionTo instead.',
+          Object.keys(updates).filter(k => PROTECTED.includes(k))
+        );
+      }
+      if (Object.keys(safe).length > 0) {
+        set(safe);
+      }
+    },
   }))
 );
+
+// Side-effect subscriber for robotStatus transitions (telemetry, logging)
+import { subscribeRobotStatus } from './subscribers/robotStatusSubscriber';
+subscribeRobotStatus(useStore);
 
 // Setup system preference listener for dark mode
 if (typeof window !== 'undefined') {
   setupSystemPreferenceListener(useStore.getState, useStore.setState);
+}
+
+// ============================================================================
+// HMR STATE PRESERVATION (dev only)
+// Keeps store data intact across Vite hot-module replacement so the app
+// doesn't reset to the connection screen on every code change.
+// ============================================================================
+if (import.meta.hot) {
+  if (import.meta.hot.data?.storeState) {
+    const saved = import.meta.hot.data.storeState;
+    const dataOnly = {};
+    for (const [key, value] of Object.entries(saved)) {
+      if (typeof value !== 'function') {
+        dataOnly[key] = value;
+      }
+    }
+    useStore.setState(dataOnly);
+    console.log('[HMR] Store state restored');
+  }
+
+  import.meta.hot.dispose(data => {
+    data.storeState = useStore.getState();
+  });
+
+  import.meta.hot.accept();
 }
 
 export default useStore;

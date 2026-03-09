@@ -7,9 +7,15 @@ import { useToast } from '../../../hooks/useToast';
 
 /**
  * Cache Card Component
- * Allows clearing HuggingFace cache on the robot
+ * Allows clearing HuggingFace cache and resetting apps on the robot
  */
-export default function SettingsCacheCard({ darkMode, cardStyle, buttonStyle }) {
+export default function SettingsCacheCard({
+  darkMode,
+  cardStyle,
+  buttonStyle,
+  onResetAppsClick,
+  isResettingApps,
+}) {
   const [isClearing, setIsClearing] = useState(false);
   const { showToast } = useToast();
 
@@ -47,7 +53,7 @@ export default function SettingsCacheCard({ darkMode, cardStyle, buttonStyle }) 
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
-          Clear downloaded AI models from HuggingFace to free up disk space on the robot.
+          Free up disk space by clearing downloaded AI models.
         </Typography>
 
         <Button
@@ -77,6 +83,38 @@ export default function SettingsCacheCard({ darkMode, cardStyle, buttonStyle }) 
           }}
         >
           {isClearing ? 'Clearing...' : 'Clear HuggingFace Cache'}
+        </Button>
+
+        <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
+          Uninstall all apps. They can be reinstalled from the store.
+        </Typography>
+
+        <Button
+          variant="outlined"
+          onClick={onResetAppsClick}
+          disabled={isResettingApps}
+          startIcon={
+            isResettingApps ? <CircularProgress size={16} color="inherit" /> : <DeleteOutlineIcon />
+          }
+          sx={{
+            ...buttonStyle,
+            fontSize: 12,
+            py: 0.75,
+            px: 2,
+            borderRadius: '8px',
+            color: darkMode ? '#f87171' : '#dc2626',
+            borderColor: darkMode ? 'rgba(248, 113, 113, 0.5)' : 'rgba(220, 38, 38, 0.5)',
+            '&:hover': {
+              borderColor: darkMode ? '#f87171' : '#dc2626',
+              bgcolor: darkMode ? 'rgba(248, 113, 113, 0.1)' : 'rgba(220, 38, 38, 0.08)',
+            },
+            '&:disabled': {
+              borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+              color: darkMode ? '#555' : '#bbb',
+            },
+          }}
+        >
+          {isResettingApps ? 'Resetting...' : 'Reset Apps Cache'}
         </Button>
       </Box>
     </Box>
