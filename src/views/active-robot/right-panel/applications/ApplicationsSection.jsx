@@ -98,7 +98,10 @@ export default function ApplicationsSection({
     ) {
       lastCrashToastRef.current = currentApp.info.name;
       const firstLine = currentApp.error?.split('\n')[0] || 'unknown error';
-      showToast(`${currentApp.info.name} crashed: ${firstLine}`, 'error');
+      showToast(
+        `${currentApp.info.name} crashed: ${firstLine}. Make sure your app is up-to-date.`,
+        'error'
+      );
     } else if (!currentApp || currentApp.state !== 'error') {
       lastCrashToastRef.current = null;
     }
