@@ -141,6 +141,7 @@ export const useDaemon = () => {
   const unlistenDaemonStatusRef = useRef(null);
   const unlistenStderrRef = useRef(null);
   const unlistenStdoutRef = useRef(null);
+  const unlistenStderrActivityRef = useRef(null);
   const lastActivityResetRef = useRef(0);
 
   // Listen to Rust-side daemon-status-changed for instant crash detection
@@ -244,65 +245,79 @@ export const useDaemon = () => {
     };
   }, [eventBus]);
 
-  // Listen to sidecar stdout events to reset timeout when we see activity
+  // Listen to sidecar stdout/stderr events to reset timeout when we see activity
+  // Daemon logs go to stderr (Python logging), so we must listen to both
   useEffect(() => {
     let isMounted = true;
 
-    const setupStdoutListener = async () => {
-      // Cleanup previous listener if any
+    const resetStartupTimeoutOnActivity = () => {
+      if (!isMounted) return;
+
+      const currentState = useAppStore.getState();
+
+      if (!currentState.isStarting || currentState.isActive) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastActivityResetRef.current < DAEMON_CONFIG.STARTUP.ACTIVITY_RESET_DELAY) {
+        return;
+      }
+      lastActivityResetRef.current = now;
+
+      clearStartupTimeout();
+
+      const simMode = isSimulationMode();
+      const startupTimeout = simMode
+        ? DAEMON_CONFIG.STARTUP.TIMEOUT_SIMULATION
+        : DAEMON_CONFIG.STARTUP.TIMEOUT_NORMAL;
+
+      const newTimeoutId = setTimeout(() => {
+        const state = useAppStore.getState();
+        if (!state.isActive && state.isStarting) {
+          eventBus.emit('daemon:start:timeout');
+        }
+      }, startupTimeout);
+
+      setStartupTimeout(newTimeoutId);
+    };
+
+    const setupListeners = async () => {
+      // Cleanup previous listeners
       if (unlistenStdoutRef.current) {
         unlistenStdoutRef.current();
         unlistenStdoutRef.current = null;
       }
+      if (unlistenStderrActivityRef.current) {
+        unlistenStderrActivityRef.current();
+        unlistenStderrActivityRef.current = null;
+      }
 
       try {
-        const unlisten = await listen('sidecar-stdout', () => {
-          if (!isMounted) return;
-
-          const currentState = useAppStore.getState();
-
-          if (!currentState.isStarting || currentState.isActive) {
-            return;
-          }
-
-          const now = Date.now();
-          if (now - lastActivityResetRef.current < DAEMON_CONFIG.STARTUP.ACTIVITY_RESET_DELAY) {
-            return;
-          }
-          lastActivityResetRef.current = now;
-
-          clearStartupTimeout();
-
-          const simMode = isSimulationMode();
-          const startupTimeout = simMode
-            ? DAEMON_CONFIG.STARTUP.TIMEOUT_SIMULATION
-            : DAEMON_CONFIG.STARTUP.TIMEOUT_NORMAL;
-
-          const newTimeoutId = setTimeout(() => {
-            const state = useAppStore.getState();
-            if (!state.isActive && state.isStarting) {
-              eventBus.emit('daemon:start:timeout');
-            }
-          }, startupTimeout);
-
-          setStartupTimeout(newTimeoutId);
-        });
+        const unlistenStdout = await listen('sidecar-stdout', resetStartupTimeoutOnActivity);
+        const unlistenStderr = await listen('sidecar-stderr', resetStartupTimeoutOnActivity);
 
         if (isMounted) {
-          unlistenStdoutRef.current = unlisten;
+          unlistenStdoutRef.current = unlistenStdout;
+          unlistenStderrActivityRef.current = unlistenStderr;
         } else {
-          unlisten();
+          unlistenStdout();
+          unlistenStderr();
         }
       } catch {}
     };
 
-    setupStdoutListener();
+    setupListeners();
 
     return () => {
       isMounted = false;
       if (unlistenStdoutRef.current) {
         unlistenStdoutRef.current();
         unlistenStdoutRef.current = null;
+      }
+      if (unlistenStderrActivityRef.current) {
+        unlistenStderrActivityRef.current();
+        unlistenStderrActivityRef.current = null;
       }
     };
   }, [eventBus, clearStartupTimeout, setStartupTimeout]);
