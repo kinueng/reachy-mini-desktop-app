@@ -123,6 +123,13 @@ fn main() {
                 deps_str
             ))
             .expect("Failed to install dependencies");
+
+            // Pre-warm GStreamer registry cache (stored in .venv/.cache/gstreamer-1.0/).
+            // Without this, first launch scans 256 plugins which takes 2+ minutes.
+            // GST_REGISTRY_FORK=no prevents the forked scanner (even slower).
+            run_command(
+                "GST_REGISTRY_FORK=no .venv/bin/python3 -c \"import gi; gi.require_version('Gst', '1.0'); from gi.repository import Gst; Gst.init([])\" 2>/dev/null || true"
+            ).ok();
         }
         #[cfg(target_os = "windows")]
         {
