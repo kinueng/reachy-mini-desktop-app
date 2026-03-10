@@ -62,6 +62,7 @@ export function usePermissions({ checkInterval = 2000 } = {}) {
   const [cameraGranted, setCameraGranted] = useState(autoGrant);
   const [microphoneGranted, setMicrophoneGranted] = useState(autoGrant);
   const [localNetworkGranted, setLocalNetworkGranted] = useState(autoGrant);
+  const [locationGranted, setLocationGranted] = useState(autoGrant);
   const [isChecking, setIsChecking] = useState(!autoGrant); // Only check on macOS (non-E2E)
   const [hasChecked, setHasChecked] = useState(autoGrant); // Already "checked" on non-macOS or E2E
 
@@ -118,7 +119,24 @@ export function usePermissions({ checkInterval = 2000 } = {}) {
         localNetworkStatus = true;
       }
 
-      // 🔒 Check again after local network check
+      // Check location permission (macOS - needed for WiFi SSID scanning)
+      let locationStatus = true;
+      try {
+        const result = await invoke('check_location_permission');
+        if (result === true) {
+          locationStatus = true;
+        } else if (result === false) {
+          locationStatus = false;
+        } else {
+          // null means not determined yet - treat as not granted
+          locationStatus = false;
+        }
+      } catch (e) {
+        // If the command fails, assume granted
+        locationStatus = true;
+      }
+
+      // 🔒 Check again after all permission checks
       if (currentVersion !== checkVersionRef.current) {
         return;
       }
@@ -126,12 +144,14 @@ export function usePermissions({ checkInterval = 2000 } = {}) {
       const cameraResult = cameraStatus === true;
       const micResult = micStatus === true;
       const localNetworkResult = localNetworkStatus === true;
+      const locationResult = locationStatus === true;
 
       // Only log if state changed or first check
       const stateChanged =
         previousStateRef.current.camera !== cameraResult ||
         previousStateRef.current.microphone !== micResult ||
         previousStateRef.current.localNetwork !== localNetworkResult ||
+        previousStateRef.current.location !== locationResult ||
         previousStateRef.current.camera === null;
 
       if (stateChanged) {
@@ -139,12 +159,14 @@ export function usePermissions({ checkInterval = 2000 } = {}) {
           camera: cameraResult,
           microphone: micResult,
           localNetwork: localNetworkResult,
+          location: locationResult,
         };
       }
 
       setCameraGranted(cameraResult);
       setMicrophoneGranted(micResult);
       setLocalNetworkGranted(localNetworkResult);
+      setLocationGranted(locationResult);
       setHasChecked(true);
     } catch (error) {
       // 🔒 Don't update state if this check is stale
@@ -155,6 +177,7 @@ export function usePermissions({ checkInterval = 2000 } = {}) {
       setCameraGranted(false);
       setMicrophoneGranted(false);
       setLocalNetworkGranted(false);
+      setLocationGranted(false);
       setHasChecked(true);
     } finally {
       // 🔒 Only update isChecking if this is still the current check
@@ -179,12 +202,13 @@ export function usePermissions({ checkInterval = 2000 } = {}) {
     };
   }, [checkInterval, checkPermissions]);
 
-  const allGranted = cameraGranted && microphoneGranted && localNetworkGranted;
+  const allGranted = cameraGranted && microphoneGranted && localNetworkGranted && locationGranted;
 
   return {
     cameraGranted,
     microphoneGranted,
     localNetworkGranted,
+    locationGranted,
     allGranted,
     isChecking,
     hasChecked,

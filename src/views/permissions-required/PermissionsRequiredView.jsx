@@ -3,6 +3,7 @@ import { Box, Typography, useTheme, alpha } from '@mui/material';
 import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined';
 import MicNoneOutlinedIcon from '@mui/icons-material/MicNoneOutlined';
 import LanOutlinedIcon from '@mui/icons-material/LanOutlined';
+import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -141,6 +142,8 @@ const permissionsViewReducer = (state, action) => {
       return { ...state, microphoneRequested: true };
     case 'SET_LOCAL_NETWORK_REQUESTED':
       return { ...state, localNetworkRequested: true };
+    case 'SET_LOCATION_REQUESTED':
+      return { ...state, locationRequested: true };
     default:
       return state;
   }
@@ -156,6 +159,7 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
     cameraGranted,
     microphoneGranted,
     localNetworkGranted,
+    locationGranted,
     refresh: refreshPermissions,
   } = usePermissions({ checkInterval: 2000 });
 
@@ -163,6 +167,7 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
     cameraRequested: false,
     microphoneRequested: false,
     localNetworkRequested: false,
+    locationRequested: false,
     isRestarting: false,
     restartStarted: false,
   });
@@ -375,6 +380,67 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
     }
   }, [refreshPermissions]);
 
+  // Location permission request handler (uses custom Rust command)
+  const requestLocationPermission = useCallback(async () => {
+    if (!isMacOS()) return;
+
+    try {
+      const result = await invoke('request_location_permission');
+      dispatch({ type: 'SET_LOCATION_REQUESTED' });
+
+      if (result === true) {
+        await refreshPermissions();
+        return;
+      }
+
+      // null = dialog pending, poll for user's choice
+      if (permissionPollingRef.current) {
+        clearInterval(permissionPollingRef.current);
+      }
+
+      let checkCount = 0;
+      const maxChecks = 20;
+
+      permissionPollingRef.current = setInterval(async () => {
+        checkCount++;
+
+        try {
+          const status = await invoke('check_location_permission');
+          if (status === true) {
+            if (permissionPollingRef.current) {
+              clearInterval(permissionPollingRef.current);
+              permissionPollingRef.current = null;
+            }
+            await refreshPermissions();
+          } else if (status === false) {
+            if (permissionPollingRef.current) {
+              clearInterval(permissionPollingRef.current);
+              permissionPollingRef.current = null;
+            }
+            await refreshPermissions();
+            await invoke('open_location_settings');
+          }
+        } catch (error) {
+          // Ignore errors during polling
+        }
+
+        if (checkCount >= maxChecks) {
+          if (permissionPollingRef.current) {
+            clearInterval(permissionPollingRef.current);
+            permissionPollingRef.current = null;
+          }
+          await refreshPermissions();
+        }
+      }, 500);
+    } catch (error) {
+      try {
+        await invoke('open_location_settings');
+      } catch {
+        // Failed to open settings
+      }
+    }
+  }, [refreshPermissions]);
+
   const openSettings = useCallback(async type => {
     if (!isMacOS()) {
       return;
@@ -522,11 +588,11 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
             {/* Permission cards - 3 square cards */}
             <Box
               sx={{
-                display: 'flex',
-                justifyContent: 'center',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
                 gap: 1.5,
                 width: '100%',
-                maxWidth: 360,
+                maxWidth: 280,
                 mb: 2.5,
               }}
             >
@@ -570,6 +636,24 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
                       state.localNetworkRequested
                         ? openSettings('local_network')
                         : requestLocalNetworkPermission();
+                    }
+                  }}
+                  darkMode={darkMode}
+                />
+              )}
+
+              {/* Location - macOS requires this for CoreWLAN to return WiFi SSIDs */}
+              {isMacOS() && (
+                <PermissionCard
+                  icon={LocationOnOutlinedIcon}
+                  label="Location"
+                  subtitle={locationGranted ? 'Granted' : 'For WiFi detection'}
+                  granted={locationGranted}
+                  onClick={() => {
+                    if (!locationGranted) {
+                      state.locationRequested
+                        ? openSettings('location')
+                        : requestLocationPermission();
                     }
                   }}
                   darkMode={darkMode}

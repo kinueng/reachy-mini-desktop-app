@@ -44,5 +44,9 @@
 	<!-- Allow microphone access (required for permission request) -->
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
+
+	<!-- Allow location access (required for CoreWLAN WiFi SSID scanning) -->
+	<key>com.apple.security.personal-information.location</key>
+	<true/>
 </dict>
 </plist>
