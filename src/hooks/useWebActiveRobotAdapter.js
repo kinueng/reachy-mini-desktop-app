@@ -33,6 +33,7 @@ export function useWebActiveRobotAdapter() {
   const activeMoves = useAppStore(state => state.activeMoves);
   const isDaemonCrashed = useAppStore(state => state.isDaemonCrashed);
   const rightPanelView = useAppStore(state => state.rightPanelView);
+  const embeddedAppUrl = useAppStore(state => state.embeddedAppUrl);
   const activeEffect = useAppStore(state => state.activeEffect);
   const effectTimestamp = useAppStore(state => state.effectTimestamp);
 
@@ -76,6 +77,7 @@ export function useWebActiveRobotAdapter() {
       activeMoves,
       isDaemonCrashed,
       rightPanelView,
+      embeddedAppUrl,
       activeEffect,
       effectTimestamp,
       availableApps,
@@ -110,6 +112,7 @@ export function useWebActiveRobotAdapter() {
       activeMoves,
       isDaemonCrashed,
       rightPanelView,
+      embeddedAppUrl,
       activeEffect,
       effectTimestamp,
       availableApps,
@@ -157,6 +160,8 @@ export function useWebActiveRobotAdapter() {
       resetTimeouts: store.resetTimeouts,
       incrementTimeouts: store.incrementTimeouts,
       setRightPanelView: store.setRightPanelView,
+      openEmbeddedApp: store.openEmbeddedApp,
+      closeEmbeddedApp: store.closeEmbeddedApp,
       setDarkMode: store.setDarkMode,
       toggleDarkMode: store.toggleDarkMode,
       setAvailableApps: store.setAvailableApps,

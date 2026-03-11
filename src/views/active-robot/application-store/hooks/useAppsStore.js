@@ -322,9 +322,11 @@ export function useAppsStore(isActive) {
 
           if (appState === 'done') {
             setCurrentApp(null);
+            store.closeEmbeddedApp();
           } else if (appState === 'error') {
             // Keep error visible in the UI; close the dead Tauri window
             closeAppWindow(appName).catch(() => {});
+            store.closeEmbeddedApp();
 
             // Auto-clear the error after a delay so the user can launch another app
             if (!errorClearTimerRef.current) {
@@ -342,10 +344,11 @@ export function useAppsStore(isActive) {
         if (store.isAppRunning && store.busyReason === 'app-running') {
           const lastAppName = store.currentAppName || 'unknown';
 
-          // Close the dead Tauri window if one was open
+          // Close the dead Tauri window / embedded view if one was open
           if (lastAppName !== 'unknown') {
             closeAppWindow(lastAppName).catch(() => {});
           }
+          store.closeEmbeddedApp();
 
           logger.warning(`App ${lastAppName} stopped unexpectedly`);
           store.unlockApp();
@@ -545,11 +548,12 @@ export function useAppsStore(isActive) {
 
       const message = await response.json();
 
-      // Close the app's Tauri window if it was open
+      // Close the app's Tauri window / embedded view if it was open
       const appInfo = useAppStore.getState().currentApp?.info;
       if (appInfo?.name) {
         closeAppWindow(appInfo.name).catch(() => {});
       }
+      useAppStore.getState().closeEmbeddedApp();
 
       // Reset state immediately
       setCurrentApp(null);
