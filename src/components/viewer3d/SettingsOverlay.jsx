@@ -176,6 +176,7 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {};
+      ws._lastStatus = 'pending'; // Track status for onclose handler
 
       ws.onmessage = event => {
         try {
@@ -183,6 +184,7 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
           const data = JSON.parse(event.data);
 
           if (data.status) {
+            ws._lastStatus = data.status; // Track for onclose handler
             setUpdateJobStatus(data.status);
 
             // Add new logs if present
@@ -231,6 +233,19 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
       };
 
       ws.onclose = event => {
+        // If WebSocket closes while update was in progress (not after 'done'/'failed'),
+        // it likely means the daemon restarted after a successful update.
+        // Treat this as update success to avoid the UI getting stuck on "Updating".
+        const currentStatus = updatePollingRef.current?._lastStatus;
+        if (currentStatus === 'in_progress' || currentStatus === 'pending') {
+          setUpdateJobStatus('restarting');
+          logSuccess('Update likely completed (daemon restarted, connection lost).');
+          setTimeout(() => {
+            setIsUpdating(false);
+            showToast('Update completed! Please reconnect to the robot.', 'success');
+            useAppStore.getState().resetAll();
+          }, 6000);
+        }
         updatePollingRef.current = null;
       };
 
