@@ -228,7 +228,7 @@ function ConnectionCard({
  * Uses useConnection hook for unified connection handling
  */
 export default function FindingRobotView() {
-  const { darkMode, setShowFirstTimeWifiSetup } = useAppStore();
+  const { darkMode, setShowSetupChoice } = useAppStore();
   const { isScanning, usbRobot, wifiRobot, wifiRobots, selectWifiRobot } = useRobotDiscovery();
   const { connect, isConnecting, isDisconnecting } = useConnection();
   const [selectedMode, setSelectedMode] = useState(null);
@@ -627,7 +627,7 @@ export default function FindingRobotView() {
           {isBusy ? (isDisconnecting ? 'Stopping...' : 'Connecting...') : 'Start'}
         </PulseButton>
 
-        {/* First time WiFi setup link */}
+        {/* Setup / troubleshooting link */}
         <Box
           sx={{
             position: 'absolute',
@@ -643,10 +643,10 @@ export default function FindingRobotView() {
               color: darkMode ? '#888' : '#666',
             }}
           >
-            First time connecting to your WiFi Reachy?{' '}
+            First time setup or trouble connecting?{' '}
             <Box
               component="span"
-              onClick={() => setShowFirstTimeWifiSetup(true)}
+              onClick={() => setShowSetupChoice(true)}
               sx={{
                 color: '#FF9500',
                 cursor: 'pointer',
