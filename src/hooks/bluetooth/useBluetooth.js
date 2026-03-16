@@ -56,11 +56,13 @@ export default function useBluetooth() {
   // Scan for ReachyMini devices
   // startScan(handler, timeout) — handler receives an array of devices per callback
   const scan = useCallback(async () => {
+    console.log('[BLE] scan() called, setting status to scanning');
     setBleStatus('scanning');
     setBleDevices([]);
 
     try {
-      await startScan(devices => {
+      // Start the scan (on Windows, the promise may resolve before the timeout)
+      startScan(devices => {
         // Filter for ReachyMini devices client-side
         const reachyDevices = devices.filter(
           d => d.name && d.name.toLowerCase().includes('reachymini')
@@ -78,9 +80,12 @@ export default function useBluetooth() {
           }
           setBleDevices(merged);
         }
-      }, SCAN_TIMEOUT);
-    } catch (e) {
-      console.error('[BLE] Scan error:', e);
+      }, SCAN_TIMEOUT).catch(e => {
+        console.error('[BLE] Scan error:', e);
+      });
+
+      // Wait for the full scan duration regardless of when the promise resolves
+      await new Promise(r => setTimeout(r, SCAN_TIMEOUT));
     } finally {
       // Only reset to disconnected if still scanning (not if connect was triggered)
       const currentStatus = useAppStore.getState().bleStatus;
