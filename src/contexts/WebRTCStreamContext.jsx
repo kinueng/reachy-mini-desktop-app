@@ -8,6 +8,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import useAppStore from '../store/useAppStore';
 import { fetchWithTimeout, buildApiUrl } from '../config/daemon';
 import { ROBOT_STATUS } from '../constants/robotStatus';
+import { isLinux } from '../utils/platform';
 
 // Import the GStreamer WebRTC API
 import '../lib/gstwebrtc-api';
@@ -61,6 +62,12 @@ export function WebRTCStreamProvider({ children }) {
   // - WiFi mode: check if daemon reports wireless_version (remote WebRTC on RPi)
   // - USB / external mode (Lite): WebRTC is always available (daemon runs locally with signaling on :8443)
   useEffect(() => {
+    // WebKit on Linux is not built with WebRTC support, so streaming is unavailable
+    if (isLinux()) {
+      setIsWebRTCAvailable(false);
+      return;
+    }
+
     if (connectionMode === 'usb' || connectionMode === 'external') {
       // Local daemon always exposes WebRTC signaling server on localhost
       setIsWebRTCAvailable(true);
