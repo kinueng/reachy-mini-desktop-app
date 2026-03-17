@@ -42,8 +42,11 @@ export function WebRTCStreamProvider({ children }) {
   const [audioTrack, setAudioTrack] = useState(null);
   const [error, setError] = useState(null);
 
-  // Check if wireless version
-  const [isWirelessVersion, setIsWirelessVersion] = useState(null);
+  // WebRTC availability: true if the daemon exposes a WebRTC signaling server
+  // - WiFi + wireless_version: true (Wireless robot over WiFi)
+  // - USB (Lite): true (Lite daemon now supports WebRTC locally)
+  // - Simulation: depends on daemon capabilities
+  const [isWebRTCAvailable, setIsWebRTCAvailable] = useState(null);
   const [checkFailed, setCheckFailed] = useState(false);
 
   // Refs for cleanup
@@ -54,10 +57,18 @@ export function WebRTCStreamProvider({ children }) {
   const producersListenerRef = useRef(null);
   const connectionListenerRef = useRef(null);
 
-  // Check wireless version on mount
+  // Check WebRTC availability on mount
+  // - WiFi mode: check if daemon reports wireless_version (remote WebRTC on RPi)
+  // - USB / external mode (Lite): WebRTC is always available (daemon runs locally with signaling on :8443)
   useEffect(() => {
+    if (connectionMode === 'usb' || connectionMode === 'external') {
+      // Local daemon always exposes WebRTC signaling server on localhost
+      setIsWebRTCAvailable(true);
+      return;
+    }
+
     if (!isWifiMode) {
-      setIsWirelessVersion(false);
+      setIsWebRTCAvailable(false);
       return;
     }
 
@@ -68,7 +79,7 @@ export function WebRTCStreamProvider({ children }) {
         });
         if (response.ok) {
           const data = await response.json();
-          setIsWirelessVersion(data.wireless_version === true);
+          setIsWebRTCAvailable(data.wireless_version === true);
         } else {
           setCheckFailed(true);
         }
@@ -78,10 +89,10 @@ export function WebRTCStreamProvider({ children }) {
     };
 
     checkWirelessVersion();
-  }, [isWifiMode]);
+  }, [isWifiMode, connectionMode]);
 
   // Should we connect?
-  const shouldConnect = isWifiMode && isWirelessVersion === true && isRobotAwake;
+  const shouldConnect = isWebRTCAvailable === true && isRobotAwake;
 
   /**
    * Clean up session and API
@@ -125,9 +136,7 @@ export function WebRTCStreamProvider({ children }) {
    * Connect to the WebRTC stream
    */
   const connect = useCallback(() => {
-    if (!remoteHost || !mountedRef.current) {
-      setError('No robot host specified');
-      setState(StreamState.ERROR);
+    if (!mountedRef.current) {
       return;
     }
 
@@ -135,7 +144,9 @@ export function WebRTCStreamProvider({ children }) {
     setState(StreamState.CONNECTING);
     setError(null);
 
-    const signalingUrl = `ws://${remoteHost}:${SIGNALING_PORT}`;
+    // Use remoteHost for WiFi, localhost for USB/Lite (daemon runs locally)
+    const host = remoteHost || 'localhost';
+    const signalingUrl = `ws://${host}:${SIGNALING_PORT}`;
 
     try {
       const GstWebRTCAPI = window.GstWebRTCAPI;
@@ -289,7 +300,7 @@ export function WebRTCStreamProvider({ children }) {
 
     // Derived state
     isWifiMode,
-    isWirelessVersion,
+    isWebRTCAvailable,
     checkFailed,
     isRobotAwake,
     shouldConnect,
