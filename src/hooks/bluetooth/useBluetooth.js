@@ -41,6 +41,7 @@ export default function useBluetooth() {
     bleDeviceAddress,
     setBleDeviceAddress,
     setBlePin,
+    loadBlePinForDevice,
   } = useAppStore();
 
   // Adapter state
@@ -56,7 +57,6 @@ export default function useBluetooth() {
   // Scan for ReachyMini devices
   // startScan(handler, timeout) — handler receives an array of devices per callback
   const scan = useCallback(async () => {
-    console.log('[BLE] scan() called, setting status to scanning');
     setBleStatus('scanning');
     setBleDevices([]);
 
@@ -65,7 +65,7 @@ export default function useBluetooth() {
       startScan(devices => {
         // Filter for ReachyMini devices client-side
         const reachyDevices = devices.filter(
-          d => d.name && d.name.toLowerCase().includes('reachymini')
+          d => d.name && d.name.toLowerCase().replace(/-/g, '').includes('reachymini')
         );
         if (reachyDevices.length > 0) {
           const prev = useAppStore.getState().bleDevices;
@@ -117,12 +117,13 @@ export default function useBluetooth() {
       setBleStatus('connecting');
       try {
         await blecConnect(address, () => {
-          console.log('[BLE] Device disconnected');
+          console.warn('[BLE] Device disconnected');
           setBleStatus('disconnected');
           setBleDeviceAddress(null);
         });
 
         setBleDeviceAddress(address);
+        loadBlePinForDevice(address);
         setBleStatus('connected');
       } catch (e) {
         console.error('[BLE] Connect error:', e);
@@ -154,7 +155,7 @@ export default function useBluetooth() {
         throw new Error('Not connected');
       }
 
-      await sendString(COMMAND_CHAR_UUID, message, 'withResponse', CMD_SERVICE_UUID);
+      await sendString(COMMAND_CHAR_UUID, message, 'withoutResponse', CMD_SERVICE_UUID);
 
       // Give the device time to process and write the response
       await new Promise(r => setTimeout(r, RESPONSE_READ_DELAY));

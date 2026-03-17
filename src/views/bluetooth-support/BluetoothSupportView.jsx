@@ -36,13 +36,13 @@ const COMMANDS = [
     color: '#6366f1',
     readStatus: true,
   },
-  { id: 'hotspot', label: 'Hotspot', icon: WifiTetheringIcon, color: '#FF9500', script: 'hotspot' },
+  { id: 'hotspot', label: 'Hotspot', icon: WifiTetheringIcon, color: '#FF9500', script: 'HOTSPOT' },
   {
     id: 'restart_daemon',
     label: 'Restart Daemon',
     icon: RestartAltIcon,
     color: '#FF9500',
-    script: 'restart_daemon',
+    script: 'RESTART_DAEMON',
   },
   {
     id: 'software_reset',
@@ -50,7 +50,7 @@ const COMMANDS = [
     icon: DeleteForeverIcon,
     color: '#ef4444',
     danger: true,
-    script: 'software_reset',
+    script: 'SOFTWARE_RESET',
   },
 ];
 
@@ -75,12 +75,14 @@ export default function BluetoothSupportView() {
     sendCommand,
     sendPing,
     readNetworkStatus,
+    checkAdapterState,
   } = useBluetooth();
 
   const [activeStep, setActiveStep] = useState(0);
   const [pinInput, setPinInput] = useState(blePin);
   const [activityLog, setActivityLog] = useState([]);
   const [isSending, setIsSending] = useState(false);
+  const [adapterWarning, setAdapterWarning] = useState('');
   const logEndRef = useRef(null);
 
   const textPrimary = darkMode ? '#f5f5f5' : '#333';
@@ -105,8 +107,17 @@ export default function BluetoothSupportView() {
         await connectToDevice(address);
         addLog('Connected!', 'success');
 
-        // If PIN already saved, skip to commands
-        if (blePin) {
+        // Check cached PIN for this device (read directly — state not yet updated)
+        let cachedPin = '';
+        try {
+          const pins = JSON.parse(localStorage.getItem('blePins') || '{}');
+          cachedPin = pins[address] || '';
+        } catch {
+          /* ignore */
+        }
+
+        if (cachedPin) {
+          setPinInput(cachedPin);
           setActiveStep(2);
         } else {
           setActiveStep(1);
@@ -115,7 +126,7 @@ export default function BluetoothSupportView() {
         addLog(`Connection failed: ${e.message}`, 'error');
       }
     },
-    [connectToDevice, addLog, blePin]
+    [connectToDevice, addLog]
   );
 
   // Step 2: Save PIN and advance
@@ -150,7 +161,8 @@ export default function BluetoothSupportView() {
         }
         addLog(`Response: ${response}`, 'success');
       } catch (e) {
-        addLog(`Error: ${e.message}`, 'error');
+        const msg = e?.message || (typeof e === 'string' ? e : JSON.stringify(e));
+        addLog(`Error: ${msg}`, 'error');
       } finally {
         setIsSending(false);
       }
@@ -283,7 +295,17 @@ export default function BluetoothSupportView() {
 
               <Button
                 variant="outlined"
-                onClick={scan}
+                onClick={async () => {
+                  setAdapterWarning('');
+                  const state = await checkAdapterState();
+                  if (!state || state === 'Off' || state === 'Unknown') {
+                    setAdapterWarning(
+                      'Bluetooth is turned off or unavailable. Please enable Bluetooth in your system settings.'
+                    );
+                    return;
+                  }
+                  scan();
+                }}
                 disabled={bleStatus === 'scanning'}
                 startIcon={
                   bleStatus === 'scanning' ? (
@@ -309,6 +331,20 @@ export default function BluetoothSupportView() {
               >
                 {bleStatus === 'scanning' ? 'Scanning...' : 'Scan for Devices'}
               </Button>
+
+              {adapterWarning && (
+                <Typography
+                  sx={{
+                    fontSize: 12,
+                    color: '#ef4444',
+                    textAlign: 'center',
+                    lineHeight: 1.5,
+                    px: 1,
+                  }}
+                >
+                  {adapterWarning}
+                </Typography>
+              )}
 
               {/* Device list */}
               {bleDevices.length > 0 && (
