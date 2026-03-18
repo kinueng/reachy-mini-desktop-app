@@ -16,6 +16,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
+use super::raw_att::RawAttConnection;
 use crate::api::{
     self, AddressType, BDAddr, CharPropFlags, Characteristic, Descriptor, PeripheralProperties,
     Service, ValueNotification, WriteType,
@@ -61,6 +62,10 @@ pub struct Peripheral {
     device: DeviceId,
     mac_address: BDAddr,
     services: Arc<Mutex<HashMap<Uuid, ServiceInternal>>>,
+    /// Raw ATT connection fallback for dual-mode devices on Linux.
+    raw_att: Arc<Mutex<Option<RawAttConnection>>>,
+    /// Services discovered via raw ATT (used when raw_att is active).
+    raw_att_services: Arc<Mutex<HashMap<Uuid, Service>>>,
 }
 
 fn get_characteristic<'a>(
@@ -93,7 +98,13 @@ impl Peripheral {
             device: device.id,
             mac_address: device.mac_address.into(),
             services: Arc::new(Mutex::new(HashMap::new())),
+            raw_att: Arc::new(Mutex::new(None)),
+            raw_att_services: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    fn has_raw_att(&self) -> bool {
+        self.raw_att.lock().map(|g| g.is_some()).unwrap_or(false)
     }
 
     fn characteristic_info(&self, characteristic: &Characteristic) -> Result<CharacteristicInfo> {
@@ -126,6 +137,64 @@ impl Peripheral {
     async fn device_info(&self) -> Result<DeviceInfo> {
         Ok(self.session.get_device_info(&self.device).await?)
     }
+
+    /// Convert BDAddr to the [u8; 6] bdaddr format used by L2CAP (reversed byte order).
+    fn bdaddr_bytes(&self) -> [u8; 6] {
+        let bytes = self.mac_address.into_inner();
+        // BDAddr stores bytes in big-endian, L2CAP wants little-endian
+        [bytes[5], bytes[4], bytes[3], bytes[2], bytes[1], bytes[0]]
+    }
+
+    /// Populate self.services from raw ATT discovered data.
+    /// Uses a simplified internal representation since we bypass bluez-async.
+    fn populate_services_from_raw_att(&self) -> Result<()> {
+        let raw = self.raw_att.lock().map_err(Into::<Error>::into)?;
+        let raw = raw.as_ref().ok_or_else(|| Error::Other("No raw ATT connection".into()))?;
+
+        // Build btleplug's public Service/Characteristic types directly
+        // and store them in self.services via a minimal ServiceInternal wrapper
+        let mut services_map: HashMap<Uuid, BTreeSet<Characteristic>> = HashMap::new();
+
+        for svc in raw.get_services() {
+            services_map.entry(svc.uuid).or_insert_with(BTreeSet::new);
+        }
+
+        for ch in raw.get_characteristics() {
+            // Find which service this characteristic belongs to
+            for svc in raw.get_services() {
+                if ch.value_handle >= svc.start_handle && ch.value_handle <= svc.end_handle {
+                    let flags = raw_props_to_flags(ch.properties);
+                    let characteristic = Characteristic {
+                        uuid: ch.uuid,
+                        service_uuid: svc.uuid,
+                        properties: flags.into(),
+                        descriptors: BTreeSet::new(),
+                    };
+                    services_map
+                        .entry(svc.uuid)
+                        .or_insert_with(BTreeSet::new)
+                        .insert(characteristic);
+                    break;
+                }
+            }
+        }
+
+        // Store as raw_att_services for the services() method
+        let mut raw_svc_map = self.raw_att_services.lock().map_err(Into::<Error>::into)?;
+        raw_svc_map.clear();
+        for (uuid, chars) in services_map {
+            raw_svc_map.insert(
+                uuid,
+                Service {
+                    uuid,
+                    primary: true,
+                    characteristics: chars,
+                },
+            );
+        }
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -154,6 +223,13 @@ impl api::Peripheral for Peripheral {
     }
 
     fn services(&self) -> BTreeSet<Service> {
+        if self.has_raw_att() {
+            return self
+                .raw_att_services
+                .lock()
+                .map(|s| s.values().cloned().collect())
+                .unwrap_or_default();
+        }
         self.services
             .lock()
             .unwrap()
@@ -163,21 +239,78 @@ impl api::Peripheral for Peripheral {
     }
 
     async fn is_connected(&self) -> Result<bool> {
+        if self.has_raw_att() {
+            let raw = self.raw_att.lock().map_err(Into::<Error>::into)?;
+            return Ok(raw.as_ref().map(|r| r.is_connected()).unwrap_or(false));
+        }
         let device_info = self.device_info().await?;
         Ok(device_info.connected)
     }
 
     async fn connect(&self) -> Result<()> {
+        // Try raw L2CAP ATT first (bypasses BlueZ's dual-mode BR/EDR profile issue).
+        // If raw ATT works, use it. If not (e.g., permission denied), fall back to D-Bus.
+        let bdaddr = self.bdaddr_bytes();
+        let is_random = self
+            .device_info()
+            .await
+            .map(|info| info.address_type == bluez_async::AddressType::Random)
+            .unwrap_or(false);
+
+        let raw_att_arc = self.raw_att.clone();
+        let raw_result = tokio::task::spawn_blocking(move || {
+            match RawAttConnection::connect(bdaddr, is_random) {
+                Ok(conn) => {
+                    *raw_att_arc.lock().map_err(Into::<Error>::into)? = Some(conn);
+                    log::info!("[btleplug] Raw L2CAP ATT connection established");
+                    Ok(())
+                }
+                Err(e) => Err(e),
+            }
+        })
+        .await
+        .map_err(|e| Error::Other(Box::new(e)))?;
+
+        if raw_result.is_ok() {
+            return Ok(());
+        }
+
+        // Raw ATT failed — fall back to standard BlueZ D-Bus connect
+        log::info!("[btleplug] Raw ATT failed, using D-Bus Connect()");
         self.session.connect(&self.device).await?;
         Ok(())
     }
 
     async fn disconnect(&self) -> Result<()> {
+        if self.has_raw_att() {
+            let mut raw = self.raw_att.lock().map_err(Into::<Error>::into)?;
+            if let Some(mut conn) = raw.take() {
+                conn.close();
+            }
+            return Ok(());
+        }
         self.session.disconnect(&self.device).await?;
         Ok(())
     }
 
     async fn discover_services(&self) -> Result<()> {
+        if self.has_raw_att() {
+            let raw_att_arc = self.raw_att.clone();
+            tokio::task::spawn_blocking(move || {
+                let mut raw = raw_att_arc.lock().map_err(Into::<Error>::into)?;
+                let conn = raw
+                    .as_mut()
+                    .ok_or_else(|| Error::Other("No raw ATT connection".into()))?;
+                conn.discover_services()
+            })
+            .await
+            .map_err(|e| Error::Other(Box::new(e)))??;
+
+            self.populate_services_from_raw_att()?;
+            return Ok(());
+        }
+
+        // Standard D-Bus path
         let mut services_internal = HashMap::new();
         let services = self.session.get_services(&self.device).await?;
         for service in services {
@@ -187,7 +320,6 @@ impl api::Peripheral for Peripheral {
                     .into_iter()
                     .fold(
                         // Only consider the first characteristic of each UUID
-                        // This "should" be unique, but of course it's not enforced
                         HashMap::<Uuid, CharacteristicInfo>::new(),
                         |mut map, characteristic| {
                             if !map.contains_key(&characteristic.uuid) {
@@ -232,6 +364,29 @@ impl api::Peripheral for Peripheral {
         data: &[u8],
         write_type: WriteType,
     ) -> Result<()> {
+        if self.has_raw_att() {
+            let svc_uuid = characteristic.service_uuid;
+            let char_uuid = characteristic.uuid;
+            let data = data.to_vec();
+            let raw_att_arc = self.raw_att.clone();
+            let wt = write_type;
+            return tokio::task::spawn_blocking(move || {
+                let raw = raw_att_arc.lock().map_err(Into::<Error>::into)?;
+                let conn = raw
+                    .as_ref()
+                    .ok_or_else(|| Error::Other("No raw ATT connection".into()))?;
+                let handle = conn
+                    .get_handle(&svc_uuid, &char_uuid)
+                    .ok_or_else(|| Error::Other("Characteristic handle not found".into()))?;
+                match wt {
+                    WriteType::WithResponse => conn.write_by_handle(handle, &data),
+                    WriteType::WithoutResponse => conn.write_cmd_by_handle(handle, &data),
+                }
+            })
+            .await
+            .map_err(|e| Error::Other(Box::new(e)))?;
+        }
+
         let characteristic_info = self.characteristic_info(characteristic)?;
         let options = WriteOptions {
             write_type: Some(write_type.into()),
@@ -244,6 +399,24 @@ impl api::Peripheral for Peripheral {
     }
 
     async fn read(&self, characteristic: &Characteristic) -> Result<Vec<u8>> {
+        if self.has_raw_att() {
+            let svc_uuid = characteristic.service_uuid;
+            let char_uuid = characteristic.uuid;
+            let raw_att_arc = self.raw_att.clone();
+            return tokio::task::spawn_blocking(move || {
+                let raw = raw_att_arc.lock().map_err(Into::<Error>::into)?;
+                let conn = raw
+                    .as_ref()
+                    .ok_or_else(|| Error::Other("No raw ATT connection".into()))?;
+                let handle = conn
+                    .get_handle(&svc_uuid, &char_uuid)
+                    .ok_or_else(|| Error::Other("Characteristic handle not found".into()))?;
+                conn.read_by_handle(handle)
+            })
+            .await
+            .map_err(|e| Error::Other(Box::new(e)))?;
+        }
+
         let characteristic_info = self.characteristic_info(characteristic)?;
         Ok(self
             .session
@@ -252,16 +425,28 @@ impl api::Peripheral for Peripheral {
     }
 
     async fn subscribe(&self, characteristic: &Characteristic) -> Result<()> {
+        if self.has_raw_att() {
+            // Notifications not yet implemented for raw ATT — the Reachy Mini
+            // BLE protocol uses poll-read, not notifications
+            return Ok(());
+        }
         let characteristic_info = self.characteristic_info(characteristic)?;
         Ok(self.session.start_notify(&characteristic_info.id).await?)
     }
 
     async fn unsubscribe(&self, characteristic: &Characteristic) -> Result<()> {
+        if self.has_raw_att() {
+            return Ok(());
+        }
         let characteristic_info = self.characteristic_info(characteristic)?;
         Ok(self.session.stop_notify(&characteristic_info.id).await?)
     }
 
     async fn notifications(&self) -> Result<Pin<Box<dyn Stream<Item = ValueNotification> + Send>>> {
+        if self.has_raw_att() {
+            // Return an empty stream — Reachy Mini uses poll-read, not notifications
+            return Ok(Box::pin(futures::stream::empty()));
+        }
         let device_id = self.device.clone();
         let events = self.session.device_event_stream(&device_id).await?;
         let services = self.services.clone();
@@ -271,6 +456,11 @@ impl api::Peripheral for Peripheral {
     }
 
     async fn write_descriptor(&self, descriptor: &Descriptor, data: &[u8]) -> Result<()> {
+        if self.has_raw_att() {
+            return Err(Error::NotSupported(
+                "Descriptor write not supported in raw ATT mode".to_string(),
+            ));
+        }
         let descriptor_info = self.descriptor_info(descriptor)?;
         Ok(self
             .session
@@ -279,6 +469,11 @@ impl api::Peripheral for Peripheral {
     }
 
     async fn read_descriptor(&self, descriptor: &Descriptor) -> Result<Vec<u8>> {
+        if self.has_raw_att() {
+            return Err(Error::NotSupported(
+                "Descriptor read not supported in raw ATT mode".to_string(),
+            ));
+        }
         let descriptor_info = self.descriptor_info(descriptor)?;
         Ok(self
             .session
@@ -317,6 +512,36 @@ fn find_characteristic_by_id(
         }
     }
     None
+}
+
+/// Convert raw ATT property byte to CharacteristicFlags
+fn raw_props_to_flags(props: u8) -> CharacteristicFlags {
+    let mut flags = CharacteristicFlags::empty();
+    if props & 0x01 != 0 {
+        flags |= CharacteristicFlags::BROADCAST;
+    }
+    if props & 0x02 != 0 {
+        flags |= CharacteristicFlags::READ;
+    }
+    if props & 0x04 != 0 {
+        flags |= CharacteristicFlags::WRITE_WITHOUT_RESPONSE;
+    }
+    if props & 0x08 != 0 {
+        flags |= CharacteristicFlags::WRITE;
+    }
+    if props & 0x10 != 0 {
+        flags |= CharacteristicFlags::NOTIFY;
+    }
+    if props & 0x20 != 0 {
+        flags |= CharacteristicFlags::INDICATE;
+    }
+    if props & 0x40 != 0 {
+        flags |= CharacteristicFlags::SIGNED_WRITE;
+    }
+    if props & 0x80 != 0 {
+        flags |= CharacteristicFlags::EXTENDED_PROPERTIES;
+    }
+    flags
 }
 
 impl From<WriteType> for bluez_async::WriteType {
