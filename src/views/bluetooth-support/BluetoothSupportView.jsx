@@ -17,6 +17,7 @@ import WifiTetheringIcon from '@mui/icons-material/WifiTethering';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import CellTowerIcon from '@mui/icons-material/CellTower';
+import ArticleIcon from '@mui/icons-material/Article';
 
 import useAppStore from '../../store/useAppStore';
 import useBluetooth from '../../hooks/bluetooth/useBluetooth';
@@ -75,6 +76,9 @@ export default function BluetoothSupportView() {
     sendCommand,
     sendPing,
     readNetworkStatus,
+    startJournal,
+    stopJournal,
+    openJournalWindow,
     checkAdapterState,
   } = useBluetooth();
 
@@ -83,6 +87,7 @@ export default function BluetoothSupportView() {
   const [activityLog, setActivityLog] = useState([]);
   const [isSending, setIsSending] = useState(false);
   const [adapterWarning, setAdapterWarning] = useState('');
+  const [journalActive, setJournalActive] = useState(false);
   const logEndRef = useRef(null);
 
   const textPrimary = darkMode ? '#f5f5f5' : '#333';
@@ -98,6 +103,26 @@ export default function BluetoothSupportView() {
   const addLog = useCallback((message, type = 'info') => {
     setActivityLog(prev => [...prev, { time: timestamp(), message, type }]);
   }, []);
+
+  // Journal start/stop handlers
+  const handleJournalStart = useCallback(async () => {
+    if (journalActive) return;
+    try {
+      await openJournalWindow();
+      await startJournal();
+      setJournalActive(true);
+      addLog('Journal streaming started (see Journal window)', 'success');
+    } catch (e) {
+      addLog(`Journal error: ${e.message}`, 'error');
+    }
+  }, [journalActive, startJournal, openJournalWindow, addLog]);
+
+  const handleJournalStop = useCallback(async () => {
+    if (!journalActive) return;
+    await stopJournal();
+    setJournalActive(false);
+    addLog('Journal streaming stopped', 'info');
+  }, [journalActive, stopJournal, addLog]);
 
   // Step 1: Handle connect to a device
   const handleConnect = useCallback(
@@ -172,14 +197,21 @@ export default function BluetoothSupportView() {
 
   // Disconnect handler
   const handleDisconnect = useCallback(async () => {
+    if (journalActive) {
+      await stopJournal();
+      setJournalActive(false);
+    }
     await disconnectDevice();
     addLog('Disconnected', 'info');
     setActiveStep(0);
-  }, [disconnectDevice, addLog]);
+  }, [disconnectDevice, journalActive, stopJournal, addLog]);
 
-  const handleClose = () => {
+  const handleClose = async () => {
     if (bleStatus === 'connected') {
-      disconnectDevice();
+      if (journalActive) {
+        await stopJournal();
+      }
+      await disconnectDevice();
     }
     setShowBluetoothSupportView(false);
   };
@@ -530,6 +562,35 @@ export default function BluetoothSupportView() {
                     {cmd.label}
                   </Button>
                 ))}
+                {/* Journal toggle button */}
+                <Button
+                  variant="outlined"
+                  onClick={journalActive ? handleJournalStop : handleJournalStart}
+                  disabled={bleStatus !== 'connected'}
+                  startIcon={<ArticleIcon sx={{ fontSize: 16 }} />}
+                  sx={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    py: 0.75,
+                    px: 1.5,
+                    borderRadius: '8px',
+                    borderColor: journalActive ? '#22c55e' : '#6366f1',
+                    color: journalActive ? '#22c55e' : '#6366f1',
+                    '&:hover': {
+                      borderColor: journalActive ? '#16a34a' : '#6366f1',
+                      bgcolor: journalActive
+                        ? 'rgba(34, 197, 94, 0.08)'
+                        : 'rgba(99, 102, 241, 0.08)',
+                    },
+                    '&.Mui-disabled': {
+                      borderColor: borderColor,
+                      color: textSecondary,
+                    },
+                  }}
+                >
+                  {journalActive ? 'Stop Journal' : 'Journal'}
+                </Button>
               </Box>
 
               {/* Activity log */}
