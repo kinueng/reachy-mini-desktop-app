@@ -17,6 +17,7 @@ import {
   SettingsWifiCard,
   SettingsPreferencesCard,
   SettingsCacheCard,
+  SettingsDaemonCard,
   ChangeWifiOverlay,
 } from './settings';
 
@@ -729,9 +730,12 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
             />
           )}
 
-          {/* Row 2: Preferences (Appearance + Privacy) + Cache (WiFi only) */}
+          {/* Row 2: Preferences + Daemon Control (WiFi) or just Preferences */}
           <SettingsPreferencesCard darkMode={darkMode} cardStyle={cardStyle} />
 
+          {isWifiMode && <SettingsDaemonCard darkMode={darkMode} cardStyle={cardStyle} />}
+
+          {/* Row 3: Cache (WiFi only) */}
           {isWifiMode && (
             <SettingsCacheCard
               darkMode={darkMode}
