@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   connect as blecConnect,
   disconnect as blecDisconnect,
@@ -8,6 +8,8 @@ import {
   readString,
   sendString,
 } from '@mnlphlp/plugin-blec';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { emit, listen } from '../../utils/tauriCompat';
 import useAppStore from '../../store/useAppStore';
 
 // BLE UUIDs for Reachy Mini (from bluetooth_service.py)
@@ -134,12 +136,30 @@ export default function useBluetooth() {
     [setBleStatus, setBleDeviceAddress]
   );
 
-  // Disconnect
+  // Disconnect — also stops journal and closes its window
   const disconnectDevice = useCallback(async () => {
+    // Stop journal polling first (before BLE disconnect)
+    journalActiveRef.current = false;
+    if (journalPollRef.current) {
+      clearTimeout(journalPollRef.current);
+      journalPollRef.current = null;
+    }
+    try {
+      await sendString(COMMAND_CHAR_UUID, 'JOURNAL_STOP', 'withoutResponse', CMD_SERVICE_UUID);
+    } catch {
+      // May fail if already disconnected
+    }
     try {
       await blecDisconnect();
     } catch (e) {
       console.error('[BLE] Disconnect error:', e);
+    }
+    emit('journal:status', 'stopped');
+    try {
+      const win = WebviewWindow.getByLabel('journal-viewer');
+      if (win) await win.close();
+    } catch {
+      // Window may not exist
     }
     setBleStatus('disconnected');
     setBleDeviceAddress(null);
@@ -199,10 +219,135 @@ export default function useBluetooth() {
     return await readString(NETWORK_STATUS_CHAR_UUID, STATUS_SERVICE_UUID);
   }, [bleStatus]);
 
+  const journalActiveRef = useRef(false);
+  const journalPollRef = useRef(null);
+
+  // Poll the server for buffered journal data
+  const _pollJournal = useCallback(async () => {
+    if (!journalActiveRef.current) return;
+    try {
+      await sendString(COMMAND_CHAR_UUID, 'JOURNAL_READ', 'withoutResponse', CMD_SERVICE_UUID);
+      await new Promise(r => setTimeout(r, RESPONSE_READ_DELAY));
+      const chunk = await readString(RESPONSE_CHAR_UUID, CMD_SERVICE_UUID);
+      console.log('[BLE] Journal poll result:', chunk?.length, 'bytes', chunk?.substring(0, 80));
+      if (chunk && chunk.length > 0) {
+        emit('journal:data', chunk);
+      }
+    } catch (e) {
+      console.warn('[BLE] Journal poll error:', e);
+    }
+    // Schedule next poll if still active
+    if (journalActiveRef.current) {
+      journalPollRef.current = setTimeout(() => _pollJournal(), 300);
+    }
+  }, []);
+
+  // Start journal streaming — tells server to start, begins polling
+  const startJournal = useCallback(async () => {
+    if (bleStatus !== 'connected') {
+      throw new Error('Not connected');
+    }
+    await sendString(COMMAND_CHAR_UUID, 'JOURNAL_START', 'withoutResponse', CMD_SERVICE_UUID);
+    await new Promise(r => setTimeout(r, RESPONSE_READ_DELAY));
+    await readString(RESPONSE_CHAR_UUID, CMD_SERVICE_UUID); // consume the "OK" response
+    journalActiveRef.current = true;
+    emit('journal:status', 'started');
+    // Start polling loop
+    _pollJournal();
+  }, [bleStatus, _pollJournal]);
+
+  // Close the journal window if open
+  const _closeJournalWindow = useCallback(async () => {
+    try {
+      const win = WebviewWindow.getByLabel('journal-viewer');
+      if (win) await win.close();
+    } catch {
+      // Window may already be gone
+    }
+  }, []);
+
+  // Stop journal streaming and close the window
+  const stopJournal = useCallback(async () => {
+    journalActiveRef.current = false;
+    if (journalPollRef.current) {
+      clearTimeout(journalPollRef.current);
+      journalPollRef.current = null;
+    }
+    try {
+      await sendString(COMMAND_CHAR_UUID, 'JOURNAL_STOP', 'withoutResponse', CMD_SERVICE_UUID);
+    } catch (e) {
+      console.warn('[BLE] Error sending JOURNAL_STOP:', e);
+    }
+    emit('journal:status', 'stopped');
+    await _closeJournalWindow();
+  }, [_closeJournalWindow]);
+
+  // Open the journal in a separate window
+  const openJournalWindow = useCallback(async () => {
+    const label = 'journal-viewer';
+    // Focus if already open
+    const existing = WebviewWindow.getByLabel(label);
+    if (existing) {
+      try {
+        await existing.setFocus();
+        return;
+      } catch {
+        // Window gone, recreate
+      }
+    }
+    new WebviewWindow(label, {
+      url: '/#journal',
+      title: 'Reachy Journal',
+      width: 700,
+      height: 500,
+      center: true,
+      resizable: true,
+      decorations: true,
+      focus: true,
+    });
+  }, []);
+
+  // Listen for stop requests from the journal window
+  useEffect(() => {
+    let unlistenStop;
+    let unlistenStatus;
+    const setup = async () => {
+      unlistenStop = await listen('journal:stop', () => {
+        stopJournal();
+      });
+      // Respond to status requests from newly opened journal windows
+      unlistenStatus = await listen('journal:request-status', () => {
+        emit('journal:status', journalActiveRef.current ? 'started' : 'stopped');
+      });
+    };
+    setup();
+    return () => {
+      if (unlistenStop) unlistenStop();
+      if (unlistenStatus) unlistenStatus();
+    };
+  }, [stopJournal]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      // Stop journal polling
+      journalActiveRef.current = false;
+      if (journalPollRef.current) {
+        clearTimeout(journalPollRef.current);
+        journalPollRef.current = null;
+      }
+      // Close journal window
+      try {
+        const win = WebviewWindow.getByLabel('journal-viewer');
+        if (win) win.close();
+      } catch {
+        // ignore
+      }
       if (bleStatus === 'connected') {
+        // Send JOURNAL_STOP before disconnecting
+        sendString(COMMAND_CHAR_UUID, 'JOURNAL_STOP', 'withoutResponse', CMD_SERVICE_UUID).catch(
+          () => {}
+        );
         blecDisconnect().catch(() => {});
       }
     };
@@ -223,6 +368,9 @@ export default function useBluetooth() {
     sendPing,
     sendStatus,
     readNetworkStatus,
+    startJournal,
+    stopJournal,
+    openJournalWindow,
     checkAdapterState,
 
     // Store actions (for PIN)
