@@ -51,6 +51,10 @@
 		<string>1</string>
 	</dict>
 	
+	<!-- Bluetooth permission for BLE troubleshooting -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Reachy Mini uses Bluetooth to troubleshoot and restore your robot when WiFi is unavailable</string>
+
 	<!-- Minimum system version -->
 	<key>LSMinimumSystemVersion</key>
 	<string>10.15</string>

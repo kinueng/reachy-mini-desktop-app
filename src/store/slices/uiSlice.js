@@ -33,6 +33,12 @@ export const uiInitialState = {
   rightPanelView: null, // null | 'controller' | 'expressions'
   showFirstTimeWifiSetup: false, // true when showing first time WiFi setup view
   showBluetoothSupportView: false, // true when showing Bluetooth support/reset view
+  showSetupChoice: false, // true when showing setup choice overlay (WiFi vs Bluetooth)
+  // BLE state
+  bleStatus: 'disconnected', // 'disconnected' | 'scanning' | 'connecting' | 'connected'
+  bleDevices: [],
+  bleDeviceAddress: null,
+  blePin: '', // per-device PIN, loaded when device connects via bleDeviceAddress
   // 🔄 Update view state - user can skip proposed updates
   updateSkipped: false, // true when user clicks "Skip" on update view
   // 🍞 Global toast notification state
@@ -79,6 +85,38 @@ export const createUISlice = (set, get) => ({
 
   // Bluetooth support view management
   setShowBluetoothSupportView: value => set({ showBluetoothSupportView: value }),
+
+  // Setup choice overlay management
+  setShowSetupChoice: value => set({ showSetupChoice: value }),
+
+  // BLE state management
+  setBleStatus: value => set({ bleStatus: value }),
+  setBleDevices: value => set({ bleDevices: value }),
+  setBleDeviceAddress: value => set({ bleDeviceAddress: value }),
+  setBlePin: value => {
+    // Store PIN keyed by connected device MAC address
+    const addr = get().bleDeviceAddress;
+    if (addr) {
+      try {
+        const pins = JSON.parse(localStorage.getItem('blePins') || '{}');
+        pins[addr] = value;
+        localStorage.setItem('blePins', JSON.stringify(pins));
+      } catch {
+        // ignore
+      }
+    }
+    set({ blePin: value });
+  },
+  // Load cached PIN for the given device address
+  loadBlePinForDevice: addr => {
+    try {
+      const pins = JSON.parse(localStorage.getItem('blePins') || '{}');
+      const pin = pins[addr] || '';
+      set({ blePin: pin });
+    } catch {
+      set({ blePin: '' });
+    }
+  },
 
   // Update skip management
   skipUpdate: () => set({ updateSkipped: true }),

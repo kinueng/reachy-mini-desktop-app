@@ -29,6 +29,7 @@
       "macos-permissions:allow-check-microphone-permission",
       "macos-permissions:allow-request-microphone-permission",
     "deep-link:default",
+    "blec:default",
     "log:default",
     "posthog:default",
     "posthog:allow-get-config",

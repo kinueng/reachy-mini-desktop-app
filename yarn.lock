@@ -965,6 +965,13 @@
   resolved "https://registry.npmjs.org/@mediapipe/tasks-vision/-/tasks-vision-0.10.17.tgz"
   integrity sha512-CZWV/q6TTe8ta61cZXjfnnHsfWIdFhms03M9T7Cnd5y2mdpylJM0rF1qRq+wsQVRMLz1OYPVEBU9ph2Bx8cxrg==
 
+"@mnlphlp/plugin-blec@^0.8.0":
+  version "0.8.0"
+  resolved "https://registry.yarnpkg.com/@mnlphlp/plugin-blec/-/plugin-blec-0.8.0.tgz#2349fd7ccb797bdda396fd3641a36cda33e7cfff"
+  integrity sha512-KFcjgHkNi7poymIGbF+9VpmB2D9iEmPJKERiVaw2jDFO2dO5Om7kQ0JoYJZts59iT3qpNYUy8t5vtA6UOYcgFw==
+  dependencies:
+    "@tauri-apps/api" ">=2.0.0-beta.6"
+
 "@monogrid/gainmap-js@^3.0.6":
   version "3.1.0"
   resolved "https://registry.npmjs.org/@monogrid/gainmap-js/-/gainmap-js-3.1.0.tgz"
@@ -1650,6 +1657,11 @@
   version "3.13.12"
   resolved "https://registry.npmjs.org/@tanstack/virtual-core/-/virtual-core-3.13.12.tgz"
   integrity sha512-1YBOJfRHV4sXUmWsFSf5rQor4Ss82G8dQWLRbnk3GA4jeP8hQt1hxXh0tmflpC0dz3VgEv/1+qwPyLeWkQuPFA==
+
+"@tauri-apps/api@>=2.0.0-beta.6":
+  version "2.10.1"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.10.1.tgz#57c1bae6114ec33d977eb2b50dfefc25fa84fc93"
+  integrity sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==
 
 "@tauri-apps/api@^2.0.0":
   version "2.9.1"

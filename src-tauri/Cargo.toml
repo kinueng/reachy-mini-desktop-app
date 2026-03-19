@@ -28,6 +28,7 @@ tauri-plugin-updater = "2.0"
 tauri-plugin-macos-permissions = "2.3"
 tauri-plugin-http = "2"
 tauri-plugin-deep-link = "2"
+tauri-plugin-blec = "0.8"
 tauri-plugin-posthog = "0.2"
 tauri-plugin-automation = "0.1"
 tauri-plugin-os = "2"
@@ -47,6 +48,11 @@ lazy_static = "1.4"
 mdns-sd = "0.11"
 default-net = "0.22"
 dirs = "6.0.0"
+
+# Local patch for btleplug CoreBluetooth panic
+# See: https://github.com/deviceplug/btleplug/issues/397
+[patch.crates-io]
+btleplug = { path = "btleplug-patch" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.25"
