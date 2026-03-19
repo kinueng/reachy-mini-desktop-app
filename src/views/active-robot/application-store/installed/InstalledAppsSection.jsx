@@ -21,7 +21,6 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import DiscoverAppsButton from '../discover/Button';
 import ReachiesCarousel from '@components/ReachiesCarousel';
 import { getDaemonHostname } from '../../../../config/daemon';
-import { openAppWindow } from '../../../../utils/windowManager';
 import useAppStore from '../../../../store/useAppStore';
 
 // ✅ Timeout for app to transition from "starting" to "running"
@@ -250,12 +249,30 @@ function OpenAppButton({
     60000 // 60 seconds timeout (doubled for slow app startups)
   );
 
-  // Reset timeout state when app stops/starts
+  // Reset state when app stops/starts
   useEffect(() => {
     if (!isStartingOrRunning) {
       setHasTimedOut(false);
+      // Reset dismissed flag so next app launch can auto-open
+      useAppStore.getState().resetEmbeddedAppDismissed();
     }
   }, [isStartingOrRunning]);
+
+  // Auto-open the embedded view as soon as the URL becomes accessible
+  useEffect(() => {
+    if (!isAccessible || !customAppUrl) return;
+    const store = useAppStore.getState();
+    // Don't auto-open if user dismissed, or if already embedded
+    if (store.embeddedAppDismissed) return;
+    if (store.rightPanelView === 'embedded-app') return;
+    try {
+      const url = new URL(customAppUrl);
+      url.hostname = getDaemonHostname();
+      store.openEmbeddedApp(url.toString());
+    } catch {
+      // URL parsing failed — user can still open manually
+    }
+  }, [isAccessible, customAppUrl]);
 
   // Don't show button if no URL
   if (!customAppUrl) return null;
@@ -266,24 +283,16 @@ function OpenAppButton({
   // Don't show button if timed out (app will be in error state)
   if (hasTimedOut) return null;
 
-  // Only show button if still checking (waiting)
-  // Once accessible, show the active button
+  // Don't show button if already embedded
+  const store = useAppStore.getState();
+  if (store.rightPanelView === 'embedded-app' && store.embeddedAppUrl) return null;
+
   const handleClick = async e => {
     e.stopPropagation();
     try {
       const url = new URL(customAppUrl);
       url.hostname = getDaemonHostname();
-
-      // Open in a dedicated Tauri window (falls back to browser if not in Tauri)
-      const appWindow = await openAppWindow(appName, url.toString());
-      if (!appWindow) {
-        try {
-          const { open } = await import('@tauri-apps/plugin-shell');
-          await open(url.toString());
-        } catch {
-          window.open(url.toString(), '_blank', 'noopener,noreferrer');
-        }
-      }
+      useAppStore.getState().openEmbeddedApp(url.toString());
     } catch (err) {
       console.error('Failed to open app web interface:', err);
     }

@@ -5,6 +5,7 @@ import ControlButtons from './ControlButtons';
 import HfLoginOverlay from './applications/HfLoginOverlay';
 import { ControllerSection } from './controller';
 import ExpressionsSection from './expressions';
+import EmbeddedAppView from './EmbeddedAppView';
 import { useActiveRobotContext } from '../context';
 import { useHfAuth } from '../../../hooks/auth';
 
@@ -144,7 +145,9 @@ export default function RightPanel({
         )}
 
         {/* Conditional rendering based on rightPanelView */}
-        {rightPanelView === 'controller' ? (
+        {rightPanelView === 'embedded-app' ? (
+          <EmbeddedAppView darkMode={darkMode} />
+        ) : rightPanelView === 'controller' ? (
           <ControllerSection showToast={showToast} isBusy={isBusy} darkMode={darkMode} />
         ) : rightPanelView === 'expressions' ? (
           <ExpressionsSection isBusy={isBusy} darkMode={darkMode} />

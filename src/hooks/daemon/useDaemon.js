@@ -522,6 +522,7 @@ export const useDaemon = () => {
       }
     }
     await closeAllAppWindows();
+    useAppStore.getState().closeEmbeddedApp();
 
     // Wait for any daemon goto_target to complete
     await new Promise(resolve => setTimeout(resolve, 500));

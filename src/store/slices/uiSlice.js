@@ -30,7 +30,9 @@ const getInitialDarkMode = () => {
 export const uiInitialState = {
   darkMode: getInitialDarkMode(),
   openWindows: [],
-  rightPanelView: null, // null | 'controller' | 'expressions'
+  rightPanelView: null, // null | 'controller' | 'expressions' | 'embedded-app'
+  embeddedAppUrl: null, // URL to display in the right panel iframe when rightPanelView === 'embedded-app'
+  embeddedAppDismissed: false, // true when user manually closed the embedded view (prevents auto-reopen)
   showFirstTimeWifiSetup: false, // true when showing first time WiFi setup view
   showBluetoothSupportView: false, // true when showing Bluetooth support/reset view
   showSetupChoice: false, // true when showing setup choice overlay (WiFi vs Bluetooth)
@@ -79,6 +81,15 @@ export const createUISlice = (set, get) => ({
 
   // Right panel view management
   setRightPanelView: view => set({ rightPanelView: view }),
+
+  // Embedded app management
+  setEmbeddedAppUrl: url => set({ embeddedAppUrl: url }),
+  openEmbeddedApp: url =>
+    set({ rightPanelView: 'embedded-app', embeddedAppUrl: url, embeddedAppDismissed: false }),
+  closeEmbeddedApp: () => set({ rightPanelView: null, embeddedAppUrl: null }),
+  dismissEmbeddedApp: () =>
+    set({ rightPanelView: null, embeddedAppUrl: null, embeddedAppDismissed: true }),
+  resetEmbeddedAppDismissed: () => set({ embeddedAppDismissed: false }),
 
   // First time WiFi setup view management
   setShowFirstTimeWifiSetup: value => set({ showFirstTimeWifiSetup: value }),
