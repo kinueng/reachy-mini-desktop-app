@@ -44,6 +44,8 @@ export default function RightPanel({
     [isAuthenticated, username, avatarUrl]
   );
 
+  const [loginSkipped, setLoginSkipped] = useState(false);
+
   const scrollRef = useRef(null);
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
@@ -134,10 +136,11 @@ export default function RightPanel({
         }}
       >
         {/* HF Login Overlay — covers content when not authenticated */}
-        {!isAuthenticated && (
+        {!isAuthenticated && !loginSkipped && (
           <HfLoginOverlay
             darkMode={darkMode}
             onLogin={handleLogin}
+            onSkip={() => setLoginSkipped(true)}
             isLoading={hfLoading}
             isWaitingForAuth={isWaitingForAuth}
             error={hfError}
