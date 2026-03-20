@@ -563,6 +563,14 @@ This project uses **GitHub's auto-generated release notes** based on PR labels. 
    - Creates GitHub Release with auto-generated notes
    - Deploys `latest.json` to GitHub Pages for auto-updates
 
+6. **Merge `main` back into `develop`** to sync the version bump:
+   ```bash
+   git checkout develop
+   git merge main
+   git push origin develop
+   ```
+   This ensures `develop` reflects the latest released version and avoids stale version numbers during development.
+
 ### Version Files
 
 Three files must be updated together when bumping version:
