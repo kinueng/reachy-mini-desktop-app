@@ -44,6 +44,8 @@ export default function RightPanel({
     [isAuthenticated, username, avatarUrl]
   );
 
+  const isEmbeddedApp = rightPanelView === 'embedded-app';
+
   const scrollRef = useRef(null);
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
@@ -81,7 +83,7 @@ export default function RightPanel({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        overflowY: isAuthenticated ? 'scroll' : 'hidden',
+        overflowY: isEmbeddedApp || !isAuthenticated ? 'hidden' : 'scroll',
         overflowX: 'hidden',
         pt: 0,
         bgcolor: 'transparent !important',
@@ -103,25 +105,27 @@ export default function RightPanel({
         },
       }}
     >
-      {/* Top gradient for depth effect on scroll - only visible when scrolled */}
-      <Box
-        sx={{
-          position: 'sticky',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '32px',
-          background: darkMode
-            ? 'linear-gradient(to bottom, rgba(26, 26, 26, 1) 0%, rgba(26, 26, 26, 0.6) 40%, rgba(26, 26, 26, 0) 100%)'
-            : 'linear-gradient(to bottom, rgba(250, 250, 252, 1) 0%, rgba(250, 250, 252, 0.6) 40%, rgba(250, 250, 252, 0) 100%)',
-          pointerEvents: 'none',
-          zIndex: 10,
-          flexShrink: 0,
-          marginBottom: '-32px', // Overlay on top of content
-          opacity: showTopGradient ? 1 : 0,
-          transition: 'opacity 0.2s ease-out',
-        }}
-      />
+      {/* Top gradient for depth effect on scroll - hidden for embedded apps */}
+      {!isEmbeddedApp && (
+        <Box
+          sx={{
+            position: 'sticky',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '32px',
+            background: darkMode
+              ? 'linear-gradient(to bottom, rgba(26, 26, 26, 1) 0%, rgba(26, 26, 26, 0.6) 40%, rgba(26, 26, 26, 0) 100%)'
+              : 'linear-gradient(to bottom, rgba(250, 250, 252, 1) 0%, rgba(250, 250, 252, 0.6) 40%, rgba(250, 250, 252, 0) 100%)',
+            pointerEvents: 'none',
+            zIndex: 10,
+            flexShrink: 0,
+            marginBottom: '-32px',
+            opacity: showTopGradient ? 1 : 0,
+            transition: 'opacity 0.2s ease-out',
+          }}
+        />
+      )}
 
       {/* Content wrapper — relative so the login overlay can cover it */}
       <Box
@@ -145,7 +149,7 @@ export default function RightPanel({
         )}
 
         {/* Conditional rendering based on rightPanelView */}
-        {rightPanelView === 'embedded-app' ? (
+        {isEmbeddedApp ? (
           <EmbeddedAppView darkMode={darkMode} />
         ) : rightPanelView === 'controller' ? (
           <ControllerSection showToast={showToast} isBusy={isBusy} darkMode={darkMode} />
@@ -171,25 +175,27 @@ export default function RightPanel({
         )}
       </Box>
 
-      {/* Bottom gradient for depth effect on scroll - only visible when more content below */}
-      <Box
-        sx={{
-          position: 'sticky',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '32px',
-          background: darkMode
-            ? 'linear-gradient(to top, rgba(26, 26, 26, 1) 0%, rgba(26, 26, 26, 0.6) 40%, rgba(26, 26, 26, 0) 100%)'
-            : 'linear-gradient(to top, rgba(250, 250, 252, 1) 0%, rgba(250, 250, 252, 0.6) 40%, rgba(250, 250, 252, 0) 100%)',
-          pointerEvents: 'none',
-          zIndex: 10,
-          flexShrink: 0,
-          marginTop: '-32px', // Overlay on top of content
-          opacity: showBottomGradient ? 1 : 0,
-          transition: 'opacity 0.2s ease-out',
-        }}
-      />
+      {/* Bottom gradient for depth effect on scroll - hidden for embedded apps */}
+      {!isEmbeddedApp && (
+        <Box
+          sx={{
+            position: 'sticky',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '32px',
+            background: darkMode
+              ? 'linear-gradient(to top, rgba(26, 26, 26, 1) 0%, rgba(26, 26, 26, 0.6) 40%, rgba(26, 26, 26, 0) 100%)'
+              : 'linear-gradient(to top, rgba(250, 250, 252, 1) 0%, rgba(250, 250, 252, 0.6) 40%, rgba(250, 250, 252, 0) 100%)',
+            pointerEvents: 'none',
+            zIndex: 10,
+            flexShrink: 0,
+            marginTop: '-32px',
+            opacity: showBottomGradient ? 1 : 0,
+            transition: 'opacity 0.2s ease-out',
+          }}
+        />
+      )}
     </Box>
   );
 }

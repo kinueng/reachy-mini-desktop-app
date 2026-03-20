@@ -61,7 +61,7 @@ function ActiveRobotView({
   } = robotState;
 
   // Extract actions from context
-  const { resetTimeouts, update, triggerEffect, stopEffect, isBusy, isReady } = actions;
+  const { resetTimeouts, triggerEffect, stopEffect, isBusy, isReady } = actions;
 
   // Compute busy/ready state
   const isBusyState = isBusy();
@@ -266,12 +266,8 @@ function ActiveRobotView({
   // Quick Actions: Curated mix of emotions, dances, and actions (no redundancy)
   const quickActions = QUICK_ACTIONS;
 
-  // Handler to restart daemon after crash
   const handleRestartDaemon = useCallback(async () => {
     resetTimeouts();
-    update({ isDaemonCrashed: false, isActive: false });
-
-    // Switch to "starting" mode to relaunch
     try {
       await stopDaemon();
       setTimeout(() => {
@@ -280,7 +276,7 @@ function ActiveRobotView({
     } catch {
       window.location.reload();
     }
-  }, [resetTimeouts, update, stopDaemon]);
+  }, [resetTimeouts, stopDaemon]);
 
   return (
     <WebRTCStreamProvider>
@@ -334,7 +330,7 @@ function ActiveRobotView({
                 letterSpacing: '0.2px',
               }}
             >
-              Connection Lost
+              Something went wrong
             </Typography>
 
             {/* Description */}
@@ -346,10 +342,11 @@ function ActiveRobotView({
                 lineHeight: 1.6,
               }}
             >
-              The daemon is not responding.
+              The connection to your Reachy Mini was interrupted. This can happen if the robot lost
+              power, the network dropped, or the daemon crashed.
             </Typography>
 
-            {/* Reconnect button */}
+            {/* Restart button */}
             <Button
               variant="outlined"
               color="primary"
@@ -363,7 +360,7 @@ function ActiveRobotView({
                 textTransform: 'none',
               }}
             >
-              Reconnect
+              Restart
             </Button>
           </Box>
         </FullscreenOverlay>
