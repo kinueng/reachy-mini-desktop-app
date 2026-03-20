@@ -266,7 +266,10 @@ function ActiveRobotView({
   // Quick Actions: Curated mix of emotions, dances, and actions (no redundancy)
   const quickActions = QUICK_ACTIONS;
 
+  const [isRestarting, setIsRestarting] = useState(false);
+
   const handleRestartDaemon = useCallback(async () => {
+    setIsRestarting(true);
     resetTimeouts();
     try {
       await stopDaemon();
@@ -342,15 +345,20 @@ function ActiveRobotView({
                 lineHeight: 1.6,
               }}
             >
-              The connection to your Reachy Mini was interrupted. This can happen if the robot lost
-              power, the network dropped, or the daemon crashed.
+              {isRestarting
+                ? 'Restarting the daemon, please wait...'
+                : 'The connection to your Reachy Mini was interrupted. This can happen if the robot lost power, the network dropped, or the daemon crashed.'}
             </Typography>
 
             {/* Restart button */}
             <Button
               variant="outlined"
               color="primary"
+              disabled={isRestarting}
               onClick={handleRestartDaemon}
+              startIcon={
+                isRestarting ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : null
+              }
               sx={{
                 fontWeight: 600,
                 fontSize: 13,
@@ -360,7 +368,7 @@ function ActiveRobotView({
                 textTransform: 'none',
               }}
             >
-              Restart
+              {isRestarting ? 'Restarting...' : 'Restart'}
             </Button>
           </Box>
         </FullscreenOverlay>
