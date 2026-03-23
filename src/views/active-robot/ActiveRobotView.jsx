@@ -516,7 +516,7 @@ function ActiveRobotView({
                 onSpeakerMute={handleSpeakerMute}
                 onMicrophoneMute={handleMicrophoneMute}
                 darkMode={darkMode}
-                disabled={isBusyState}
+                disabled={isBusyState && !isAppRunning}
                 isSleeping={false}
               />
             </Box>
