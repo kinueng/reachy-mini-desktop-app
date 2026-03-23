@@ -15,7 +15,7 @@ import { isSimulationMode } from '../utils/simulationMode';
  * above MUI Modals (which also use portals) regardless of parent stacking context.
  */
 export default function AppTopBar() {
-  const { darkMode, connectionMode } = useAppStore();
+  const { darkMode, connectionMode, rightPanelView } = useAppStore();
   const [currentVersion, setCurrentVersion] = useState('');
   const [isMainWindow, setIsMainWindow] = useState(true);
   const appWindow = getAppWindow();
@@ -61,13 +61,14 @@ export default function AppTopBar() {
         position: 'fixed',
         top: 0,
         left: 65,
-        right: 0,
+        right: rightPanelView === 'embedded-app' ? '450px' : 0,
         height: 33,
         cursor: 'move',
         userSelect: 'none',
         WebkitAppRegion: 'drag',
         bgcolor: 'transparent',
-        zIndex: 10000000, // Above MUI Modals (9999) and FullscreenOverlay (9999)
+        zIndex: 10000000,
+        transition: 'right 0.15s ease',
       }}
     >
       {/* Version number à droite - only visible in main window and when not connected */}

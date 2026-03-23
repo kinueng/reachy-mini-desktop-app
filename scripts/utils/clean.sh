@@ -18,6 +18,9 @@ DIRS_TO_CLEAN=(
   "test-updates"                  # Test update files
 )
 
+# macOS Application Support data (daemon apps, venvs, metadata)
+APP_SUPPORT_DIR="$HOME/Library/Application Support/com.pollen-robotics.reachy-mini"
+
 # Temporary files to remove
 FILES_TO_CLEAN=(
   "*.log"                         # Log files
@@ -41,6 +44,14 @@ for pattern in "${FILES_TO_CLEAN[@]}"; do
     rm -f $pattern
   fi
 done
+
+# Remove Application Support data (installed apps, venvs, metadata)
+if [ -d "$APP_SUPPORT_DIR" ]; then
+  echo "  ❌ Removing Application Support data: $APP_SUPPORT_DIR"
+  rm -rf "$APP_SUPPORT_DIR"
+else
+  echo "  ⏭️  Application Support data does not exist (already clean)"
+fi
 
 echo "✅ Cleanup complete!"
 echo ""
