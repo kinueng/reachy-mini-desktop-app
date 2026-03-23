@@ -44,6 +44,7 @@ export default function RightPanel({
     [isAuthenticated, username, avatarUrl]
   );
 
+  const [loginSkipped, setLoginSkipped] = useState(false);
   const isEmbeddedApp = rightPanelView === 'embedded-app';
 
   const scrollRef = useRef(null);
@@ -138,10 +139,11 @@ export default function RightPanel({
         }}
       >
         {/* HF Login Overlay — covers content when not authenticated */}
-        {!isAuthenticated && (
+        {!isAuthenticated && !loginSkipped && (
           <HfLoginOverlay
             darkMode={darkMode}
             onLogin={handleLogin}
+            onSkip={() => setLoginSkipped(true)}
             isLoading={hfLoading}
             isWaitingForAuth={isWaitingForAuth}
             error={hfError}
