@@ -40,7 +40,7 @@ const steps = ['Power On', 'Connect to Hotspot', 'Configure WiFi', 'Reconnecting
  * 5. Success - Connect to Reachy
  */
 export default function FirstTimeWifiSetupView() {
-  const { darkMode, setShowFirstTimeWifiSetup, setShowBluetoothSupportView } = useAppStore();
+  const { darkMode, setShowFirstTimeWifiSetup } = useAppStore();
   const [activeStep, setActiveStep] = useState(0);
   const [configuredNetwork, setConfiguredNetwork] = useState(null);
 
@@ -560,27 +560,6 @@ export default function FirstTimeWifiSetupView() {
             />
           )}
         </Box>
-
-        {/* Help link */}
-        <Typography
-          onClick={() => {
-            setShowFirstTimeWifiSetup(false);
-            setShowBluetoothSupportView(true);
-          }}
-          sx={{
-            fontSize: 11,
-            color: textSecondary,
-            textAlign: 'center',
-            mt: 2,
-            cursor: 'pointer',
-            textDecoration: 'underline',
-            '&:hover': {
-              color: '#FF9500',
-            },
-          }}
-        >
-          Having trouble detecting Reachy? Click here
-        </Typography>
       </Box>
 
       {/* Toast Notifications - handled by global Toast in App.jsx */}

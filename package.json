@@ -2,7 +2,7 @@
   "name": "reachy_mini_desktop_app",
   "description": "Desktop application for controlling and monitoring Reachy Mini robots, built with Tauri and React",
   "private": true,
-  "version": "0.9.19",
+  "version": "0.9.20",
   "type": "module",
   "engines": {
     "node": ">=24.4.0",
@@ -77,6 +77,7 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@mnlphlp/plugin-blec": "^0.8.0",
     "@mui/icons-material": "^7.3.5",
     "@mui/material": "^7.3.5",
     "@react-three/drei": "^10.7.6",

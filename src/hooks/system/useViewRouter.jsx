@@ -5,6 +5,7 @@ import {
   FindingRobotView,
   FirstTimeWifiSetupView,
   BluetoothSupportView,
+  SetupChoiceView,
   StartingView,
   ClosingView,
   UpdateView,
@@ -21,8 +22,9 @@ import useAppStore from '../../store/useAppStore';
  * Priority order:
  * 0.   Permissions (macOS only) - Blocks app until permissions granted
  * 1.   Update view - Check and download updates
- * 2.   First time WiFi setup - Guided WiFi configuration wizard
- * 2.5. Bluetooth support - Links to external Bluetooth reset tool
+ * 2.   Setup choice - WiFi vs Bluetooth choice overlay
+ * 2.5. First time WiFi setup - Guided WiFi configuration wizard
+ * 2.75. Bluetooth support - Native BLE reset tool
  * 3.   Finding robot - User selects connection (USB/WiFi/Sim) and clicks Start
  * 4.   Starting daemon (visual scan) - Also used for WiFi mode
  * 5.   Stopping daemon - Shutdown spinner
@@ -70,6 +72,8 @@ export function useViewRouter({
   usbPortName,
 }) {
   const {
+    showSetupChoice,
+    setShowSetupChoice,
     showFirstTimeWifiSetup,
     setShowFirstTimeWifiSetup,
     showBluetoothSupportView,
@@ -102,7 +106,16 @@ export function useViewRouter({
       };
     }
 
-    // PRIORITY 2: First time WiFi setup view
+    // PRIORITY 2: Setup choice view (WiFi vs Bluetooth)
+    if (showSetupChoice) {
+      return {
+        viewComponent: SetupChoiceView,
+        viewProps: {},
+        showTopBar: false,
+      };
+    }
+
+    // PRIORITY 2.5: First time WiFi setup view
     if (showFirstTimeWifiSetup) {
       return {
         viewComponent: FirstTimeWifiSetupView,
@@ -113,7 +126,7 @@ export function useViewRouter({
       };
     }
 
-    // PRIORITY 2.5: Bluetooth support view
+    // PRIORITY 2.75: Bluetooth support view
     if (showBluetoothSupportView) {
       return {
         viewComponent: BluetoothSupportView,
@@ -187,6 +200,8 @@ export function useViewRouter({
     updateAvailable,
     updateError,
     onInstallUpdate,
+    showSetupChoice,
+    setShowSetupChoice,
     showFirstTimeWifiSetup,
     setShowFirstTimeWifiSetup,
     showBluetoothSupportView,
