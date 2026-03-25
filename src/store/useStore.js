@@ -165,12 +165,13 @@ export const useStore = create(
 
 // Side-effect subscriber for robotStatus transitions (telemetry, logging)
 import { subscribeRobotStatus } from './subscribers/robotStatusSubscriber';
-subscribeRobotStatus(useStore);
+const _unsubscribeRobotStatus = subscribeRobotStatus(useStore);
 
 // Setup system preference listener for dark mode
-if (typeof window !== 'undefined') {
-  setupSystemPreferenceListener(useStore.getState, useStore.setState);
-}
+const _cleanupSystemPreference =
+  typeof window !== 'undefined'
+    ? setupSystemPreferenceListener(useStore.getState, useStore.setState)
+    : null;
 
 // ============================================================================
 // HMR STATE PRESERVATION (dev only)
@@ -192,6 +193,8 @@ if (import.meta.hot) {
 
   import.meta.hot.dispose(data => {
     data.storeState = useStore.getState();
+    _unsubscribeRobotStatus?.();
+    _cleanupSystemPreference?.();
   });
 
   import.meta.hot.accept();
