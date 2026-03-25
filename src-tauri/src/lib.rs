@@ -7,6 +7,7 @@ mod daemon;
 mod discovery;
 mod local_proxy;
 mod network;
+mod paths;
 mod permissions;
 mod python;
 mod signing;
