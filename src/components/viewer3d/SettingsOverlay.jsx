@@ -625,14 +625,9 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
     >
       <Box
         sx={{
-          width: '90%',
-          maxWidth: isWifiMode ? '680px' : '360px',
+          width: '100%',
           maxHeight: '85vh',
           overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-          // Custom scrollbar
           '&::-webkit-scrollbar': { width: 6 },
           '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
           '&::-webkit-scrollbar-thumb': {
@@ -641,110 +636,121 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
           },
         }}
       >
-        {/* HEADER */}
         <Box
           sx={{
+            width: '90%',
+            maxWidth: isWifiMode ? '680px' : '360px',
+            mx: 'auto',
             display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            pb: 1,
-          }}
-        >
-          <Typography
-            sx={{
-              fontSize: 20,
-              fontWeight: 700,
-              color: textPrimary,
-              letterSpacing: '-0.3px',
-            }}
-          >
-            Settings
-          </Typography>
-          {connectionMode && (
-            <Typography
-              sx={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: textMuted,
-                bgcolor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                px: 1,
-                py: 0.25,
-                borderRadius: '4px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}
-            >
-              {connectionMode === 'wifi'
-                ? 'Reachy WiFi'
-                : connectionMode === 'simulation'
-                  ? 'Simulation'
-                  : 'USB'}
-            </Typography>
-          )}
-          {isWifiMode && remoteHost && (
-            <Typography
-              sx={{
-                fontSize: 11,
-                color: textMuted,
-                fontFamily: 'monospace',
-              }}
-            >
-              {remoteHost}
-            </Typography>
-          )}
-        </Box>
-
-        {/* CONTENT - Grid Layout */}
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: isWifiMode ? 'repeat(2, 1fr)' : '1fr',
+            flexDirection: 'column',
             gap: 2,
           }}
         >
-          {/* Row 1: Update + WiFi (or Update alone) */}
-          <SettingsUpdateCard
-            darkMode={darkMode}
-            title={isWifiMode ? 'System Update' : 'Daemon Update'}
-            updateInfo={updateInfo}
-            isCheckingUpdate={isCheckingUpdate}
-            isUpdating={isUpdating}
-            preRelease={preRelease}
-            onPreReleaseChange={setPreRelease}
-            onCheckUpdate={checkForUpdate}
-            onUpdateClick={handleUpdateClick}
-            cardStyle={cardStyle}
-            buttonStyle={buttonStyle}
-            isOnline={navigator.onLine}
-          />
+          {/* HEADER */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              pb: 1,
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: 20,
+                fontWeight: 700,
+                color: textPrimary,
+                letterSpacing: '-0.3px',
+              }}
+            >
+              Settings
+            </Typography>
+            {connectionMode && (
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: textMuted,
+                  bgcolor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: '4px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                {connectionMode === 'wifi'
+                  ? 'Reachy WiFi'
+                  : connectionMode === 'simulation'
+                    ? 'Simulation'
+                    : 'USB'}
+              </Typography>
+            )}
+            {isWifiMode && remoteHost && (
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  color: textMuted,
+                  fontFamily: 'monospace',
+                }}
+              >
+                {remoteHost}
+              </Typography>
+            )}
+          </Box>
 
-          {isWifiMode && (
-            <SettingsWifiCard
+          {/* CONTENT - Grid Layout */}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: isWifiMode ? 'repeat(2, 1fr)' : '1fr',
+              gap: 2,
+            }}
+          >
+            {/* Row 1: Update + WiFi (or Update alone) */}
+            <SettingsUpdateCard
               darkMode={darkMode}
-              wifiStatus={wifiStatus}
-              isLoadingWifi={isLoadingWifi}
-              onRefresh={fetchWifiStatus}
-              onChangeNetwork={() => setShowChangeWifiOverlay(true)}
-              onClearAllNetworks={() => setShowClearNetworksConfirm(true)}
-              cardStyle={cardStyle}
-            />
-          )}
-
-          {/* Row 2: Preferences + Daemon Control (WiFi) or just Preferences */}
-          <SettingsPreferencesCard darkMode={darkMode} cardStyle={cardStyle} />
-
-          {isWifiMode && <SettingsDaemonCard darkMode={darkMode} cardStyle={cardStyle} />}
-
-          {/* Row 3: Cache (WiFi only) */}
-          {isWifiMode && (
-            <SettingsCacheCard
-              darkMode={darkMode}
+              title={isWifiMode ? 'System Update' : 'Daemon Update'}
+              updateInfo={updateInfo}
+              isCheckingUpdate={isCheckingUpdate}
+              isUpdating={isUpdating}
+              preRelease={preRelease}
+              onPreReleaseChange={setPreRelease}
+              onCheckUpdate={checkForUpdate}
+              onUpdateClick={handleUpdateClick}
               cardStyle={cardStyle}
               buttonStyle={buttonStyle}
-              onResetAppsClick={handleResetAppsClick}
-              isResettingApps={isResettingApps}
+              isOnline={navigator.onLine}
             />
-          )}
+
+            {isWifiMode && (
+              <SettingsWifiCard
+                darkMode={darkMode}
+                wifiStatus={wifiStatus}
+                isLoadingWifi={isLoadingWifi}
+                onRefresh={fetchWifiStatus}
+                onChangeNetwork={() => setShowChangeWifiOverlay(true)}
+                onClearAllNetworks={() => setShowClearNetworksConfirm(true)}
+                cardStyle={cardStyle}
+              />
+            )}
+
+            {/* Row 2: Preferences + Daemon Control (WiFi) or just Preferences */}
+            <SettingsPreferencesCard darkMode={darkMode} cardStyle={cardStyle} />
+
+            {isWifiMode && <SettingsDaemonCard darkMode={darkMode} cardStyle={cardStyle} />}
+
+            {/* Row 3: Cache (WiFi only) */}
+            {isWifiMode && (
+              <SettingsCacheCard
+                darkMode={darkMode}
+                cardStyle={cardStyle}
+                buttonStyle={buttonStyle}
+                onResetAppsClick={handleResetAppsClick}
+                isResettingApps={isResettingApps}
+              />
+            )}
+          </Box>
         </Box>
       </Box>
 
