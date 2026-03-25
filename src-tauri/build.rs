@@ -6,6 +6,13 @@ fn main() {
         println!("cargo:rustc-link-lib=framework=CoreLocation");
         println!("cargo:rustc-link-lib=framework=CoreWLAN");
         println!("cargo:rustc-link-lib=framework=Network");
+        println!("cargo:rustc-link-lib=framework=CoreBluetooth");
+
+        // Compile the CoreBluetooth permission helper.
+        cc::Build::new()
+            .file("src/permissions/bluetooth_permission.m")
+            .flag("-fobjc-arc")
+            .compile("bluetooth_permission");
 
         // Compile the Objective-C NWBrowser helper for local network
         // permission detection (Apple TN3179 recommended approach).
