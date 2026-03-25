@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Box, Typography, Button, Avatar, Chip, CircularProgress } from '@mui/material';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -12,7 +12,7 @@ import { useActiveRobotContext } from '../../../context';
  * App card component for Discover Modal
  * Supports both Python apps (installable) and Web apps (open in browser)
  */
-export default function AppCard({
+function AppCard({
   app,
   darkMode,
   isBusy,
@@ -47,7 +47,6 @@ export default function AppCard({
 
   return (
     <Box
-      key={`${app.name}-${selectedCategory || 'all'}-${searchQuery || ''}-${index}`}
       sx={{
         display: 'flex',
         flexDirection: 'column',
@@ -64,7 +63,7 @@ export default function AppCard({
             ? '1px solid rgba(255, 149, 0, 0.4)'
             : `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
         cursor: 'pointer',
-        transition: 'all 0.2s ease',
+        transition: 'transform 0.2s ease, border-color 0.2s ease',
         '&:hover': {
           transform: 'translateY(-2px)',
           borderColor: installFailed
@@ -218,8 +217,8 @@ export default function AppCard({
           py: 2.5,
           display: 'flex',
           flexDirection: 'column',
-          height: '100%',
-          justifyContent: 'center',
+          flex: 1,
+          gap: 2,
         }}
       >
         {/* Title + Description + Date (left) + Emoji (right) */}
@@ -323,7 +322,7 @@ export default function AppCard({
               )
             }
             sx={{
-              mt: 2.5,
+              mt: 'auto',
               width: '100%',
               py: 1,
               fontSize: 12,
@@ -391,7 +390,7 @@ export default function AppCard({
               }
             }}
             sx={{
-              mt: 2.5,
+              mt: 'auto',
               width: '100%',
               py: 1,
               fontSize: 12,
@@ -415,3 +414,5 @@ export default function AppCard({
     </Box>
   );
 }
+
+export default memo(AppCard);
