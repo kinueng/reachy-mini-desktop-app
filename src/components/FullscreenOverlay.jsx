@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Box, IconButton, Modal } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 
@@ -28,6 +29,7 @@ import CloseIcon from '@mui/icons-material/Close';
  * @param {function} onBackdropClick - Custom backdrop click handler (default: calls onClose)
  * @param {boolean} hidden - If true, overlay stays mounted but invisible (for modal stacking)
  * @param {boolean} keepMounted - Keep content mounted when closed (default: false)
+ * @param {React.RefObject} scrollRef - Optional ref forwarded to the scrollable container
  * @param {ReactNode} children - Content to display
  */
 export default function FullscreenOverlay({
@@ -44,6 +46,7 @@ export default function FullscreenOverlay({
   onBackdropClick,
   hidden = false,
   keepMounted = false,
+  scrollRef,
   children,
 }) {
   // Track if we've already animated this modal (don't re-animate when coming back from hidden)
@@ -97,84 +100,92 @@ export default function FullscreenOverlay({
   };
 
   return (
-    <Modal
-      open={open}
-      onClose={handleBackdropClick}
-      keepMounted={keepMounted}
-      hideBackdrop // We render our own backdrop for blur support
-      sx={{
-        zIndex,
-        // Hidden state: keep mounted but invisible (for modal stacking)
-        ...(hidden && {
-          visibility: 'hidden',
-          pointerEvents: 'none',
-        }),
-      }}
-    >
-      <Box
+    <>
+      <Modal
+        open={open}
+        onClose={handleBackdropClick}
+        keepMounted={keepMounted}
+        hideBackdrop // We render our own backdrop for blur support
         sx={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          outline: 'none',
-          bgcolor: overlayBgColor,
-          backdropFilter: `blur(${backdropBlur}px)`,
-          WebkitBackdropFilter: `blur(${backdropBlur}px)`,
-          display: 'flex',
-          alignItems: isCenteredY ? 'center' : 'flex-start',
-          justifyContent: isCenteredX ? 'center' : 'flex-start',
-          overflow: 'auto',
-          // Only animate on first open, not when returning from hidden
-          ...(shouldAnimate && {
-            animation: 'overlayFadeIn 0.3s ease forwards',
-            '@keyframes overlayFadeIn': {
-              from: { opacity: 0 },
-              to: { opacity: 1 },
-            },
+          zIndex,
+          // Hidden state: keep mounted but invisible (for modal stacking)
+          ...(hidden && {
+            visibility: 'hidden',
+            pointerEvents: 'none',
           }),
-          ...scrollbarStyles,
         }}
       >
-        {/* Close button - top right (orange style) */}
-        {showCloseButton && (
+        <Box
+          ref={scrollRef}
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            outline: 'none',
+            bgcolor: overlayBgColor,
+            backdropFilter: `blur(${backdropBlur}px)`,
+            WebkitBackdropFilter: `blur(${backdropBlur}px)`,
+            display: 'flex',
+            alignItems: isCenteredY ? 'center' : 'flex-start',
+            justifyContent: isCenteredX ? 'center' : 'flex-start',
+            overflow: 'auto',
+            // Only animate on first open, not when returning from hidden
+            ...(shouldAnimate && {
+              animation: 'overlayFadeIn 0.3s ease forwards',
+              '@keyframes overlayFadeIn': {
+                from: { opacity: 0 },
+                to: { opacity: 1 },
+              },
+            }),
+            ...scrollbarStyles,
+          }}
+        >
+          {/* Content wrapper */}
+          <Box
+            onClick={e => e.stopPropagation()}
+            sx={{
+              width: '100%',
+              height: isCenteredY ? 'auto' : '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: isCenteredX ? 'center' : 'stretch',
+              justifyContent: isCenteredY ? 'center' : 'flex-start',
+            }}
+          >
+            {children}
+          </Box>
+        </Box>
+      </Modal>
+
+      {/* Close button - rendered as portal above the drag bar (z-index 10000001) */}
+      {showCloseButton &&
+        open &&
+        !hidden &&
+        createPortal(
           <IconButton
             onClick={onClose}
             sx={{
-              position: 'absolute',
-              top: 16,
+              position: 'fixed',
+              top: 20,
               right: 16,
               color: '#FF9500',
               bgcolor: darkMode ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
               border: '1px solid #FF9500',
               opacity: 0.7,
+              zIndex: 10000001,
+              WebkitAppRegion: 'no-drag',
               '&:hover': {
                 opacity: 1,
                 bgcolor: darkMode ? 'rgba(255, 255, 255, 0.12)' : '#ffffff',
               },
-              zIndex: 1,
             }}
           >
             <CloseIcon sx={{ fontSize: 20 }} />
-          </IconButton>
+          </IconButton>,
+          document.body
         )}
-
-        {/* Content wrapper */}
-        <Box
-          onClick={e => e.stopPropagation()}
-          sx={{
-            width: '100%',
-            height: isCenteredY ? 'auto' : '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: isCenteredX ? 'center' : 'stretch',
-            justifyContent: isCenteredY ? 'center' : 'flex-start',
-          }}
-        >
-          {children}
-        </Box>
-      </Box>
-    </Modal>
+    </>
   );
 }
