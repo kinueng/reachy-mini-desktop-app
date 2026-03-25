@@ -53,7 +53,7 @@ export default function SettingsCacheCard({
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
-          Free up disk space by clearing downloaded AI models.
+          Free up disk space by clearing cached AI models.
         </Typography>
 
         <Button
@@ -86,7 +86,7 @@ export default function SettingsCacheCard({
         </Button>
 
         <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
-          Uninstall all apps. They can be reinstalled from the store.
+          Uninstall all apps.
         </Typography>
 
         <Button
