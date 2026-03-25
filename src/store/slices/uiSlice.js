@@ -169,7 +169,7 @@ export const createUISlice = (set, get) => ({
  * Call this once when the store is created
  */
 export const setupSystemPreferenceListener = (getState, setState) => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined') return () => {};
 
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -185,4 +185,12 @@ export const setupSystemPreferenceListener = (getState, setState) => {
   } else {
     mediaQuery.addListener(handleSystemPreferenceChange);
   }
+
+  return () => {
+    if (mediaQuery.removeEventListener) {
+      mediaQuery.removeEventListener('change', handleSystemPreferenceChange);
+    } else {
+      mediaQuery.removeListener(handleSystemPreferenceChange);
+    }
+  };
 };

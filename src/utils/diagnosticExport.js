@@ -586,9 +586,14 @@ export const setupDiagnosticShortcut = () => {
   return () => window.removeEventListener('keydown', handleKeyDown);
 };
 
-// Auto-setup on import
-if (typeof window !== 'undefined') {
-  setupDiagnosticShortcut();
+// Auto-setup on import (with HMR cleanup to prevent listener stacking)
+const _cleanupDiagnosticShortcut = typeof window !== 'undefined' ? setupDiagnosticShortcut() : null;
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    _cleanupDiagnosticShortcut?.();
+  });
+  import.meta.hot.accept();
 }
 
 export default {
