@@ -147,6 +147,7 @@ export default function SettingsDaemonCard({ darkMode, cardStyle }) {
           disabled={isTransitioning || isToggling}
           size="small"
           color="primary"
+          onClick={e => e.stopPropagation()}
         />
       </Box>
 
