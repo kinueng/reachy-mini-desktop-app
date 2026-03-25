@@ -15,10 +15,12 @@ pub fn request_all_permissions() {
     log::info!("macOS permissions configured:");
     log::info!("   Camera: NSCameraUsageDescription declared in Info.plist");
     log::info!("   Microphone: NSMicrophoneUsageDescription declared in Info.plist");
+    log::info!("   Location: NSLocationWhenInUseUsageDescription declared in Info.plist");
     log::info!("   Filesystem: Entitlements configured");
     log::info!("   USB: Entitlements configured");
     log::info!("Permissions will be requested automatically when needed:");
     log::info!("   - Camera/microphone: macOS will show dialog when first accessed by apps");
+    log::info!("   - Location: requested before WiFi scanning to unredact SSIDs");
     log::info!("   - Filesystem/USB: Already granted via entitlements");
     log::info!("Note: Permissions granted to the main app will propagate to child processes");
     log::info!("   (Python daemon and its apps)");
@@ -238,6 +240,104 @@ pub async fn request_local_network_permission() -> Result<Option<bool>, String> 
     tokio::task::spawn_blocking(|| probe_local_network(3.0))
         .await
         .map_err(|e| format!("spawn_blocking failed: {}", e))?
+}
+
+// ============================================================================
+// Location Permission (macOS) - needed for WiFi SSID scanning
+// ============================================================================
+
+/// Check Location Services permission status (no dialog).
+#[tauri::command]
+#[cfg(target_os = "macos")]
+pub async fn check_location_permission() -> Result<Option<bool>, String> {
+    extern "C" {
+        fn corewlan_location_status() -> i32;
+    }
+
+    tokio::task::spawn_blocking(|| {
+        let status = unsafe { corewlan_location_status() };
+        // 0 = notDetermined, 1 = restricted, 2 = denied, 3 = authorizedAlways, 4 = authorizedWhenInUse
+        match status {
+            3 | 4 => Ok(Some(true)),
+            1 | 2 => Ok(Some(false)),
+            _ => Ok(None),
+        }
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {}", e))?
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "macos"))]
+pub async fn check_location_permission() -> Result<Option<bool>, String> {
+    Ok(Some(true))
+}
+
+/// Request Location Services permission via CoreLocation.
+/// This is needed so that CoreWLAN can return actual SSIDs instead of nil.
+/// Dispatches to the main queue via the persistent CLLocationManager in corewlan_scan.m.
+#[tauri::command]
+#[cfg(target_os = "macos")]
+pub async fn request_location_permission() -> Result<Option<bool>, String> {
+    extern "C" {
+        fn corewlan_request_location() -> i32;
+        fn corewlan_location_status() -> i32;
+    }
+
+    tokio::task::spawn_blocking(|| {
+        // This dispatches to the main queue and requests permission if needed
+        let _request_status = unsafe { corewlan_request_location() };
+
+        // Re-check after the main-queue block has executed
+        let status = unsafe { corewlan_location_status() };
+        log::info!(
+            "[permissions] CLLocationManager authorizationStatus = {}",
+            status
+        );
+
+        // 0 = notDetermined, 1 = restricted, 2 = denied, 3 = authorizedAlways, 4 = authorizedWhenInUse
+        match status {
+            3 | 4 => Ok(Some(true)),
+            1 | 2 => Ok(Some(false)),
+            _ => Ok(None), // dialog pending
+        }
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {}", e))?
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "macos"))]
+pub async fn request_location_permission() -> Result<Option<bool>, String> {
+    // Location permission is only relevant on macOS for WiFi scanning
+    Ok(Some(true))
+}
+
+/// Open System Settings to Privacy & Security > Location Services (macOS)
+#[tauri::command]
+#[cfg(target_os = "macos")]
+pub fn open_location_settings() -> Result<(), String> {
+    use std::process::Command;
+
+    let output = Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices")
+        .output()
+        .map_err(|e| format!("Failed to open System Settings: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to open System Settings: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "macos"))]
+pub fn open_location_settings() -> Result<(), String> {
+    Ok(())
 }
 
 // ============================================================================
