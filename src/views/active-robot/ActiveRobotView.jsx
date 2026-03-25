@@ -12,7 +12,6 @@ import {
   Tooltip,
 } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 import FullscreenOverlay from '../../components/FullscreenOverlay';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import Viewer3D from '../../components/viewer3d';
@@ -568,28 +567,17 @@ function ActiveRobotView({
                     />
                   </Tooltip>
                 </Box>
-                <Tooltip title="Fullscreen logs" arrow placement="top">
-                  <IconButton
-                    onClick={() => setLogsFullscreenOpen(true)}
-                    sx={{
-                      padding: '2px',
-                      opacity: 0.5,
-                      transition: 'opacity 0.2s ease',
-                      '&:hover': {
-                        opacity: 1,
-                        bgcolor: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
-                      },
-                    }}
-                  >
-                    <OpenInFullIcon sx={{ fontSize: 12, color: darkMode ? '#666' : '#999' }} />
-                  </IconButton>
-                </Tooltip>
               </Box>
 
               <Box
                 sx={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}
               >
-                <LogConsole logs={logs} darkMode={darkMode} lines={4} />
+                <LogConsole
+                  logs={logs}
+                  darkMode={darkMode}
+                  lines={4}
+                  onExpand={() => setLogsFullscreenOpen(true)}
+                />
               </Box>
             </Box>
           </Box>
@@ -636,7 +624,7 @@ function ActiveRobotView({
             sx={{
               width: 'calc(100vw - 80px)',
               maxWidth: '1200px',
-              height: '80vh',
+              height: '85vh',
               maxHeight: '800px',
               display: 'flex',
               flexDirection: 'column',

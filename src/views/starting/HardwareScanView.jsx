@@ -9,6 +9,7 @@ import { HARDWARE_ERROR_CONFIGS, getErrorMeshes } from '../../utils/hardwareErro
 import { getTotalScanParts, mapMeshToScanPart } from '../../utils/scanParts';
 import { useDaemonStartupLogs } from '../../hooks/daemon/useDaemonStartupLogs';
 import LogConsole from '@components/LogConsole';
+import FullscreenOverlay from '../../components/FullscreenOverlay';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '../../config/daemon';
 import { detectMovementChanges } from '../../utils/movementDetection';
 import { useAppFetching, mergeAppsData } from '../active-robot/application-store/hooks';
@@ -189,6 +190,7 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
   const [scanError, setScanError] = useState(null);
   const [errorMesh, setErrorMesh] = useState(null);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [logsExpanded, setLogsExpanded] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
   const [waitingForDaemon, setWaitingForDaemon] = useState(false);
   const [waitingForMovements, setWaitingForMovements] = useState(false);
@@ -1081,8 +1083,9 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
           includeStoreLogs={true}
           compact={true}
           showTimestamp={false}
-          lines={isBootstrapping ? 4 : 2}
+          lines={4}
           emptyMessage="Waiting for logs..."
+          onExpand={() => setLogsExpanded(true)}
           sx={{
             bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
             border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,
@@ -1091,6 +1094,52 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
           }}
         />
       </Box>
+
+      {/* Fullscreen logs overlay */}
+      <FullscreenOverlay
+        open={logsExpanded}
+        onClose={() => setLogsExpanded(false)}
+        darkMode={darkMode}
+        showCloseButton={true}
+        centered={false}
+      >
+        <Box
+          sx={{
+            width: '100%',
+            height: '85vh',
+            px: 3,
+            pb: 3,
+            pt: '72px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: darkMode ? '#888' : '#999',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              flexShrink: 0,
+            }}
+          >
+            Logs
+          </Typography>
+          <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <LogConsole
+              logs={startupLogs}
+              darkMode={darkMode}
+              includeStoreLogs={true}
+              compact={false}
+              showTimestamp={true}
+              height="100%"
+              emptyMessage="No logs yet..."
+            />
+          </Box>
+        </Box>
+      </FullscreenOverlay>
     </Box>
   );
 }

@@ -14,66 +14,99 @@
 // Location permission
 // ---------------------------------------------------------------------------
 
+// Cached authorization status, updated by the delegate.
+// -1 = not yet initialized.  0-4 = CLAuthorizationStatus value.
+// Declared before the delegate @implementation so the callback can write it.
+static volatile int _locationAuthStatus = -1;
+
 @interface _WifiLocationDelegate : NSObject <CLLocationManagerDelegate>
 @end
 
 @implementation _WifiLocationDelegate
 - (void)locationManagerDidChangeAuthorization:(CLLocationManager *)manager {
-    CLAuthorizationStatus status = [manager authorizationStatus];
-    NSLog(@"[wifi] Location authorization changed: %d", (int)status);
+    int status = (int)[manager authorizationStatus];
+    _locationAuthStatus = status;
+    NSLog(@"[wifi] Location authorization changed: %d (cache updated)", status);
 }
 @end
 
 // Persistent manager + delegate (must outlive the request).
-// Only accessed from the main queue (via ensure_manager / dispatch blocks).
+// Created once on the main queue via ensure_manager().
 static CLLocationManager *_locationManager = nil;
 static _WifiLocationDelegate *_locationDelegate = nil;
 
-/// Ensure the CLLocationManager exists (call from main queue only).
+/// Ensure the CLLocationManager exists. Must be called on the main queue.
 static void ensure_manager(void) {
     if (!_locationManager) {
         _locationManager = [[CLLocationManager alloc] init];
         _locationDelegate = [[_WifiLocationDelegate alloc] init];
         _locationManager.delegate = _locationDelegate;
+        // Seed the cache from the real system status immediately.
+        _locationAuthStatus = (int)[_locationManager authorizationStatus];
+        NSLog(@"[wifi] CLLocationManager created, initial status: %d", _locationAuthStatus);
     }
 }
 
-/// Check current location authorization status (thread-safe).
-/// Dispatches to the main queue to access CLLocationManager.
-/// Returns CLAuthorizationStatus as int.
+/// Check current location authorization status.
+///
+/// On the first call (cold start), creates the CLLocationManager on the main
+/// queue and reads its instance authorizationStatus property. The deprecated
+/// class method +[CLLocationManager authorizationStatus] is NOT used because
+/// it can incorrectly return notDetermined(0) on macOS 11+ even when the user
+/// already granted permission in a previous session. The instance property is
+/// the only reliable source of truth.
+///
+/// Subsequent calls return the cached value updated by the delegate.
 int corewlan_location_status(void) {
-    __block int status = 0;
-    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+    // Fast path: delegate already populated the cache (or ensure_manager ran).
+    if (_locationAuthStatus >= 0) {
+        return _locationAuthStatus;
+    }
 
-    dispatch_async(dispatch_get_main_queue(), ^{
+    // Cold-start path: create the manager on the main queue so we read the
+    // instance authorizationStatus (accurate) rather than the class method
+    // (deprecated, unreliable at cold start on macOS 11+).
+    if ([NSThread isMainThread]) {
         ensure_manager();
-        status = (int)[_locationManager authorizationStatus];
-        dispatch_semaphore_signal(sem);
-    });
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            ensure_manager();
+        });
+    }
 
-    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC));
-    return status;
+    return _locationAuthStatus;
 }
 
-/// Request location permission from any thread.
-/// Dispatches to the main queue so CLLocationManager shows the dialog.
-/// Returns the current CLAuthorizationStatus (may still be 0 if dialog is pending).
+/// Request location permission from any non-main thread.
+///
+/// Uses dispatch_sync (no timeout) so the call NEVER silently fails when
+/// the main queue is momentarily busy (e.g. Vite HMR reloads in dev mode).
+/// Safe to call from Tokio spawn_blocking threads.
+///
+/// Returns the authorization status *before* the user responds
+/// (dialog may be pending). The delegate will update _locationAuthStatus
+/// once the user makes a choice.
 int corewlan_request_location(void) {
-    __block int status = 0;
-    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
-
-    dispatch_async(dispatch_get_main_queue(), ^{
+    // Guard: calling dispatch_sync from the main thread would deadlock.
+    if ([NSThread isMainThread]) {
         ensure_manager();
-        status = (int)[_locationManager authorizationStatus];
-        if (status == kCLAuthorizationStatusNotDetermined) {
-            NSLog(@"[wifi] Requesting location permission (dispatched to main queue)...");
+        int status = _locationAuthStatus;
+        if (status == 0 /* kCLAuthorizationStatusNotDetermined */) {
+            NSLog(@"[wifi] Requesting location permission (main thread)...");
             [_locationManager requestWhenInUseAuthorization];
         }
-        dispatch_semaphore_signal(sem);
-    });
+        return status;
+    }
 
-    // Wait up to 1s for the main-queue block to execute
-    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC));
+    __block int status = 0;
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        ensure_manager();
+        status = _locationAuthStatus;
+        if (status == 0 /* kCLAuthorizationStatusNotDetermined */) {
+            NSLog(@"[wifi] Requesting location permission (dispatch_sync to main queue)...");
+            [_locationManager requestWhenInUseAuthorization];
+        }
+    });
     return status;
 }
 

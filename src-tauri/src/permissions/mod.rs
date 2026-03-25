@@ -314,20 +314,41 @@ pub async fn request_location_permission() -> Result<Option<bool>, String> {
 }
 
 /// Open System Settings to Privacy & Security > Location Services (macOS)
+///
+/// macOS 13+ (Ventura) replaced the old `x-apple.systempreferences:` deep links
+/// with a new extension-based scheme. The old `Privacy_LocationServices` fragment
+/// no longer works on macOS 13+. We try the new scheme first, then fall back to
+/// the generic Privacy & Security pane.
 #[tauri::command]
 #[cfg(target_os = "macos")]
 pub fn open_location_settings() -> Result<(), String> {
     use std::process::Command;
 
+    // macOS 13+ (Ventura, Sonoma, Sequoia…): Privacy & Security pane.
+    // There is no dedicated deep-link to Location Services in macOS 13+;
+    // opening Privacy & Security is the best we can do.
+    let new_url = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension";
     let output = Command::new("open")
-        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices")
+        .arg(new_url)
         .output()
         .map_err(|e| format!("Failed to open System Settings: {}", e))?;
 
-    if !output.status.success() {
+    if output.status.success() {
+        return Ok(());
+    }
+
+    // Fallback: legacy URL (macOS 12 and earlier)
+    let legacy_url =
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices";
+    let fallback = Command::new("open")
+        .arg(legacy_url)
+        .output()
+        .map_err(|e| format!("Failed to open System Settings: {}", e))?;
+
+    if !fallback.status.success() {
         return Err(format!(
             "Failed to open System Settings: {}",
-            String::from_utf8_lossy(&output.stderr)
+            String::from_utf8_lossy(&fallback.stderr)
         ));
     }
 
@@ -337,6 +358,106 @@ pub fn open_location_settings() -> Result<(), String> {
 #[tauri::command]
 #[cfg(not(target_os = "macos"))]
 pub fn open_location_settings() -> Result<(), String> {
+    Ok(())
+}
+
+// ============================================================================
+// Bluetooth Permission (macOS) - needed for BLE-based WiFi setup
+// ============================================================================
+
+/// Check Bluetooth authorization status (macOS 10.15+).
+/// Returns: true if allowedAlways, false if restricted/denied, None if notDetermined.
+#[tauri::command]
+#[cfg(target_os = "macos")]
+pub async fn check_bluetooth_permission() -> Result<Option<bool>, String> {
+    extern "C" {
+        fn bluetooth_authorization_status() -> i32;
+    }
+
+    tokio::task::spawn_blocking(|| {
+        let status = unsafe { bluetooth_authorization_status() };
+        log::debug!("[permissions] Bluetooth authorization status: {}", status);
+        // 0=notDetermined, 1=restricted, 2=denied, 3=allowedAlways
+        match status {
+            3 => Ok(Some(true)),
+            1 | 2 => Ok(Some(false)),
+            _ => Ok(None),
+        }
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {}", e))?
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "macos"))]
+pub async fn check_bluetooth_permission() -> Result<Option<bool>, String> {
+    Ok(Some(true))
+}
+
+/// Request Bluetooth permission by instantiating CBCentralManager.
+/// The system will show the permission dialog on first call.
+#[tauri::command]
+#[cfg(target_os = "macos")]
+pub async fn request_bluetooth_permission() -> Result<Option<bool>, String> {
+    extern "C" {
+        fn bluetooth_request_permission();
+        fn bluetooth_authorization_status() -> i32;
+    }
+
+    tokio::task::spawn_blocking(|| {
+        unsafe { bluetooth_request_permission() };
+        let status = unsafe { bluetooth_authorization_status() };
+        match status {
+            3 => Ok(Some(true)),
+            1 | 2 => Ok(Some(false)),
+            _ => Ok(None),
+        }
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {}", e))?
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "macos"))]
+pub async fn request_bluetooth_permission() -> Result<Option<bool>, String> {
+    Ok(Some(true))
+}
+
+/// Open System Settings to Bluetooth (macOS).
+#[tauri::command]
+#[cfg(target_os = "macos")]
+pub fn open_bluetooth_settings() -> Result<(), String> {
+    use std::process::Command;
+
+    // macOS 13+ (Ventura+): Bluetooth settings pane
+    let output = Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.BluetoothSettings")
+        .output()
+        .map_err(|e| format!("Failed to open Bluetooth Settings: {}", e))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    // Fallback: legacy URL (macOS 12 and earlier)
+    let fallback = Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.bluetooth")
+        .output()
+        .map_err(|e| format!("Failed to open Bluetooth Settings: {}", e))?;
+
+    if !fallback.status.success() {
+        return Err(format!(
+            "Failed to open Bluetooth Settings: {}",
+            String::from_utf8_lossy(&fallback.stderr)
+        ));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "macos"))]
+pub fn open_bluetooth_settings() -> Result<(), String> {
     Ok(())
 }
 

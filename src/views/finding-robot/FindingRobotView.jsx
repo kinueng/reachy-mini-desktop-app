@@ -30,6 +30,7 @@ function ConnectionCard({
   darkMode,
   alwaysAvailable = false,
   betaTag = false,
+  scanning = false,
 }) {
   const isClickable = (available || alwaysAvailable) && !disabled;
   const isAvailable = available || alwaysAvailable;
@@ -95,6 +96,26 @@ function ConnectionCard({
               borderRadius: '50%',
               bgcolor: available ? '#22c55e' : '#ef4444',
             }}
+          />
+        </Box>
+      )}
+
+      {/* Scanning spinner - top left, shown while actively searching */}
+      {scanning && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 7,
+            left: 7,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <CircularProgress
+            size={10}
+            thickness={4}
+            sx={{ color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }}
           />
         </Box>
       )}
@@ -544,6 +565,7 @@ export default function FindingRobotView() {
             onClick={() => wifiRobots.available && handleSelectMode(ConnectionMode.WIFI)}
             disabled={isBusy}
             darkMode={darkMode}
+            scanning={isScanning}
           />
 
           <ConnectionCard
