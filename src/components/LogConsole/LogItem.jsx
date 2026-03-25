@@ -1,6 +1,12 @@
 import React, { useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
-import { TEXT_SELECT_STYLES, ELLIPSIS_STYLES } from './constants';
+import { TEXT_SELECT_STYLES } from './constants';
+
+const WRAP_STYLES = {
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  minWidth: 0,
+};
 
 /**
  * Render a single log item
@@ -85,7 +91,7 @@ export const LogItem = React.memo(
               color: darkMode ? '#d1d5db' : '#666',
               lineHeight: 1.6,
               flex: 1,
-              ...ELLIPSIS_STYLES,
+              ...WRAP_STYLES,
               ...TEXT_SELECT_STYLES,
             }}
           >
@@ -147,7 +153,7 @@ export const LogItem = React.memo(
             fontWeight: isFrontend ? 500 : 400,
             opacity: 1,
             flex: 1,
-            ...ELLIPSIS_STYLES,
+            ...WRAP_STYLES,
             ...TEXT_SELECT_STYLES,
           }}
         >
