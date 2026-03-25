@@ -358,6 +358,7 @@ pub fn run() {
                 {
                     if let Some(win) = app.get_webview_window("main") {
                         window::setup_transparent_titlebar(&win);
+                        window::setup_content_process_handler(&win);
                     }
                     permissions::request_all_permissions();
                 }
