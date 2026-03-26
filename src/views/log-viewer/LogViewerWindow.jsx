@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Box, Typography, ToggleButton, ToggleButtonGroup, IconButton } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import VerticalAlignBottomIcon from '@mui/icons-material/VerticalAlignBottom';
-import { listen } from '../../utils/tauriCompat';
 
 /**
  * Log categories derived from Python logger names:
@@ -19,6 +18,7 @@ const CATEGORIES = {
 
 const MAX_LOGS = 2000;
 
+// Lines to filter out entirely (system noise from journalctl)
 function categorize(line) {
   const lower = line.toLowerCase();
   // uvicorn access/error logs → API
@@ -71,7 +71,6 @@ export default function LogViewerWindow() {
   const [filters, setFilters] = useState(['all']);
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef(null);
-  const wsRef = useRef(null);
 
   // Handle filter toggle
   const handleFilter = useCallback(
@@ -99,17 +98,27 @@ export default function LogViewerWindow() {
     });
   }, []);
 
-  // Listen for sidecar logs (lite/USB mode — local daemon)
+  // Read connection info from URL params (passed by the opener)
+  const urlParams = new URLSearchParams(window.location.search);
+  const connectionMode = urlParams.get('mode');
+  const remoteHost = urlParams.get('host');
+
+  // Source 1: Sidecar events (lite/USB mode — Tauri events are cross-window)
   useEffect(() => {
     let unlistenStderr;
     let unlistenStdout;
     const setup = async () => {
-      unlistenStderr = await listen('sidecar-stderr', event => {
-        if (event.payload) addLog(event.payload);
-      });
-      unlistenStdout = await listen('sidecar-stdout', event => {
-        if (event.payload) addLog(event.payload);
-      });
+      try {
+        const { listen: tauriListen } = await import('@tauri-apps/api/event');
+        unlistenStderr = await tauriListen('sidecar-stderr', event => {
+          if (event.payload) addLog(event.payload);
+        });
+        unlistenStdout = await tauriListen('sidecar-stdout', event => {
+          if (event.payload) addLog(event.payload);
+        });
+      } catch {
+        // Not in Tauri
+      }
     };
     setup();
     return () => {
@@ -118,19 +127,50 @@ export default function LogViewerWindow() {
     };
   }, [addLog]);
 
-  // Listen for WebSocket logs (wireless mode — remote daemon)
+  // Source 2: Direct WebSocket to daemon (wireless mode)
   useEffect(() => {
-    let unlistenWs;
-    const setup = async () => {
-      unlistenWs = await listen('log-viewer:ws-line', event => {
-        if (event.payload) addLog(event.payload);
-      });
+    if (connectionMode !== 'wifi' || !remoteHost) return;
+
+    let ws = null;
+    let stopped = false;
+    let reconnectTimer;
+
+    const connectWs = () => {
+      if (stopped) return;
+      const cleanHost = remoteHost.replace(/^https?:\/\//, '');
+      const wsUrl = `ws://${cleanHost}:8000/logs/ws/daemon`;
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = event => {
+          if (event.data && event.data.trim()) {
+            addLog(event.data);
+          }
+        };
+        ws.onclose = () => {
+          ws = null;
+          if (!stopped) {
+            reconnectTimer = setTimeout(connectWs, 3000);
+          }
+        };
+        ws.onerror = () => {};
+      } catch {
+        if (!stopped) {
+          reconnectTimer = setTimeout(connectWs, 3000);
+        }
+      }
     };
-    setup();
+
+    connectWs();
+
     return () => {
-      if (unlistenWs) unlistenWs();
+      stopped = true;
+      clearTimeout(reconnectTimer);
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
     };
-  }, [addLog]);
+  }, [addLog, connectionMode, remoteHost]);
 
   // Auto-scroll
   useEffect(() => {

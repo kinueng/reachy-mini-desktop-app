@@ -1,66 +1,45 @@
-import { useEffect, useRef } from 'react';
-import { emit } from '../utils/tauriCompat';
+import { useEffect } from 'react';
 import useAppStore from '../store/useAppStore';
-import { getWsBaseUrl } from '../config/daemon';
 
 /**
- * Bridge between the daemon's log sources and the Log Viewer window.
+ * Bridge that provides the remote daemon host to the Log Viewer window.
  *
- * - Lite/USB mode: sidecar events are already global (Log Viewer listens directly)
- * - WiFi mode: connects a WebSocket to /logs/ws/daemon and forwards lines
- *   as 'log-viewer:ws-line' events so the Log Viewer window receives them.
+ * The Log Viewer connects directly to the daemon's WebSocket for logs.
+ * This bridge responds to 'log-viewer:request-host' with the remoteHost
+ * so the log viewer knows where to connect.
+ *
+ * In lite/USB mode, sidecar events are already cross-window — no bridge needed.
  */
 export default function useLogViewerBridge() {
-  const { connectionMode } = useAppStore();
-  const wsRef = useRef(null);
+  const { remoteHost, connectionMode } = useAppStore();
 
   useEffect(() => {
-    // Only needed in WiFi mode — sidecar events are already global for lite/USB
-    if (connectionMode !== 'wifi') return;
+    let unlisten;
 
-    let reconnectTimer;
-    let stopped = false;
-
-    function connect() {
-      if (stopped) return;
+    const setup = async () => {
       try {
-        const wsUrl = `${getWsBaseUrl()}/logs/ws/daemon`;
-        const ws = new WebSocket(wsUrl);
+        const { listen, emit } = await import('@tauri-apps/api/event');
 
-        ws.onmessage = event => {
-          if (event.data) {
-            emit('log-viewer:ws-line', event.data);
+        // When the log viewer asks for the host, send it
+        unlisten = await listen('log-viewer:request-host', () => {
+          if (remoteHost) {
+            emit('log-viewer:remote-host', remoteHost);
           }
-        };
+        });
 
-        ws.onclose = () => {
-          wsRef.current = null;
-          if (!stopped) {
-            reconnectTimer = setTimeout(connect, 3000);
-          }
-        };
-
-        ws.onerror = () => {
-          // onclose will fire after this
-        };
-
-        wsRef.current = ws;
-      } catch {
-        if (!stopped) {
-          reconnectTimer = setTimeout(connect, 3000);
+        // Also proactively send when remoteHost changes (viewer might already be open)
+        if (remoteHost) {
+          emit('log-viewer:remote-host', remoteHost);
         }
-      }
-    }
-
-    connect();
-
-    return () => {
-      stopped = true;
-      clearTimeout(reconnectTimer);
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
+      } catch {
+        // Not in Tauri
       }
     };
-  }, [connectionMode]);
+
+    setup();
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [remoteHost, connectionMode]);
 }

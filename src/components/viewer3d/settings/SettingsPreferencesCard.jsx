@@ -1,12 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Box, Typography, Switch } from '@mui/material';
 import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
 import PrivacyTipOutlinedIcon from '@mui/icons-material/PrivacyTipOutlined';
-import TerminalIcon from '@mui/icons-material/Terminal';
 import useAppStore from '../../../store/useAppStore';
 import { isTelemetryEnabled, setTelemetryEnabled } from '../../../utils/telemetry';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import SectionHeader from './SectionHeader';
 
 /**
@@ -87,54 +85,6 @@ export default function SettingsPreferencesCard({ darkMode, cardStyle }) {
           </Typography>
         </Box>
         <Switch checked={telemetryEnabled} size="small" color="primary" />
-      </Box>
-
-      {/* Log Viewer */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          p: 1.5,
-          borderRadius: '12px',
-          bgcolor: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)',
-          cursor: 'pointer',
-          transition: 'background 0.15s',
-          mb: 1.5,
-          '&:hover': {
-            bgcolor: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.04)',
-          },
-        }}
-        onClick={async () => {
-          const label = 'log-viewer';
-          const existing = WebviewWindow.getByLabel(label);
-          if (existing) {
-            try {
-              await existing.setFocus();
-              return;
-            } catch {
-              /* recreate */
-            }
-          }
-          new WebviewWindow(label, {
-            url: '/#log-viewer',
-            title: 'Reachy Logs',
-            width: 900,
-            height: 600,
-            center: true,
-            resizable: true,
-            decorations: true,
-            focus: true,
-          });
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <TerminalIcon sx={{ fontSize: 18, color: textSecondary }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 500, color: textPrimary }}>
-            Open Log Viewer
-          </Typography>
-        </Box>
-        <Typography sx={{ fontSize: 11, color: textMuted }}>↗</Typography>
       </Box>
 
       {/* Privacy Policy Link */}
