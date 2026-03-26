@@ -127,16 +127,32 @@ pub fn run_uv(data_dir: &PathBuf, args: &[&str]) -> Result<(), String> {
     Ok(())
 }
 
-/// Determine the reachy-mini package spec from environment variables.
+/// Determine the reachy-mini package spec.
 ///
-/// - REACHY_MINI_VERSION=0.9.20 → "reachy-mini==0.9.20"
-/// - REACHY_MINI_SOURCE=develop → "git+https://github.com/pollen-robotics/reachy_mini.git@develop"
-/// - default → "reachy-mini" (latest from PyPI)
+/// Checked in order (first match wins):
+/// 1. Compile-time REACHY_MINI_VERSION → "reachy-mini==0.9.20"
+/// 2. Compile-time REACHY_MINI_SOURCE → "git+...@branch"
+/// 3. Runtime env REACHY_MINI_VERSION → "reachy-mini==0.9.20"
+/// 4. Runtime env REACHY_MINI_SOURCE → "git+...@branch"
+/// 5. default → "reachy-mini" (latest from PyPI)
 pub fn get_reachy_mini_spec() -> String {
+    // Compile-time (set during `cargo build` via env vars)
+    if let Some(version) = option_env!("REACHY_MINI_VERSION") {
+        return format!("reachy-mini=={}", version);
+    }
+    if let Some(source) = option_env!("REACHY_MINI_SOURCE") {
+        if source != "pypi" {
+            return format!(
+                "git+https://github.com/pollen-robotics/reachy_mini.git@{}",
+                source
+            );
+        }
+    }
+
+    // Runtime (for flexibility, but compile-time takes precedence)
     if let Ok(version) = env::var("REACHY_MINI_VERSION") {
         return format!("reachy-mini=={}", version);
     }
-
     if let Ok(source) = env::var("REACHY_MINI_SOURCE") {
         if source != "pypi" {
             return format!(
