@@ -1,7 +1,11 @@
 // Helper to build daemon arguments
 // IMPORTANT: Use .venv/bin/python3 directly instead of "uv run python" to ensure
 // we use the venv Python with all installed packages, not the cpython bundle
-pub fn build_daemon_args(sim_mode: bool, preload_datasets: bool) -> Result<Vec<String>, String> {
+pub fn build_daemon_args(
+    app_handle: &tauri::AppHandle,
+    sim_mode: bool,
+    preload_datasets: bool,
+) -> Result<Vec<String>, String> {
     // Use Python from .venv directly (not via uv run)
     // This ensures we use the venv with all installed packages
     #[cfg(target_os = "windows")]
@@ -17,7 +21,7 @@ pub fn build_daemon_args(sim_mode: bool, preload_datasets: bool) -> Result<Vec<S
     #[cfg(target_os = "windows")]
     {
         // In dev mode, the script is in the project source tree
-        // In production, Tauri bundles it as a resource into the data dir
+        // In production, Tauri bundles it as a resource next to the executable
         let script_path = if cfg!(debug_assertions) {
             let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
             manifest_dir
@@ -26,7 +30,11 @@ pub fn build_daemon_args(sim_mode: bool, preload_datasets: bool) -> Result<Vec<S
                 .join("scripts")
                 .join("avast_ssl_fix.py")
         } else {
-            crate::paths::get_data_dir()?
+            use tauri::Manager;
+            app_handle
+                .path()
+                .resource_dir()
+                .map_err(|e| format!("Failed to get resource dir: {}", e))?
                 .join("scripts")
                 .join("avast_ssl_fix.py")
         };
