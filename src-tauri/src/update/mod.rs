@@ -38,15 +38,6 @@ struct GitHubRelease {
 
 use crate::paths::get_data_dir;
 
-/// Returns the path to the uv executable within the data directory.
-fn get_uv_path(data_dir: &Path) -> PathBuf {
-    if cfg!(target_os = "windows") {
-        data_dir.join("uv.exe")
-    } else {
-        data_dir.join("uv")
-    }
-}
-
 /// Get the currently installed version of reachy-mini from the local venv.
 fn get_local_daemon_version(data_dir: &Path) -> Result<String, String> {
     let site_packages = get_site_packages_path(data_dir)?;
@@ -244,52 +235,6 @@ fn is_update_available(current: &str, available: &str) -> Result<bool, String> {
     Ok(available_ver > current_ver)
 }
 
-/// Run a uv command asynchronously in the data directory.
-/// Uses tokio::process to avoid blocking the async runtime.
-async fn run_uv(data_dir: &Path, args: &[&str], context: &str) -> Result<(String, String), String> {
-    let uv_path = get_uv_path(data_dir);
-    if !uv_path.exists() {
-        return Err(format!("uv not found at {:?}", uv_path));
-    }
-
-    log::info!(
-        "[update] Running uv ({}): {:?} {:?}",
-        context,
-        uv_path,
-        args
-    );
-
-    let output = tokio::process::Command::new(&uv_path)
-        .current_dir(data_dir)
-        .env("UV_PYTHON_INSTALL_DIR", data_dir)
-        .env("UV_WORKING_DIR", data_dir)
-        .args(args)
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run uv ({}): {}", context, e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    if !stdout.is_empty() {
-        log::info!("[update] uv stdout ({}):\n{}", context, stdout);
-    }
-    if !stderr.is_empty() {
-        log::info!("[update] uv stderr ({}):\n{}", context, stderr);
-    }
-
-    if !output.status.success() {
-        return Err(format!(
-            "uv {} failed with exit code {:?}:\n{}",
-            context,
-            output.status.code(),
-            stderr
-        ));
-    }
-
-    Ok((stdout, stderr))
-}
-
 // ============================================================================
 // TAURI COMMANDS
 // ============================================================================
@@ -322,7 +267,70 @@ pub async fn check_daemon_update(
     })
 }
 
-/// Update the daemon to the latest version using uv.
+/// Run an upgrade via the uv-trampoline sidecar.
+/// This ensures macOS code signing happens automatically after pip install.
+/// Emits sidecar-stdout/stderr events so the UI can display progress.
+async fn run_sidecar_upgrade(
+    app_handle: &AppHandle,
+    args: &[&str],
+    context: &str,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    use tauri_plugin_shell::process::CommandEvent;
+    use tauri_plugin_shell::ShellExt;
+
+    log::info!("[update] Running sidecar upgrade ({}): {:?}", context, args);
+
+    let sidecar_command = app_handle
+        .shell()
+        .sidecar("uv-trampoline")
+        .map_err(|e| format!("Failed to create sidecar command: {}", e))?
+        .args(args);
+
+    let (mut rx, _child) = sidecar_command
+        .spawn()
+        .map_err(|e| format!("Failed to spawn sidecar ({}): {}", context, e))?;
+
+    let mut last_stderr = String::new();
+
+    while let Some(event) = rx.recv().await {
+        match event {
+            CommandEvent::Stdout(line) => {
+                let line = String::from_utf8_lossy(&line);
+                log::info!("[update] sidecar stdout ({}): {}", context, line.trim());
+                let _ = app_handle.emit("sidecar-stdout", line.to_string());
+            }
+            CommandEvent::Stderr(line) => {
+                let line = String::from_utf8_lossy(&line).to_string();
+                log::info!("[update] sidecar stderr ({}): {}", context, line.trim());
+                let _ = app_handle.emit("sidecar-stderr", line.clone());
+                last_stderr = line;
+            }
+            CommandEvent::Terminated(status) => {
+                let code = status.code.unwrap_or(-1);
+                if code != 0 {
+                    return Err(format!(
+                        "Sidecar upgrade ({}) failed with code {}: {}",
+                        context,
+                        code,
+                        last_stderr.trim()
+                    ));
+                }
+                log::info!(
+                    "[update] Sidecar upgrade ({}) completed successfully",
+                    context
+                );
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+/// Update the daemon to the latest version via uv-trampoline sidecar.
+/// Using the sidecar ensures macOS code signing happens after pip install.
 #[tauri::command]
 pub async fn update_daemon(
     app_handle: AppHandle,
@@ -339,16 +347,14 @@ pub async fn update_daemon(
 
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
-    let data_dir = get_data_dir()?;
-
     let python_rel = if cfg!(target_os = "windows") {
         ".venv\\Scripts\\python.exe"
     } else {
         ".venv/bin/python3"
     };
 
-    // Upgrade reachy-mini in .venv
-    let mut args = vec![
+    // Upgrade reachy-mini in .venv (via sidecar for automatic signing)
+    let mut args: Vec<&str> = vec![
         "pip",
         "install",
         "--python",
@@ -359,7 +365,7 @@ pub async fn update_daemon(
     if pre_release {
         args.push("--pre");
     }
-    run_uv(&data_dir, &args, "reachy-mini upgrade (.venv)").await?;
+    run_sidecar_upgrade(&app_handle, &args, "reachy-mini upgrade (.venv)").await?;
 
     // Also upgrade in apps_venv
     let apps_python_rel = if cfg!(target_os = "windows") {
@@ -367,7 +373,7 @@ pub async fn update_daemon(
     } else {
         "apps_venv/bin/python3"
     };
-    let mut apps_args = vec![
+    let mut apps_args: Vec<&str> = vec![
         "pip",
         "install",
         "--python",
@@ -378,7 +384,7 @@ pub async fn update_daemon(
     if pre_release {
         apps_args.push("--pre");
     }
-    run_uv(&data_dir, &apps_args, "reachy-mini upgrade (apps_venv)").await?;
+    run_sidecar_upgrade(&app_handle, &apps_args, "reachy-mini upgrade (apps_venv)").await?;
 
     log::info!("[update] Daemon updated successfully!");
 
