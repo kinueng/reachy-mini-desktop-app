@@ -45,8 +45,11 @@ export default function AppTopBar() {
     checkWindow();
   }, []);
 
-  // Render via portal to escape parent stacking context
-  // z-index 10000000 ensures it's above MUI Modals (which use 9999 by default)
+  // Render via portal to escape parent stacking context.
+  // z-index 10000000 keeps AppTopBar above all modals so drag always works.
+  // Any interactive element that must be clickable within the top 33px of a modal
+  // (e.g. a close button) must be rendered at z-index > 10000000, typically via
+  // its own portal (see FullscreenOverlay).
   return createPortal(
     <Box
       onMouseDown={async e => {

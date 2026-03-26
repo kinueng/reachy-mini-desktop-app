@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Box, IconButton, Modal } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import { getAppWindow } from '../utils/windowUtils';
 
 /**
  * Generic Fullscreen Overlay Component
@@ -49,6 +50,8 @@ export default function FullscreenOverlay({
   scrollRef,
   children,
 }) {
+  const appWindow = getAppWindow();
+
   // Track if we've already animated this modal (don't re-animate when coming back from hidden)
   const hasAnimatedRef = useRef(false);
 
@@ -142,6 +145,33 @@ export default function FullscreenOverlay({
             ...scrollbarStyles,
           }}
         >
+          {/* Drag strip - allows window dragging from the top 33px of the overlay.
+              When AppTopBar is present (z-index 10000000), it handles drag and this
+              strip is never reached. When AppTopBar is absent (showTopBar: false views),
+              this strip provides drag. The close button portal (z-index 10000001) always
+              sits above this strip's stacking context (z-index of this modal), so close
+              button clicks are never blocked. */}
+          <Box
+            onMouseDown={async e => {
+              e.preventDefault();
+              e.stopPropagation();
+              try {
+                await appWindow.startDragging();
+              } catch (err) {}
+            }}
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 65,
+              right: 0,
+              height: 33,
+              cursor: 'move',
+              userSelect: 'none',
+              WebkitAppRegion: 'drag',
+              zIndex: 1,
+            }}
+          />
+
           {/* Content wrapper */}
           <Box
             onClick={e => e.stopPropagation()}
@@ -159,7 +189,10 @@ export default function FullscreenOverlay({
         </Box>
       </Modal>
 
-      {/* Close button - rendered as portal above the drag bar (z-index 10000001) */}
+      {/* Close button - portal at z-index 10000001, above AppTopBar (10000000).
+          This is required because AppTopBar sits at z-index 10000000 to remain
+          draggable at all times. Any interactive element within the top 33px of
+          a fullscreen overlay must be rendered above it via a portal. */}
       {showCloseButton &&
         open &&
         !hidden &&
