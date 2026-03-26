@@ -10,6 +10,7 @@ mod network;
 mod paths;
 mod permissions;
 mod python;
+mod reset;
 mod signing;
 mod update;
 mod usb;
@@ -395,6 +396,8 @@ pub fn run() {
             wifi::get_current_wifi_ssid,
             update::check_daemon_update,
             update::update_daemon,
+            reset::reset_apps_venv,
+            reset::reset_python_env,
             set_local_proxy_target,
             clear_local_proxy_target,
             // Robot discovery (mDNS + manual IP)

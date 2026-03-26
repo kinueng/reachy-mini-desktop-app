@@ -210,38 +210,67 @@ fn main() -> ExitCode {
 
     println!("📂 Data directory: {:?}", data_dir);
 
-    // Step 2: Bootstrap if .venv doesn't exist yet (first run)
-    if !venv_exists(&data_dir, ".venv") {
+    // Step 2: Bootstrap — ensure uv, Python, .venv, and apps_venv all exist.
+    // On first run everything is created. After a partial reset (e.g., apps_venv
+    // deleted), only the missing pieces are recreated.
+    let needs_full_bootstrap = !venv_exists(&data_dir, ".venv");
+    let needs_apps_venv = !venv_exists(&data_dir, "apps_venv");
+
+    if needs_full_bootstrap {
         println!("📦 First run detected, bootstrapping Python environment...");
         if let Err(e) = bootstrap(&data_dir) {
             eprintln!("❌ Bootstrap failed: {}", e);
             return ExitCode::FAILURE;
         }
+    } else if needs_apps_venv {
+        // .venv exists but apps_venv is missing (e.g., after "Reset Apps Environment")
+        println!("[bootstrap] Recreating apps_venv...");
+        let package_spec = uv_wrapper::get_reachy_mini_spec();
+        let apps_python_rel = if cfg!(target_os = "windows") {
+            "apps_venv\\Scripts\\python.exe"
+        } else {
+            "apps_venv/bin/python3"
+        };
+        if let Err(e) = uv_wrapper::run_uv(&data_dir, &["venv", "apps_venv"]) {
+            eprintln!("❌ Failed to create apps_venv: {}", e);
+        } else if let Err(e) = uv_wrapper::run_uv(
+            &data_dir,
+            &["pip", "install", "--python", apps_python_rel, &package_spec],
+        ) {
+            eprintln!("❌ Failed to install packages in apps_venv: {}", e);
+        }
+    }
 
-        // macOS: re-sign all binaries after bootstrap
+    // macOS: sign any new/unsigned binaries
+    if needs_full_bootstrap || needs_apps_venv {
         #[cfg(target_os = "macos")]
         {
             println!("[bootstrap] Signing Python binaries...");
             let signing_identity = detect_signing_identity();
 
-            // Sign the cpython installation directory (e.g., cpython-3.12.13-macos-aarch64-none/)
-            // This is critical: .venv/bin/python3 is a symlink to the cpython install,
-            // and macOS checks Team ID on the actual binary + libpython3.12.dylib
-            if let Ok(entries) = fs::read_dir(&data_dir) {
-                for entry in entries.flatten() {
-                    let name = entry.file_name();
-                    let name_str = name.to_string_lossy();
-                    if name_str.starts_with("cpython-") && entry.path().is_dir() {
-                        println!("[bootstrap] Signing cpython installation: {}", name_str);
-                        if let Err(e) = resign_all_venv_binaries(&entry.path(), &signing_identity, None) {
-                            eprintln!("[bootstrap] Warning: failed to re-sign binaries in {}: {}", name_str, e);
+            if needs_full_bootstrap {
+                // Sign the cpython installation directory (e.g., cpython-3.12.13-macos-aarch64-none/)
+                if let Ok(entries) = fs::read_dir(&data_dir) {
+                    for entry in entries.flatten() {
+                        let name = entry.file_name();
+                        let name_str = name.to_string_lossy();
+                        if name_str.starts_with("cpython-") && entry.path().is_dir() {
+                            println!("[bootstrap] Signing cpython installation: {}", name_str);
+                            if let Err(e) = resign_all_venv_binaries(&entry.path(), &signing_identity, None) {
+                                eprintln!("[bootstrap] Warning: failed to re-sign binaries in {}: {}", name_str, e);
+                            }
                         }
                     }
                 }
             }
 
-            // Sign venv directories
-            for venv_name in &[".venv", "apps_venv"] {
+            // Sign venv directories (only the ones that were just created)
+            let venvs_to_sign: &[&str] = if needs_full_bootstrap {
+                &[".venv", "apps_venv"]
+            } else {
+                &["apps_venv"]
+            };
+            for venv_name in venvs_to_sign {
                 let venv_dir = data_dir.join(venv_name);
                 if venv_dir.exists() {
                     if let Err(e) = resign_all_venv_binaries(&venv_dir, &signing_identity, None) {
@@ -251,13 +280,17 @@ fn main() -> ExitCode {
             }
         }
 
-        // Pre-warm: GStreamer registry cache + reachy_mini import for both venvs in parallel
+        // Pre-warm: GStreamer registry cache + reachy_mini import in parallel
         // Without this, first launch scans 256 GStreamer plugins (2+ min)
-        // and compiles all .pyc bytecode
+        let venvs_to_warm: &[&str] = if needs_full_bootstrap {
+            &[".venv", "apps_venv"]
+        } else {
+            &["apps_venv"]
+        };
         println!("[bootstrap] Pre-warming GStreamer and Python imports...");
         {
             let mut children = Vec::new();
-            for venv_name in &[".venv", "apps_venv"] {
+            for venv_name in venvs_to_warm {
                 let python_path = if cfg!(target_os = "windows") {
                     data_dir.join(venv_name).join("Scripts").join("python.exe")
                 } else {
@@ -267,7 +300,6 @@ fn main() -> ExitCode {
                     continue;
                 }
 
-                // Spawn GStreamer + import in a single Python process per venv
                 println!("[bootstrap] Pre-warming {}...", venv_name);
                 match Command::new(&python_path)
                     .current_dir(&data_dir)
@@ -289,7 +321,6 @@ fn main() -> ExitCode {
                 }
             }
 
-            // Wait for all pre-warm processes to finish
             for (venv_name, mut child) in children {
                 match child.wait() {
                     Ok(status) if !status.success() => {
