@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 
 import { useDaemon, useDaemonHealthCheck, useDaemonReconciliation } from '../hooks/daemon';
+import useLogViewerBridge from '../hooks/useLogViewerBridge';
 import {
   telemetry,
   initTelemetry,
@@ -269,6 +270,9 @@ function App() {
   // Daemon health check (GET /api/daemon/status, USB 3s / WiFi 5s)
   // 4 consecutive timeouts → transitionTo.crashed()
   useDaemonHealthCheck(isActive);
+
+  // Bridge daemon logs to the Log Viewer window (WiFi: WebSocket, Lite: sidecar events are global)
+  useLogViewerBridge();
 
   // 🚀 Unified WebSocket for ALL robot state
   // Streams at 20Hz: head_pose, head_joints, body_yaw, antennas, passive_joints, control_mode, doa
