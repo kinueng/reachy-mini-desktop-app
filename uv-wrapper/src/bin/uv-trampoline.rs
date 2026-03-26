@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 use std::fs;
 
-use uv_wrapper::{get_data_dir, bootstrap, venv_exists, uv_exe_path};
+use uv_wrapper::{get_data_dir, bootstrap, venv_exists, uv_exe_path, needs_upgrade, upgrade_venvs};
 
 #[cfg(not(target_os = "windows"))]
 use signal_hook::{consts::TERM_SIGNALS, flag::register};
@@ -12,13 +12,8 @@ use signal_hook::{consts::TERM_SIGNALS, flag::register};
 /// This fixes Team ID mismatch issues on macOS by applying entitlements
 /// (disable-library-validation) to all native binaries.
 #[cfg(target_os = "macos")]
-fn resign_all_venv_binaries(venv_dir: &PathBuf, signing_identity: &str, modified_after: Option<std::time::SystemTime>) -> Result<(), String> {
-    if let Some(since) = modified_after {
-        println!("🔐 Re-signing new binaries in {}...", venv_dir.display());
-        let _ = since; // used below in file filtering
-    } else {
-        println!("🔐 Re-signing all Python binaries in {}...", venv_dir.display());
-    }
+fn resign_all_venv_binaries(venv_dir: &PathBuf, signing_identity: &str) -> Result<(), String> {
+    println!("🔐 Signing unsigned binaries in {}...", venv_dir.display());
     println!("   Signing identity: {}", if signing_identity == "-" { "adhoc" } else { signing_identity });
 
     // Find python-entitlements.plist:
@@ -51,7 +46,7 @@ fn resign_all_venv_binaries(venv_dir: &PathBuf, signing_identity: &str, modified
             None
         });
 
-    fn find_files(dir: &PathBuf, extension: &str, modified_after: Option<std::time::SystemTime>) -> Result<Vec<PathBuf>, String> {
+    fn find_files(dir: &PathBuf, extension: &str) -> Result<Vec<PathBuf>, String> {
         let mut files = Vec::new();
         if !dir.exists() {
             return Ok(files);
@@ -62,21 +57,11 @@ fn resign_all_venv_binaries(venv_dir: &PathBuf, signing_identity: &str, modified
             let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
             let path = entry.path();
             if path.is_dir() {
-                let mut sub_files = find_files(&path, extension, modified_after)?;
+                let mut sub_files = find_files(&path, extension)?;
                 files.append(&mut sub_files);
             } else if path.is_file() {
                 if let Some(file_name) = path.file_name() {
                     if file_name.to_string_lossy().ends_with(extension) {
-                        // Skip files not modified after the cutoff
-                        if let Some(since) = modified_after {
-                            if let Ok(metadata) = fs::metadata(&path) {
-                                if let Ok(mtime) = metadata.modified() {
-                                    if mtime < since {
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
                         files.push(path);
                     }
                 }
@@ -85,18 +70,32 @@ fn resign_all_venv_binaries(venv_dir: &PathBuf, signing_identity: &str, modified
         Ok(files)
     }
 
+    /// Returns Ok(Some(true)) if signed, Ok(Some(false)) if signing failed,
+    /// Ok(None) if skipped (not Mach-O or already signed).
     fn sign_binary(
         binary_path: &PathBuf,
         signing_identity: &str,
         entitlements: Option<&PathBuf>,
-    ) -> Result<bool, String> {
+    ) -> Result<Option<bool>, String> {
         let file_output = Command::new("file")
             .arg(binary_path)
             .output()
             .map_err(|e| format!("Failed to check file type: {}", e))?;
         let file_str = String::from_utf8_lossy(&file_output.stdout);
         if !file_str.contains("Mach-O") && !file_str.contains("dynamically linked") && !file_str.contains("shared library") {
-            return Ok(false);
+            return Ok(None);
+        }
+
+        // Skip if already properly signed
+        let already_signed = Command::new("codesign")
+            .arg("--verify")
+            .arg("--strict")
+            .arg(binary_path)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if already_signed {
+            return Ok(None);
         }
 
         let mut cmd = Command::new("codesign");
@@ -110,58 +109,57 @@ fn resign_all_venv_binaries(venv_dir: &PathBuf, signing_identity: &str, modified
         cmd.arg(binary_path);
 
         match cmd.output() {
-            Ok(output) if output.status.success() => Ok(true),
+            Ok(output) if output.status.success() => Ok(Some(true)),
             Ok(output) => {
                 eprintln!("   ⚠️  Failed to sign {}: {}", binary_path.display(), String::from_utf8_lossy(&output.stderr));
-                Ok(false)
+                Ok(Some(false))
             }
             Err(e) => {
                 eprintln!("   ⚠️  Error signing {}: {}", binary_path.display(), e);
-                Ok(false)
+                Ok(Some(false))
             }
         }
     }
 
     let mut signed_count = 0;
+    let mut skipped_count = 0;
     let mut error_count = 0;
 
-    // Sign python3 and libpython with entitlements (critical, only on full sign)
-    if modified_after.is_none() {
-        for bin_name in &["bin/python3", "bin/python3.12", "lib/libpython3.12.dylib"] {
-            let bin_path = venv_dir.join(bin_name);
-            if bin_path.exists() {
-                if sign_binary(&bin_path, signing_identity, entitlements_path.as_ref())? {
-                    signed_count += 1;
-                } else {
-                    error_count += 1;
-                }
+    // Sign python3 and libpython with entitlements
+    for bin_name in &["bin/python3", "bin/python3.12", "lib/libpython3.12.dylib"] {
+        let bin_path = venv_dir.join(bin_name);
+        if bin_path.exists() {
+            match sign_binary(&bin_path, signing_identity, entitlements_path.as_ref())? {
+                Some(true) => signed_count += 1,
+                Some(false) => error_count += 1,
+                None => skipped_count += 1,
             }
         }
     }
 
     // Sign .dylib files (entitlements for libpython* only)
-    for dylib_file in find_files(venv_dir, ".dylib", modified_after)? {
+    for dylib_file in find_files(venv_dir, ".dylib")? {
         let use_entitlements = dylib_file.file_name()
             .map(|n| n.to_string_lossy().starts_with("libpython"))
             .unwrap_or(false);
-        if sign_binary(&dylib_file, signing_identity, if use_entitlements { entitlements_path.as_ref() } else { None })? {
-            signed_count += 1;
-        } else {
-            error_count += 1;
+        match sign_binary(&dylib_file, signing_identity, if use_entitlements { entitlements_path.as_ref() } else { None })? {
+            Some(true) => signed_count += 1,
+            Some(false) => error_count += 1,
+            None => skipped_count += 1,
         }
     }
 
     // Sign .so files (Python extensions)
-    for so_file in find_files(venv_dir, ".so", modified_after)? {
-        if sign_binary(&so_file, signing_identity, None)? {
-            signed_count += 1;
-        } else {
-            error_count += 1;
+    for so_file in find_files(venv_dir, ".so")? {
+        match sign_binary(&so_file, signing_identity, None)? {
+            Some(true) => signed_count += 1,
+            Some(false) => error_count += 1,
+            None => skipped_count += 1,
         }
     }
 
     if error_count == 0 {
-        println!("   ✅ Successfully re-signed {} binaries", signed_count);
+        println!("   ✅ Signed {} binaries ({} already signed)", signed_count, skipped_count);
     } else {
         println!("   ⚠️  Re-signed {} binaries, {} failed", signed_count, error_count);
     }
@@ -170,7 +168,7 @@ fn resign_all_venv_binaries(venv_dir: &PathBuf, signing_identity: &str, modified
 }
 
 #[cfg(not(target_os = "macos"))]
-fn resign_all_venv_binaries(_venv_dir: &PathBuf, _signing_identity: &str, _modified_after: Option<std::time::SystemTime>) -> Result<(), String> {
+fn resign_all_venv_binaries(_venv_dir: &PathBuf, _signing_identity: &str) -> Result<(), String> {
     Ok(())
 }
 
@@ -241,8 +239,20 @@ fn main() -> ExitCode {
         }
     }
 
+    // Step 2b: Upgrade — if the venv already existed but the expected reachy-mini
+    // spec changed (e.g., app was updated), upgrade both venvs in place.
+    let needs_spec_upgrade = !needs_full_bootstrap && needs_upgrade(&data_dir);
+    if needs_spec_upgrade {
+        println!("[upgrade] App updated — reachy-mini spec changed, upgrading venvs...");
+        if let Err(e) = upgrade_venvs(&data_dir) {
+            eprintln!("⚠️  Upgrade failed (will continue with existing venv): {}", e);
+            // Non-fatal: the old version may still work. Don't write the marker
+            // so we retry on next launch.
+        }
+    }
+
     // macOS: sign any new/unsigned binaries
-    if needs_full_bootstrap || needs_apps_venv {
+    if needs_full_bootstrap || needs_apps_venv || needs_spec_upgrade {
         #[cfg(target_os = "macos")]
         {
             println!("[bootstrap] Signing Python binaries...");
@@ -256,7 +266,7 @@ fn main() -> ExitCode {
                         let name_str = name.to_string_lossy();
                         if name_str.starts_with("cpython-") && entry.path().is_dir() {
                             println!("[bootstrap] Signing cpython installation: {}", name_str);
-                            if let Err(e) = resign_all_venv_binaries(&entry.path(), &signing_identity, None) {
+                            if let Err(e) = resign_all_venv_binaries(&entry.path(), &signing_identity) {
                                 eprintln!("[bootstrap] Warning: failed to re-sign binaries in {}: {}", name_str, e);
                             }
                         }
@@ -264,8 +274,8 @@ fn main() -> ExitCode {
                 }
             }
 
-            // Sign venv directories (only the ones that were just created)
-            let venvs_to_sign: &[&str] = if needs_full_bootstrap {
+            // Sign venv directories (only the ones that were just created or upgraded)
+            let venvs_to_sign: &[&str] = if needs_full_bootstrap || needs_spec_upgrade {
                 &[".venv", "apps_venv"]
             } else {
                 &["apps_venv"]
@@ -273,7 +283,7 @@ fn main() -> ExitCode {
             for venv_name in venvs_to_sign {
                 let venv_dir = data_dir.join(venv_name);
                 if venv_dir.exists() {
-                    if let Err(e) = resign_all_venv_binaries(&venv_dir, &signing_identity, None) {
+                    if let Err(e) = resign_all_venv_binaries(&venv_dir, &signing_identity) {
                         eprintln!("[bootstrap] Warning: failed to re-sign binaries in {}: {}", venv_name, e);
                     }
                 }
@@ -282,7 +292,7 @@ fn main() -> ExitCode {
 
         // Pre-warm: GStreamer registry cache + reachy_mini import in parallel
         // Without this, first launch scans 256 GStreamer plugins (2+ min)
-        let venvs_to_warm: &[&str] = if needs_full_bootstrap {
+        let venvs_to_warm: &[&str] = if needs_full_bootstrap || needs_spec_upgrade {
             &[".venv", "apps_venv"]
         } else {
             &["apps_venv"]
@@ -417,9 +427,6 @@ fn main() -> ExitCode {
     };
 
     // Record time before pip install so we only re-sign newly modified binaries
-    #[cfg(target_os = "macos")]
-    let pre_install_time = if is_pip_install { Some(std::time::SystemTime::now()) } else { None };
-
     println!("🚀 Launching: {:?}", cmd);
 
     let mut child = match cmd.spawn() {
@@ -457,7 +464,7 @@ fn main() -> ExitCode {
                         eprintln!("⚠️  Process exited with code: {}", exit_code);
                     }
 
-                    // macOS: re-sign only new binaries in the targeted venv after pip install
+                    // macOS: sign any unsigned binaries in the targeted venv after pip install
                     #[cfg(target_os = "macos")]
                     {
                         if is_pip_install && exit_code == 0 {
@@ -469,7 +476,7 @@ fn main() -> ExitCode {
                             for venv_name in venvs_to_sign {
                                 let venv_dir = data_dir.join(venv_name);
                                 if venv_dir.exists() {
-                                    if let Err(e) = resign_all_venv_binaries(&venv_dir, &signing_identity, pre_install_time) {
+                                    if let Err(e) = resign_all_venv_binaries(&venv_dir, &signing_identity) {
                                         eprintln!("⚠️  Failed to re-sign binaries in {}: {}", venv_name, e);
                                     }
                                 }

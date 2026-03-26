@@ -209,6 +209,62 @@ pub fn bootstrap(data_dir: &PathBuf) -> Result<(), String> {
     )?;
 
     println!("[bootstrap] Packages installed successfully");
+    write_spec_marker(data_dir);
+    Ok(())
+}
+
+/// Path to the marker file that records which reachy-mini spec was last installed.
+pub fn spec_marker_path(data_dir: &PathBuf) -> PathBuf {
+    data_dir.join(".reachy_mini_spec")
+}
+
+/// Check if the installed reachy-mini spec differs from what this build expects.
+/// Returns true when an upgrade is needed (marker missing or content differs).
+pub fn needs_upgrade(data_dir: &PathBuf) -> bool {
+    let marker = spec_marker_path(data_dir);
+    let current_spec = get_reachy_mini_spec();
+    match fs::read_to_string(&marker) {
+        Ok(saved) => saved.trim() != current_spec,
+        Err(_) => true,
+    }
+}
+
+/// Write the current spec to the marker file so subsequent launches skip the upgrade.
+pub fn write_spec_marker(data_dir: &PathBuf) {
+    let _ = fs::write(spec_marker_path(data_dir), get_reachy_mini_spec());
+}
+
+/// Upgrade reachy-mini in both venvs to match the current spec.
+pub fn upgrade_venvs(data_dir: &PathBuf) -> Result<(), String> {
+    let package_spec = get_reachy_mini_spec();
+
+    let python_rel = if cfg!(target_os = "windows") {
+        ".venv\\Scripts\\python.exe"
+    } else {
+        ".venv/bin/python3"
+    };
+    let apps_python_rel = if cfg!(target_os = "windows") {
+        "apps_venv\\Scripts\\python.exe"
+    } else {
+        "apps_venv/bin/python3"
+    };
+
+    println!("[upgrade] Upgrading .venv to {}...", package_spec);
+    run_uv(
+        data_dir,
+        &["pip", "install", "--python", python_rel, &package_spec],
+    )?;
+
+    if python_exe_path(data_dir, "apps_venv").exists() {
+        println!("[upgrade] Upgrading apps_venv to {}...", package_spec);
+        run_uv(
+            data_dir,
+            &["pip", "install", "--python", apps_python_rel, &package_spec],
+        )?;
+    }
+
+    write_spec_marker(data_dir);
+    println!("[upgrade] Upgrade complete");
     Ok(())
 }
 
