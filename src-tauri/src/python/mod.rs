@@ -16,7 +16,21 @@ pub fn build_daemon_args(sim_mode: bool, preload_datasets: bool) -> Result<Vec<S
     // This is a Windows-specific issue (Avast is primarily a Windows antivirus)
     #[cfg(target_os = "windows")]
     {
-        args.push("scripts\\avast_ssl_fix.py".to_string());
+        // In dev mode, the script is in the project source tree
+        // In production, Tauri bundles it as a resource into the data dir
+        let script_path = if cfg!(debug_assertions) {
+            let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+            manifest_dir
+                .parent()
+                .unwrap_or(manifest_dir)
+                .join("scripts")
+                .join("avast_ssl_fix.py")
+        } else {
+            crate::paths::get_data_dir()?
+                .join("scripts")
+                .join("avast_ssl_fix.py")
+        };
+        args.push(script_path.to_string_lossy().to_string());
     }
 
     // On macOS/Linux, run the daemon module directly (no wrapper needed)
