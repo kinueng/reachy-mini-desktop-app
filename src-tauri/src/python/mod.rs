@@ -1,6 +1,7 @@
 // Helper to build daemon arguments
 // IMPORTANT: Use .venv/bin/python3 directly instead of "uv run python" to ensure
 // we use the venv Python with all installed packages, not the cpython bundle
+#[allow(unused_variables)]
 pub fn build_daemon_args(
     app_handle: &tauri::AppHandle,
     sim_mode: bool,
