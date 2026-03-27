@@ -123,19 +123,21 @@
 
 ## Media Backends
 
-| Backend     | Camera        | Audio         | Use Case                             |
-| ----------- | ------------- | ------------- | ------------------------------------ |
-| `DEFAULT`   | OpenCV        | SoundDevice   | Legacy / fallback                    |
-| `GSTREAMER` | GStreamer     | GStreamer     | Wireless local (on CM4)              |
-| `WEBRTC`    | WebRTC client | WebRTC client | Wireless remote + Lite (desktop app) |
-| `NO_MEDIA`  | None          | None          | SDK only, no media                   |
+The daemon always owns the physical camera and audio hardware via `GstMediaServer`. Clients pick a backend:
+
+| Backend    | Camera                      | Audio            | Use Case                            |
+| ---------- | --------------------------- | ---------------- | ----------------------------------- |
+| `LOCAL`    | GStreamer IPC (`unixfdsrc`) | GStreamer local  | On-device apps (no encode/decode)   |
+| `WEBRTC`   | WebRTC client               | WebRTC client    | Remote clients + Lite (desktop app) |
+| `NO_MEDIA` | None                        | None             | Headless / SDK only                 |
+
+`DEFAULT` is an alias for `LOCAL`. Old names (`GSTREAMER`, `SOUNDDEVICE_OPENCV`, etc.) are deprecated aliases that map to `LOCAL`.
 
 Auto-detection logic:
 
-1. If `wireless_version` + local camera socket exists → `GSTREAMER`
-2. If `wireless_version` + remote → `WEBRTC`
-3. If Lite (USB) → `WEBRTC` (daemon exposes signaling server on `localhost:8443`)
-4. Otherwise → `DEFAULT` (OpenCV)
+1. If on-device (local camera IPC socket exists) → `LOCAL`
+2. If remote (Wireless or Lite via USB) → `WEBRTC` (daemon exposes signaling server on `localhost:8443`)
+3. Headless → `NO_MEDIA`
 
 ---
 
