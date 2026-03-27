@@ -9,6 +9,7 @@ import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 const isWebMode = import.meta.env.VITE_WEB_MODE === 'true' || !window.__TAURI__;
 const isDevPath = window.location.pathname === '/dev' || window.location.hash === '#dev';
 const isJournalWindow = window.location.hash === '#journal';
+const isLogViewer = window.location.hash === '#log-viewer';
 const DEV_MODE = isDevPath && !isWebMode;
 
 // Mock Tauri APIs if not in Tauri (browser/web mode)
@@ -36,6 +37,7 @@ import App from './components/App';
 import DevPlayground from './components/DevPlayground';
 import WebApp from './components/WebApp';
 import JournalWindow from './views/bluetooth-support/JournalWindow';
+import LogViewerWindow from './views/log-viewer/LogViewerWindow';
 import ErrorBoundary from './components/ErrorBoundary';
 import robotModelCache from './utils/robotModelCache';
 import useAppStore from './store/useAppStore';
@@ -210,13 +212,15 @@ function ThemeWrapper({ children }) {
 
 // Choose component to display based on mode
 // Priority: Journal > WebMode > DevMode > Normal App
-const RootComponent = isJournalWindow
-  ? JournalWindow
-  : isWebMode
-    ? WebApp
-    : DEV_MODE
-      ? DevPlayground
-      : App;
+const RootComponent = isLogViewer
+  ? LogViewerWindow
+  : isJournalWindow
+    ? JournalWindow
+    : isWebMode
+      ? WebApp
+      : DEV_MODE
+        ? DevPlayground
+        : App;
 
 if (import.meta.env.DEV) {
   console.log(`[Main] Mode: ${isWebMode ? 'WEB' : DEV_MODE ? 'DEV' : 'TAURI'}`);
