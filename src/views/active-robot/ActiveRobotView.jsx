@@ -12,6 +12,7 @@ import {
   Tooltip,
 } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import useDaemonLogStream from '../../hooks/useDaemonLogStream';
 import FullscreenOverlay from '../../components/FullscreenOverlay';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import Viewer3D from '../../components/viewer3d';
@@ -170,6 +171,16 @@ function ActiveRobotView({
 
   // Logs fullscreen modal
   const [logsFullscreenOpen, setLogsFullscreenOpen] = useState(false);
+
+  // Remote daemon log filters (off by default)
+  const [daemonLogFilters, setDaemonLogFilters] = useState([]);
+  const remoteLogs = useDaemonLogStream(daemonLogFilters);
+
+  const toggleLogFilter = useCallback(cat => {
+    setDaemonLogFilters(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
+  }, []);
 
   // Audio controls - Extracted to hook
   const {
@@ -552,20 +563,6 @@ function ActiveRobotView({
                   >
                     Logs
                   </Typography>
-                  <Tooltip
-                    title="Real-time logs from the Reachy Mini robot daemon. Logs are collected via the Python daemon's logging system and streamed to the frontend through Tauri's IPC (Inter-Process Communication). The daemon runs as a background service and captures system events, robot movements, errors, and status updates. Frontend logs (actions, API calls) are also displayed here with timestamps."
-                    arrow
-                    placement="top"
-                  >
-                    <InfoOutlinedIcon
-                      sx={{
-                        fontSize: 12,
-                        color: darkMode ? '#666' : '#999',
-                        opacity: 0.6,
-                        cursor: 'help',
-                      }}
-                    />
-                  </Tooltip>
                 </Box>
               </Box>
 
@@ -574,6 +571,7 @@ function ActiveRobotView({
               >
                 <LogConsole
                   logs={logs}
+                  remoteLogs={remoteLogs}
                   darkMode={darkMode}
                   lines={4}
                   onExpand={() => setLogsFullscreenOpen(true)}
@@ -632,20 +630,50 @@ function ActiveRobotView({
               overflow: 'hidden',
             }}
           >
-            <Typography
-              sx={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: darkMode ? '#888' : '#999',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                flexShrink: 0,
-              }}
-            >
-              Logs
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
+              <Typography
+                sx={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: darkMode ? '#888' : '#999',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Logs
+              </Typography>
+              {[
+                { key: 'daemon', label: 'Daemon', color: '#60a5fa' },
+                { key: 'api', label: 'API', color: '#34d399' },
+                { key: 'app', label: 'App', color: '#c084fc' },
+              ].map(({ key, label, color }) => (
+                <Box
+                  key={key}
+                  onClick={() => toggleLogFilter(key)}
+                  sx={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    userSelect: 'none',
+                    color: daemonLogFilters.includes(key) ? color : darkMode ? '#555' : '#bbb',
+                    bgcolor: daemonLogFilters.includes(key) ? `${color}18` : 'transparent',
+                    border: `1px solid ${daemonLogFilters.includes(key) ? `${color}40` : darkMode ? '#333' : '#ddd'}`,
+                    '&:hover': {
+                      bgcolor: `${color}15`,
+                      borderColor: `${color}30`,
+                    },
+                  }}
+                >
+                  {label}
+                </Box>
+              ))}
+            </Box>
             <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-              <LogConsole logs={logs} darkMode={darkMode} height="100%" />
+              <LogConsole logs={logs} remoteLogs={remoteLogs} darkMode={darkMode} height="100%" />
             </Box>
           </Box>
         </FullscreenOverlay>

@@ -33,6 +33,7 @@ function LogConsole({
   logs,
   darkMode = false,
   includeStoreLogs = true,
+  remoteLogs = EMPTY_ARRAY,
   sx = {},
   maxHeight = null,
   height = null,
@@ -47,11 +48,11 @@ function LogConsole({
   const frontendLogs = useAppStore(state => (includeStoreLogs ? state.frontendLogs : EMPTY_ARRAY));
   const appLogs = useAppStore(state => (includeStoreLogs ? state.appLogs : EMPTY_ARRAY));
 
-  // Process and normalize all logs
+  // Process and normalize all logs (remoteLogs bypass shouldFilterLog via appLogs path)
   const normalizedLogs = useLogProcessing(
     logs,
     frontendLogs,
-    appLogs,
+    [...appLogs, ...remoteLogs],
     includeStoreLogs,
     simpleStyle
   );
