@@ -217,8 +217,16 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
 
   // Listen for bootstrap messages from sidecar stdout
   // Decides whether we're bootstrapping (first [bootstrap] message) or not (any other message)
+  // WiFi mode has no local sidecar, so skip bootstrap detection entirely
   useEffect(() => {
     if (!isStarting) return;
+
+    // WiFi mode: no local sidecar, bootstrap doesn't apply
+    const currentConnectionMode = useAppStore.getState().connectionMode;
+    if (currentConnectionMode === 'wifi') {
+      setIsBootstrapping(false);
+      return;
+    }
 
     let isMounted = true;
     let unlistenStdout = null;
