@@ -2,10 +2,10 @@
 ///
 /// This module provides functionality to check for and install daemon updates
 /// independently of the Python daemon's update routes. It queries GitHub Releases
-/// for version info and manages the local venv using pip.
+/// for version info and manages the local venv using uv.
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 use crate::daemon::DaemonState;
 
@@ -36,151 +36,11 @@ struct GitHubRelease {
 // HELPER FUNCTIONS
 // ============================================================================
 
-/// Get the path to the local venv SOURCE directory.
-/// This is the directory that contains the .venv that uv-trampoline will copy.
-/// - In dev: src-tauri/binaries/.venv
-/// - In production (macOS): ~/Library/Application Support/com.pollen-robotics.reachy-mini/.venv
-///   (fallback: App.app/Contents/Resources/.venv)
-/// - In production (Windows): %LOCALAPPDATA%\Reachy Mini Control\.venv
-fn get_local_venv_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    #[cfg(target_os = "windows")]
-    {
-        let program_files =
-            std::env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string());
-        let program_files_dir = PathBuf::from(program_files)
-            .join("Reachy Mini Control")
-            .join("binaries");
-
-        if program_files_dir.join(".venv").exists() {
-            log::info!("[update] Using Program Files venv: {:?}", program_files_dir);
-            return Ok(program_files_dir);
-        }
-
-        let resource_dir = app_handle
-            .path()
-            .resource_dir()
-            .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-        let binaries_dir = resource_dir.join("binaries");
-
-        if binaries_dir.join(".venv").exists() {
-            log::info!("[update] Using dev venv: {:?}", binaries_dir);
-            return Ok(binaries_dir);
-        }
-
-        Err(format!(
-            "Venv not found. Checked {:?} and {:?}",
-            program_files_dir, binaries_dir
-        ))
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let exe_path =
-            std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
-        let exe_dir = exe_path
-            .parent()
-            .ok_or_else(|| "Failed to get exe parent directory".to_string())?;
-
-        log::info!("[update] Executable directory: {:?}", exe_dir);
-
-        // In development, Tauri copies resources to target/debug/
-        if exe_dir.ends_with("target/debug") || exe_dir.ends_with("target\\debug") {
-            return resolve_dev_venv_path(exe_dir);
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            if let Some(path) = resolve_macos_prod_venv_path(exe_dir) {
-                return Ok(path);
-            }
-        }
-
-        // Fallback: Use resource_dir from Tauri API
-        let resource_dir = app_handle
-            .path()
-            .resource_dir()
-            .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-        let binaries_dir = resource_dir.join("binaries");
-
-        if binaries_dir.join(".venv").exists() {
-            log::info!("[update] Using resource_dir venv: {:?}", binaries_dir);
-            Ok(binaries_dir)
-        } else {
-            Err(format!(
-                "Venv not found. Checked exe_dir, macOS Resources, and resource_dir: {:?}",
-                binaries_dir.join(".venv")
-            ))
-        }
-    }
-}
-
-/// Resolve venv path in a dev environment (target/debug/).
-#[cfg(not(target_os = "windows"))]
-fn resolve_dev_venv_path(exe_dir: &Path) -> Result<PathBuf, String> {
-    let target_debug_dir = exe_dir.to_path_buf();
-
-    if target_debug_dir.join(".venv").exists() {
-        log::info!(
-            "[update] Using target/debug venv (runtime copy): {:?}",
-            target_debug_dir
-        );
-        return Ok(target_debug_dir);
-    }
-
-    let src_tauri_dir = exe_dir
-        .parent()
-        .and_then(|p| p.parent())
-        .ok_or_else(|| "Failed to navigate to src-tauri directory".to_string())?;
-
-    let binaries_dir = if src_tauri_dir.ends_with("src-tauri") {
-        src_tauri_dir.join("binaries")
-    } else {
-        src_tauri_dir.join("src-tauri").join("binaries")
-    };
-
-    if binaries_dir.join(".venv").exists() {
-        log::info!("[update] Using dev binaries venv: {:?}", binaries_dir);
-        return Ok(binaries_dir);
-    }
-
-    Err(format!(
-        "Dev venv not found in {:?} or {:?}",
-        target_debug_dir.join(".venv"),
-        binaries_dir.join(".venv")
-    ))
-}
-
-/// Resolve venv path for macOS production builds.
-/// Priority: Application Support (persists across updates) > App bundle Resources.
-#[cfg(target_os = "macos")]
-fn resolve_macos_prod_venv_path(exe_dir: &Path) -> Option<PathBuf> {
-    // Application Support directory (externalized venv, persists across Tauri updates)
-    if let Some(data_dir) = dirs::data_dir() {
-        let app_support_dir = data_dir.join("com.pollen-robotics.reachy-mini");
-        if app_support_dir.join(".venv").exists() {
-            log::info!(
-                "[update] Using Application Support venv: {:?}",
-                app_support_dir
-            );
-            return Some(app_support_dir);
-        }
-    }
-
-    // App bundle Resources (before externalization or as fallback)
-    if let Some(macos_dir) = exe_dir.parent() {
-        let resources_dir = macos_dir.join("Resources");
-        if resources_dir.join(".venv").exists() {
-            log::info!("[update] Using production venv: {:?}", resources_dir);
-            return Some(resources_dir);
-        }
-    }
-
-    None
-}
+use crate::paths::get_data_dir;
 
 /// Get the currently installed version of reachy-mini from the local venv.
-fn get_local_daemon_version(venv_path: &Path) -> Result<String, String> {
-    let site_packages = get_site_packages_path(venv_path)?;
+fn get_local_daemon_version(data_dir: &Path) -> Result<String, String> {
+    let site_packages = get_site_packages_path(data_dir)?;
 
     let entries = std::fs::read_dir(&site_packages)
         .map_err(|e| format!("Failed to read site-packages: {}", e))?;
@@ -207,11 +67,11 @@ fn get_local_daemon_version(venv_path: &Path) -> Result<String, String> {
     Err("reachy-mini version not found in venv".to_string())
 }
 
-/// Locate the site-packages directory inside a venv (cross-platform).
-fn get_site_packages_path(venv_path: &Path) -> Result<PathBuf, String> {
+/// Locate the site-packages directory inside the .venv (cross-platform).
+fn get_site_packages_path(data_dir: &Path) -> Result<PathBuf, String> {
     #[cfg(target_os = "windows")]
     {
-        let path = venv_path.join(".venv").join("Lib").join("site-packages");
+        let path = data_dir.join(".venv").join("Lib").join("site-packages");
         if path.exists() {
             return Ok(path);
         }
@@ -220,7 +80,7 @@ fn get_site_packages_path(venv_path: &Path) -> Result<PathBuf, String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        let lib_dir = venv_path.join(".venv").join("lib");
+        let lib_dir = data_dir.join(".venv").join("lib");
         if !lib_dir.exists() {
             return Err(format!("Venv lib dir not found at {:?}", lib_dir));
         }
@@ -375,63 +235,6 @@ fn is_update_available(current: &str, available: &str) -> Result<bool, String> {
     Ok(available_ver > current_ver)
 }
 
-/// Get the platform-specific pip executable path inside a venv.
-fn get_pip_path(venv_path: &Path) -> Result<PathBuf, String> {
-    #[cfg(target_os = "windows")]
-    let pip_path = venv_path.join(".venv").join("Scripts").join("pip.exe");
-
-    #[cfg(not(target_os = "windows"))]
-    let pip_path = venv_path.join(".venv").join("bin").join("pip");
-
-    if !pip_path.exists() {
-        return Err(format!("pip not found at {:?}", pip_path));
-    }
-
-    Ok(pip_path)
-}
-
-/// Run a pip command asynchronously and return (stdout, stderr).
-/// Uses tokio::process to avoid blocking the async runtime.
-async fn run_pip(
-    pip_path: &Path,
-    args: &[&str],
-    context: &str,
-) -> Result<(String, String), String> {
-    log::info!(
-        "[update] Running pip ({}): {:?} {:?}",
-        context,
-        pip_path,
-        args
-    );
-
-    let output = tokio::process::Command::new(pip_path)
-        .args(args)
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run pip ({}): {}", context, e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    if !stdout.is_empty() {
-        log::info!("[update] pip stdout ({}):\n{}", context, stdout);
-    }
-    if !stderr.is_empty() {
-        log::info!("[update] pip stderr ({}):\n{}", context, stderr);
-    }
-
-    if !output.status.success() {
-        return Err(format!(
-            "pip {} failed with exit code {:?}:\n{}",
-            context,
-            output.status.code(),
-            stderr
-        ));
-    }
-
-    Ok((stdout, stderr))
-}
-
 // ============================================================================
 // TAURI COMMANDS
 // ============================================================================
@@ -439,7 +242,7 @@ async fn run_pip(
 /// Check if an update is available for the daemon.
 #[tauri::command]
 pub async fn check_daemon_update(
-    app_handle: AppHandle,
+    _app_handle: AppHandle,
     pre_release: bool,
 ) -> Result<DaemonUpdateInfo, String> {
     log::info!(
@@ -447,8 +250,8 @@ pub async fn check_daemon_update(
         pre_release
     );
 
-    let venv_path = get_local_venv_path(&app_handle)?;
-    let current_version = get_local_daemon_version(&venv_path)?;
+    let data_dir = get_data_dir()?;
+    let current_version = get_local_daemon_version(&data_dir)?;
     log::info!("[update] Current version: {}", current_version);
 
     let available_version = get_github_version(pre_release).await?;
@@ -464,7 +267,70 @@ pub async fn check_daemon_update(
     })
 }
 
-/// Update the daemon to the latest version.
+/// Run an upgrade via the uv-trampoline sidecar.
+/// This ensures macOS code signing happens automatically after pip install.
+/// Emits sidecar-stdout/stderr events so the UI can display progress.
+async fn run_sidecar_upgrade(
+    app_handle: &AppHandle,
+    args: &[&str],
+    context: &str,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    use tauri_plugin_shell::process::CommandEvent;
+    use tauri_plugin_shell::ShellExt;
+
+    log::info!("[update] Running sidecar upgrade ({}): {:?}", context, args);
+
+    let sidecar_command = app_handle
+        .shell()
+        .sidecar("uv-trampoline")
+        .map_err(|e| format!("Failed to create sidecar command: {}", e))?
+        .args(args);
+
+    let (mut rx, _child) = sidecar_command
+        .spawn()
+        .map_err(|e| format!("Failed to spawn sidecar ({}): {}", context, e))?;
+
+    let mut last_stderr = String::new();
+
+    while let Some(event) = rx.recv().await {
+        match event {
+            CommandEvent::Stdout(line) => {
+                let line = String::from_utf8_lossy(&line);
+                log::info!("[update] sidecar stdout ({}): {}", context, line.trim());
+                let _ = app_handle.emit("sidecar-stdout", line.to_string());
+            }
+            CommandEvent::Stderr(line) => {
+                let line = String::from_utf8_lossy(&line).to_string();
+                log::info!("[update] sidecar stderr ({}): {}", context, line.trim());
+                let _ = app_handle.emit("sidecar-stderr", line.clone());
+                last_stderr = line;
+            }
+            CommandEvent::Terminated(status) => {
+                let code = status.code.unwrap_or(-1);
+                if code != 0 {
+                    return Err(format!(
+                        "Sidecar upgrade ({}) failed with code {}: {}",
+                        context,
+                        code,
+                        last_stderr.trim()
+                    ));
+                }
+                log::info!(
+                    "[update] Sidecar upgrade ({}) completed successfully",
+                    context
+                );
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+/// Update the daemon to the latest version via uv-trampoline sidecar.
+/// Using the sidecar ensures macOS code signing happens after pip install.
 #[tauri::command]
 pub async fn update_daemon(
     app_handle: AppHandle,
@@ -481,20 +347,46 @@ pub async fn update_daemon(
 
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
-    let venv_path = get_local_venv_path(&app_handle)?;
-    let pip_path = get_pip_path(&venv_path)?;
-    log::info!("[update] Using pip at: {:?}", pip_path);
+    let python_rel = if cfg!(target_os = "windows") {
+        ".venv\\Scripts\\python.exe"
+    } else {
+        ".venv/bin/python3"
+    };
 
-    // Upgrade reachy-mini
-    let mut args = vec!["install", "--upgrade", "reachy-mini"];
+    // Upgrade reachy-mini in .venv (via sidecar for automatic signing)
+    let mut args: Vec<&str> = vec![
+        "pip",
+        "install",
+        "--python",
+        python_rel,
+        "--upgrade",
+        "reachy-mini",
+    ];
     if pre_release {
         args.push("--pre");
     }
+    run_sidecar_upgrade(&app_handle, &args, "reachy-mini upgrade (.venv)").await?;
 
-    run_pip(&pip_path, &args, "reachy-mini upgrade").await?;
+    // Also upgrade in apps_venv
+    let apps_python_rel = if cfg!(target_os = "windows") {
+        "apps_venv\\Scripts\\python.exe"
+    } else {
+        "apps_venv/bin/python3"
+    };
+    let mut apps_args: Vec<&str> = vec![
+        "pip",
+        "install",
+        "--python",
+        apps_python_rel,
+        "--upgrade",
+        "reachy-mini",
+    ];
+    if pre_release {
+        apps_args.push("--pre");
+    }
+    run_sidecar_upgrade(&app_handle, &apps_args, "reachy-mini upgrade (apps_venv)").await?;
 
     log::info!("[update] Daemon updated successfully!");
-    log::info!("[update] uv-trampoline will copy the new venv when daemon starts again");
 
     Ok("Daemon updated successfully. Reconnect to use the new version.".to_string())
 }

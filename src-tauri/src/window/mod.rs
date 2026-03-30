@@ -66,7 +66,7 @@ pub fn setup_content_process_handler(window: &tauri::WebviewWindow) {
             }
 
             let sel = sel!(webViewWebContentProcessDidTerminate:);
-            let types = b"v@:@\0".as_ptr() as *const c_char;
+            let types = c"v@:@".as_ptr() as *const c_char;
             class_replaceMethod(cls, sel, on_content_process_terminate, types);
             log::info!("[WKWebView] Content process termination handler installed");
         }

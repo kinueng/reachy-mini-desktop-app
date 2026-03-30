@@ -18,8 +18,18 @@ DIRS_TO_CLEAN=(
   "test-updates"                  # Test update files
 )
 
-# macOS Application Support data (daemon apps, venvs, metadata)
-APP_SUPPORT_DIR="$HOME/Library/Application Support/com.pollen-robotics.reachy-mini"
+# Platform-specific app data directories
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "mingw"* || "$OSTYPE" == "cygwin"* ]]; then
+  APP_DATA_DIRS=(
+    "$LOCALAPPDATA/Reachy Mini Control"
+    "$LOCALAPPDATA/com.pollen-robotics.reachy-mini"
+    "$LOCALAPPDATA/com.reachy-mini-daemon-app"
+  )
+else
+  APP_DATA_DIRS=(
+    "$HOME/Library/Application Support/com.pollen-robotics.reachy-mini"
+  )
+fi
 
 # Temporary files to remove
 FILES_TO_CLEAN=(
@@ -45,13 +55,15 @@ for pattern in "${FILES_TO_CLEAN[@]}"; do
   fi
 done
 
-# Remove Application Support data (installed apps, venvs, metadata)
-if [ -d "$APP_SUPPORT_DIR" ]; then
-  echo "  ❌ Removing Application Support data: $APP_SUPPORT_DIR"
-  rm -rf "$APP_SUPPORT_DIR"
-else
-  echo "  ⏭️  Application Support data does not exist (already clean)"
-fi
+# Remove app data directories
+for app_dir in "${APP_DATA_DIRS[@]}"; do
+  if [ -d "$app_dir" ]; then
+    echo "  ❌ Removing app data: $app_dir"
+    rm -rf "$app_dir"
+  else
+    echo "  ⏭️  $app_dir does not exist (already clean)"
+  fi
+done
 
 echo "✅ Cleanup complete!"
 echo ""

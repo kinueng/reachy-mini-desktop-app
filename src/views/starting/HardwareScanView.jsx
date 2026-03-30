@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, CircularProgress } from '@mui/material';
 import Viewer3D from '../../components/viewer3d';
 import useAppStore from '../../store/useAppStore';
 import { useShallow } from 'zustand/react/shallow';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { HARDWARE_ERROR_CONFIGS, getErrorMeshes } from '../../utils/hardwareErrors';
 import { getTotalScanParts, mapMeshToScanPart } from '../../utils/scanParts';
 import { useDaemonStartupLogs } from '../../hooks/daemon/useDaemonStartupLogs';
@@ -207,6 +208,102 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
   const elapsedTimerRef = useRef(null); // ✅ Timer for elapsed time
   const lastMovementStateRef = useRef(null); // Track last movement state to detect changes
   const healthCheckStartedRef = useRef(false); // Guard against multiple startDaemonHealthCheck calls
+
+  // Bootstrap state (first-run Python environment setup)
+  // Start as null (unknown) — don't render Viewer3D until we know
+  const [isBootstrapping, setIsBootstrapping] = useState(null);
+  const [bootstrapMessage, setBootstrapMessage] = useState('');
+  const bootstrapDecidedRef = useRef(false);
+
+  // Listen for bootstrap messages from sidecar stdout
+  // Decides whether we're bootstrapping (first [bootstrap] message) or not (any other message)
+  // WiFi mode has no local sidecar, so skip bootstrap detection entirely
+  useEffect(() => {
+    if (!isStarting) return;
+
+    // WiFi mode: no local sidecar, bootstrap doesn't apply
+    const currentConnectionMode = useAppStore.getState().connectionMode;
+    if (currentConnectionMode === 'wifi') {
+      setIsBootstrapping(false);
+      return;
+    }
+
+    let isMounted = true;
+    let unlistenStdout = null;
+    let unlistenStderr = null;
+    bootstrapDecidedRef.current = false;
+
+    const setup = async () => {
+      const handleOutput = msg => {
+        if (!isMounted) return;
+
+        if (msg.includes('[bootstrap]')) {
+          if (msg.includes('Setup complete')) {
+            setIsBootstrapping(false);
+            setBootstrapMessage('');
+            // Clear any errors accumulated during bootstrap — no hardware
+            // communication has happened yet, so these are false positives
+            const currentHwError = useAppStore.getState().hardwareError;
+            if (currentHwError) {
+              console.warn(
+                '[bootstrap] Clearing hardwareError set during bootstrap:',
+                currentHwError
+              );
+            }
+            setHardwareError(null);
+          } else {
+            if (!bootstrapDecidedRef.current) {
+              bootstrapDecidedRef.current = true;
+            }
+            setIsBootstrapping(true);
+            // Extract a user-friendly message from the log
+            if (msg.includes('Downloading uv')) {
+              setBootstrapMessage('Downloading package manager...');
+            } else if (msg.includes('Installing Python')) {
+              setBootstrapMessage('Installing Python runtime...');
+            } else if (msg.includes('Creating .venv')) {
+              setBootstrapMessage('Creating virtual environment...');
+            } else if (msg.includes('Creating apps_venv')) {
+              setBootstrapMessage('Creating apps environment...');
+            } else if (msg.includes('Signing')) {
+              setBootstrapMessage('Signing binaries...');
+            } else if (msg.includes('Pre-warming GStreamer')) {
+              setBootstrapMessage('Initializing GStreamer...');
+            } else if (msg.includes('Pre-warming reachy_mini')) {
+              setBootstrapMessage('Pre-warming Python imports...');
+            } else if (msg.includes('Installing')) {
+              setBootstrapMessage('Installing reachy-mini...');
+            } else {
+              setBootstrapMessage('Setting up Python environment...');
+            }
+          }
+        } else if (!bootstrapDecidedRef.current) {
+          // First non-bootstrap message means bootstrap was skipped
+          bootstrapDecidedRef.current = true;
+          setIsBootstrapping(false);
+        }
+      };
+
+      unlistenStdout = await listen('sidecar-stdout', event => {
+        const msg =
+          typeof event.payload === 'string' ? event.payload : event.payload?.toString() || '';
+        handleOutput(msg);
+      });
+      unlistenStderr = await listen('sidecar-stderr', event => {
+        const msg =
+          typeof event.payload === 'string' ? event.payload : event.payload?.toString() || '';
+        handleOutput(msg);
+      });
+    };
+
+    setup();
+
+    return () => {
+      isMounted = false;
+      if (unlistenStdout) unlistenStdout();
+      if (unlistenStderr) unlistenStderr();
+    };
+  }, [isStarting]);
 
   // ✅ Get message thresholds from config
   const { MESSAGE_THRESHOLDS } = DAEMON_CONFIG.HARDWARE_SCAN;
@@ -804,49 +901,101 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
         position: 'relative', // For absolute positioning of logs
       }}
     >
-      <Box
-        sx={{
-          width: '100%',
-          maxWidth: '300px', // Reduced by 1/3: 450px * 2/3 = 300px
-          position: 'relative',
-          bgcolor: 'transparent',
-        }}
-      >
+      {isBootstrapping !== false ? (
+        /* Bootstrap overlay (or waiting to decide): shown during first-run Python environment setup */
         <Box
           sx={{
             width: '100%',
-            height: '320px', // Reduced by 1/3: 480px * 2/3 = 320px
+            maxWidth: '300px',
+            height: '320px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 3,
+          }}
+        >
+          <CircularProgress size={48} thickness={3} sx={{ color: darkMode ? '#888' : '#666' }} />
+          {isBootstrapping === true && (
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography
+                sx={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: darkMode ? '#f5f5f5' : '#333',
+                  mb: 1,
+                }}
+              >
+                First Run Setup
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: 13,
+                  fontWeight: 400,
+                  color: darkMode ? '#999' : '#666',
+                }}
+              >
+                {bootstrapMessage || 'Setting up Python environment...'}
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  fontWeight: 400,
+                  color: darkMode ? '#666' : '#aaa',
+                  mt: 1,
+                  fontStyle: 'italic',
+                }}
+              >
+                This only happens once — it may take a few minutes
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      ) : (
+        <Box
+          sx={{
+            width: '100%',
+            maxWidth: '300px', // Reduced by 1/3: 450px * 2/3 = 300px
             position: 'relative',
             bgcolor: 'transparent',
           }}
         >
-          <Viewer3D
-            key="hardware-scan"
-            isActive={false}
-            antennas={[-10, -10]}
-            headPose={null}
-            headJoints={null}
-            yawBody={null}
-            initialMode="xray"
-            hideControls={true}
-            forceLoad={true}
-            hideGrid={true}
-            hideBorder={true}
-            showScanEffect={!startupError && !scanError}
-            usePremiumScan={false}
-            onScanComplete={handleScanComplete}
-            onScanMesh={handleScanMesh}
-            onMeshesReady={handleMeshesReady}
-            cameraPreset={errorConfig?.cameraPreset || 'scan'}
-            useCinematicCamera={true}
-            errorFocusMesh={errorMesh}
-            backgroundColor="transparent"
-            canvasScale={0.9}
-            canvasTranslateX="5%"
-            canvasTranslateY="10%"
-          />
+          <Box
+            sx={{
+              width: '100%',
+              height: '320px', // Reduced by 1/3: 480px * 2/3 = 320px
+              position: 'relative',
+              bgcolor: 'transparent',
+            }}
+          >
+            <Viewer3D
+              key="hardware-scan"
+              isActive={false}
+              antennas={[-10, -10]}
+              headPose={null}
+              headJoints={null}
+              yawBody={null}
+              initialMode="xray"
+              hideControls={true}
+              forceLoad={true}
+              hideGrid={true}
+              hideBorder={true}
+              showScanEffect={!startupError && !scanError}
+              usePremiumScan={false}
+              onScanComplete={handleScanComplete}
+              onScanMesh={handleScanMesh}
+              onMeshesReady={handleMeshesReady}
+              cameraPreset={errorConfig?.cameraPreset || 'scan'}
+              useCinematicCamera={true}
+              errorFocusMesh={errorMesh}
+              backgroundColor="transparent"
+              canvasScale={0.9}
+              canvasTranslateX="5%"
+              canvasTranslateY="10%"
+            />
+          </Box>
         </Box>
-      </Box>
+      )}
 
       <Box
         sx={{
@@ -859,7 +1008,7 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
           height: '100px', // Fixed height to prevent vertical shifts between states
         }}
       >
-        {startupError || scanError ? (
+        {!isBootstrapping && (startupError || scanError) ? (
           <ScanErrorDisplay
             error={startupError}
             scanError={scanError}
@@ -868,7 +1017,7 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
             onBack={resetAll}
             darkMode={darkMode}
           />
-        ) : (
+        ) : isBootstrapping ? null : (
           <Box
             sx={{
               display: 'flex',
@@ -929,7 +1078,7 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
           width: 'calc(100% - 32px)',
           maxWidth: '420px',
           zIndex: 1000,
-          opacity: 0.2, // Very subtle by default
+          opacity: isBootstrapping ? 0.8 : 0.2, // More visible during bootstrap
           transition: 'opacity 0.3s ease-in-out',
           '&:hover': {
             opacity: 1, // Full opacity on hover
