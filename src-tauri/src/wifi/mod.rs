@@ -233,6 +233,14 @@ fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
 
     sort_networks(&mut networks);
     log::info!("[wifi] Found {} WiFi networks", networks.len());
+    for n in &networks {
+        log::info!(
+            "[wifi] Network: ssid={:?} rssi={:?} is_reachy={}",
+            n.ssid,
+            n.signal_strength,
+            n.is_reachy_hotspot
+        );
+    }
     Ok(networks)
 }
 
