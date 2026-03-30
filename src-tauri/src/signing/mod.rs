@@ -1,6 +1,9 @@
 #[cfg(target_os = "macos")]
 use std::path::PathBuf;
 
+#[cfg(target_os = "macos")]
+use crate::paths::get_data_dir;
+
 /// Re-sign Python binaries (.so, .dylib) in .venv after pip install
 /// This fixes the Team ID mismatch issue on macOS where pip-installed binaries
 /// are not signed with the same Team ID as the app bundle
@@ -14,88 +17,26 @@ pub async fn sign_python_binaries() -> Result<String, String> {
 
     // Run the signing work in a blocking thread to avoid blocking the async runtime
     let result = tauri::async_runtime::spawn_blocking(move || {
-        log::info!("[tauri] Starting Python binaries re-signing...");
+        log::info!("[tauri] Starting Python binaries re-signing (apps_venv only, new files)...");
 
-        // 1. Find app bundle path or dev mode path
-        let exe_path = env::current_exe()
-            .map_err(|e| format!("Failed to get current executable path: {}", e))?;
-
-        // Try to find .venv in different locations:
-        // - Production: Contents/Resources/.venv (in .app bundle)
-        // - Dev mode: target/debug/.venv or current_dir/.venv
-        let venv_dir = if exe_path.to_string_lossy().contains(".app/Contents/MacOS") {
-            // Production mode: in app bundle
-            let app_bundle = exe_path
-                .parent() // Contents/MacOS
-                .and_then(|p| p.parent()) // Contents
-                .and_then(|p| p.parent()) // .app bundle
-                .ok_or("Failed to find app bundle path")?;
-
-            let resources_dir = app_bundle.join("Contents/Resources");
-            resources_dir.join(".venv")
-        } else {
-            // Dev mode: try to find .venv relative to current dir or target/debug
-            let current_dir = env::current_dir()
-                .map_err(|e| format!("Failed to get current directory: {}", e))?;
-
-            // Try multiple locations in dev mode:
-            // 1. binaries/.venv (if we're in src-tauri/)
-            // 2. src-tauri/binaries/.venv (if we're in project root)
-            // 3. target/debug/.venv
-            // 4. current_dir/.venv
-
-            // Check if we're in src-tauri/ directory by checking the last component
-            let is_in_src_tauri = current_dir
-                .file_name()
-                .and_then(|name| name.to_str())
-                .map(|name| name == "src-tauri")
-                .unwrap_or(false);
-
-            // Try multiple locations in dev mode:
-            let binaries_venv = if is_in_src_tauri {
-                // We're in src-tauri/, look for binaries/.venv
-                current_dir.join("binaries/.venv")
-            } else {
-                // We're in project root, look for src-tauri/binaries/.venv
-                current_dir.join("src-tauri/binaries/.venv")
-            };
-
-            if binaries_venv.exists() {
-                log::info!("[tauri] Found .venv at: {}", binaries_venv.display());
-                binaries_venv
-            } else {
-                let target_venv = if is_in_src_tauri {
-                    current_dir.join("target/debug/.venv")
-                } else {
-                    current_dir.join("src-tauri/target/debug/.venv")
-                };
-
-                if target_venv.exists() {
-                    log::info!("[tauri] Found .venv at: {}", target_venv.display());
-                    target_venv
-                } else {
-                    // Fallback: try current_dir/.venv
-                    let fallback_venv = current_dir.join(".venv");
-                    log::info!(
-                        "[tauri] Trying fallback .venv at: {}",
-                        fallback_venv.display()
-                    );
-                    fallback_venv
-                }
-            }
-        };
+        let data_dir = get_data_dir()?;
+        // Apps are installed into apps_venv, not .venv
+        let venv_dir = data_dir.join("apps_venv");
 
         if !venv_dir.exists() {
             return Err(format!(
-                "Python virtual environment (.venv) not found at: {}",
+                "Python virtual environment (apps_venv) not found at: {}",
                 venv_dir.display()
             ));
         }
 
-        log::info!("[tauri] Using .venv at: {}", venv_dir.display());
+        log::info!("[tauri] Using apps_venv at: {}", venv_dir.display());
 
-        // For signing identity detection, we still need the app bundle in production
+        // For signing identity detection, we need the app bundle in production
         // In dev mode, we'll use adhoc signature
+        let exe_path = env::current_exe()
+            .map_err(|e| format!("Failed to get current executable path: {}", e))?;
+
         let app_bundle_for_signing = if exe_path.to_string_lossy().contains(".app/Contents/MacOS") {
             exe_path
                 .parent()
@@ -406,6 +347,14 @@ fn sign_binary_with_entitlements(
     {
         // Not a Mach-O binary, skip
         return Ok(false);
+    }
+
+    // Skip if already validly signed (avoids re-signing 800+ existing binaries)
+    let verify = Command::new("codesign").arg("-v").arg(binary_path).output();
+    if let Ok(output) = verify {
+        if output.status.success() {
+            return Ok(false); // Already signed, skip
+        }
     }
 
     // Build codesign command

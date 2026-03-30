@@ -486,7 +486,7 @@ pub fn spawn_and_monitor_sidecar(
     }
     drop(process_lock);
 
-    let daemon_args = build_daemon_args(sim_mode, true)?;
+    let daemon_args = build_daemon_args(&app_handle, sim_mode, true)?;
     log::info!("[tauri] Launching daemon with --preload-datasets");
 
     if sim_mode {
@@ -596,18 +596,19 @@ pub fn spawn_and_monitor_sidecar(
                         use crate::python::build_daemon_args;
                         use tauri_plugin_shell::ShellExt;
 
-                        let daemon_args = match build_daemon_args(sim_mode, false) {
-                            Ok(args) => args,
-                            Err(e) => {
-                                log::error!("[tauri] Failed to build daemon args: {}", e);
-                                let _ = crate::daemon::transition_and_emit(
-                                    &daemon_state,
-                                    crate::daemon::DaemonStatus::Crashed,
-                                    &app_handle_clone,
-                                );
-                                continue;
-                            }
-                        };
+                        let daemon_args =
+                            match build_daemon_args(&app_handle_clone, sim_mode, false) {
+                                Ok(args) => args,
+                                Err(e) => {
+                                    log::error!("[tauri] Failed to build daemon args: {}", e);
+                                    let _ = crate::daemon::transition_and_emit(
+                                        &daemon_state,
+                                        crate::daemon::DaemonStatus::Crashed,
+                                        &app_handle_clone,
+                                    );
+                                    continue;
+                                }
+                            };
 
                         let daemon_args_refs: Vec<&str> =
                             daemon_args.iter().map(|s| s.as_str()).collect();

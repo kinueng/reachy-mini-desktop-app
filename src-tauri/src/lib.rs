@@ -7,8 +7,10 @@ mod daemon;
 mod discovery;
 mod local_proxy;
 mod network;
+mod paths;
 mod permissions;
 mod python;
+mod reset;
 mod signing;
 mod update;
 mod usb;
@@ -21,12 +23,9 @@ use daemon::{
 };
 
 /// Cross-platform path for the crash marker file.
-/// Uses the OS-standard data/log directory instead of hardcoded macOS paths.
+/// Uses the same data directory as the rest of the app (paths::get_data_dir).
 fn crash_marker_path() -> Option<std::path::PathBuf> {
-    dirs::data_local_dir().map(|d| {
-        d.join("com.pollen-robotics.reachy-mini")
-            .join(".crash_marker")
-    })
+    paths::get_data_dir().ok().map(|d| d.join(".crash_marker"))
 }
 use discovery::DiscoveryState;
 use local_proxy::LocalProxyState;
@@ -394,6 +393,8 @@ pub fn run() {
             wifi::get_current_wifi_ssid,
             update::check_daemon_update,
             update::update_daemon,
+            reset::reset_apps_venv,
+            reset::reset_python_env,
             set_local_proxy_target,
             clear_local_proxy_target,
             // Robot discovery (mDNS + manual IP)

@@ -217,22 +217,6 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
               );
             } else {
               logger.success(`${jobTypeLabel(jobInfo.type)} ${jobInfo.appName} completed`);
-
-              // ✅ macOS: Re-sign Python binaries after successful installation
-              // This fixes Team ID mismatch issues with pip-installed packages
-              // The Rust command handles platform detection, so safe to call on all platforms
-              // Run asynchronously to avoid blocking the UI (signing can take 10-30s)
-              if (jobInfo.type === 'install' || jobInfo.type === 'update') {
-                // Don't await - let it run in background to avoid UI freeze
-                invoke('sign_python_binaries')
-                  .then(result => {
-                    // Don't log to frontend to avoid noise, but log to console for debugging
-                  })
-                  .catch(err => {
-                    console.warn('[AppJobs] Failed to re-sign Python binaries:', err);
-                    // Non-critical error, don't fail the installation
-                  });
-              }
             }
           }
 
@@ -356,8 +340,18 @@ export function useAppJobs(setActiveJobs, fetchAvailableApps) {
             return updated;
           });
 
-          // Step 2: Refresh apps list and WAIT for it to complete
+          // Step 2: Sign binaries (macOS), refresh apps list, then mark completed
           const refreshAndComplete = async () => {
+            // macOS: Re-sign new binaries in apps_venv before the app can be launched
+            // This runs during 'refreshing' state so the UI still shows a spinner
+            if (finalStatus === 'completed') {
+              try {
+                await invoke('sign_python_binaries');
+              } catch (err) {
+                console.warn('[AppJobs] Failed to re-sign Python binaries:', err);
+              }
+            }
+
             // Short delay to let daemon update its DB
             await new Promise(resolve =>
               setTimeout(resolve, DAEMON_CONFIG.APP_INSTALLATION.REFRESH_DELAY)

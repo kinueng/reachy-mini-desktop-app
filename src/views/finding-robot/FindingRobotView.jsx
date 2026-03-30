@@ -1,15 +1,32 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Typography, CircularProgress, Select, MenuItem } from '@mui/material';
+import {
+  Box,
+  Typography,
+  CircularProgress,
+  Select,
+  MenuItem,
+  IconButton,
+  Menu,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
+} from '@mui/material';
 import UsbOutlinedIcon from '@mui/icons-material/UsbOutlined';
 import PulseButton from '@components/PulseButton';
 import WifiOutlinedIcon from '@mui/icons-material/WifiOutlined';
 import ViewInArOutlinedIcon from '@mui/icons-material/ViewInArOutlined';
 import PlayArrowOutlinedIcon from '@mui/icons-material/PlayArrowOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import useAppStore from '../../store/useAppStore';
 import { useRobotDiscovery } from '../../hooks/system';
 import { useConnection, ConnectionMode } from '../../hooks/useConnection';
 import { fetchWithTimeout, DAEMON_CONFIG } from '../../config/daemon';
+import { invoke } from '@tauri-apps/api/core';
+import { useToast } from '../../hooks/useToast';
 import reachyBuste from '../../assets/reachy-buste.png';
 
 // LocalStorage key for persisting last connection mode
@@ -249,13 +266,50 @@ function ConnectionCard({
  * Uses useConnection hook for unified connection handling
  */
 export default function FindingRobotView() {
-  const { darkMode, setShowFirstTimeWifiSetup } = useAppStore();
+  const { darkMode, setShowFirstTimeWifiSetup, clearApps } = useAppStore();
   const { isScanning, usbRobot, wifiRobot, wifiRobots, selectWifiRobot } = useRobotDiscovery();
   const { connect, isConnecting, isDisconnecting } = useConnection();
   const [selectedMode, setSelectedMode] = useState(null);
   const [dots, setDots] = useState('');
   const [externalDaemonAvailable, setExternalDaemonAvailable] = useState(false);
   const hasRestoredFromStorage = useRef(false);
+  const { showToast } = useToast();
+
+  // Settings menu for environment reset
+  const [settingsAnchor, setSettingsAnchor] = useState(null);
+  const [isResetting, setIsResetting] = useState(false);
+  const [pendingReset, setPendingReset] = useState(null); // 'apps' | 'full' | null
+
+  const handleResetAppsVenv = useCallback(() => {
+    setSettingsAnchor(null);
+    setPendingReset('apps');
+  }, []);
+
+  const handleResetPythonEnv = useCallback(() => {
+    setSettingsAnchor(null);
+    setPendingReset('full');
+  }, []);
+
+  const confirmReset = useCallback(async () => {
+    const type = pendingReset;
+    setPendingReset(null);
+    setIsResetting(true);
+    try {
+      if (type === 'apps') {
+        await invoke('reset_apps_venv');
+        clearApps();
+        showToast('Apps environment reset successfully', 'success');
+      } else {
+        await invoke('reset_python_env');
+        clearApps();
+        showToast('Python environment reset successfully', 'success');
+      }
+    } catch (err) {
+      showToast(`Failed: ${err}`, 'error');
+    } finally {
+      setIsResetting(false);
+    }
+  }, [pendingReset, showToast, clearApps]);
 
   // Block interactions during connection state changes
   const isBusy = isConnecting || isDisconnecting;
@@ -409,6 +463,79 @@ export default function FindingRobotView() {
         position: 'relative',
       }}
     >
+      {/* Settings gear icon (top-right) */}
+      <IconButton
+        onClick={e => setSettingsAnchor(e.currentTarget)}
+        disabled={isResetting}
+        sx={{
+          position: 'absolute',
+          top: 40,
+          right: 12,
+          zIndex: 10,
+          color: darkMode ? '#666' : '#999',
+          '&:hover': { color: darkMode ? '#aaa' : '#666' },
+        }}
+        size="small"
+      >
+        {isResetting ? (
+          <CircularProgress size={18} sx={{ color: 'inherit' }} />
+        ) : (
+          <SettingsOutlinedIcon sx={{ fontSize: 18 }} />
+        )}
+      </IconButton>
+      <Menu
+        anchorEl={settingsAnchor}
+        open={Boolean(settingsAnchor)}
+        onClose={() => setSettingsAnchor(null)}
+        PaperProps={{
+          sx: {
+            bgcolor: darkMode ? '#2a2a2a' : '#fff',
+            color: darkMode ? '#eee' : '#333',
+            borderRadius: '8px',
+            minWidth: 220,
+          },
+        }}
+      >
+        <MenuItem onClick={handleResetAppsVenv} sx={{ fontSize: 13 }}>
+          Reset Apps Environment
+        </MenuItem>
+        <MenuItem onClick={handleResetPythonEnv} sx={{ fontSize: 13, color: '#ef4444' }}>
+          Full Environment Reset
+        </MenuItem>
+      </Menu>
+
+      {/* Reset confirmation dialog */}
+      <Dialog
+        open={pendingReset !== null}
+        onClose={() => setPendingReset(null)}
+        PaperProps={{
+          sx: {
+            bgcolor: darkMode ? '#2a2a2a' : '#fff',
+            color: darkMode ? '#eee' : '#333',
+            borderRadius: '12px',
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>
+          {pendingReset === 'full' ? 'Full Environment Reset?' : 'Reset Apps Environment?'}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: darkMode ? '#aaa' : '#666' }}>
+            {pendingReset === 'full'
+              ? 'This will delete all Python files and require a full re-setup which may take a few minutes.'
+              : 'All installed apps will need to be reinstalled.'}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingReset(null)} sx={{ color: darkMode ? '#aaa' : '#666' }}>
+            Cancel
+          </Button>
+          <Button onClick={confirmReset} sx={{ color: '#ef4444', fontWeight: 600 }}>
+            Reset
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Box
         sx={{
           display: 'flex',

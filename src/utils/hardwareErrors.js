@@ -115,7 +115,7 @@ export const HARDWARE_ERROR_CONFIGS = {
 
   CAMERA_ERROR: {
     type: 'camera',
-    patterns: ['camera', 'xl_330', 'Camera communication error'],
+    patterns: ['xl_330', 'Camera communication error'],
     message: {
       text: 'Check',
       bold: 'camera cable',

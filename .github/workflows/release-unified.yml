@@ -36,9 +36,8 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             platform: windows-x86_64
-          # Linux re-enabled with PyInstaller (solves AppImage bundling issue)
-          # PyInstaller creates a standalone binary instead of bundling the venv
-          # See: https://github.com/pollen-robotics/reachy-mini-desktop-app/issues/35
+          # Linux uses runtime bootstrap (same as macOS/Windows)
+          # uv-trampoline downloads Python + creates venvs on first launch
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
@@ -111,88 +110,11 @@ jobs:
       - name: Install dependencies
         run: yarn install
 
-      - name: Build sidecar (macOS)
-        if: startsWith(matrix.os, 'macos')
+      - name: Build sidecar (macOS/Linux)
+        if: startsWith(matrix.os, 'macos') || matrix.os == 'ubuntu-22.04'
         shell: bash
         run: |
           TARGET_TRIPLET=${{ matrix.target }} bash ./scripts/build/build-sidecar-unix.sh
-
-      - name: Build daemon with PyInstaller (Linux)
-        if: matrix.os == 'ubuntu-22.04'
-        shell: bash
-        run: |
-          echo "🐍 Building reachy-mini daemon with PyInstaller for Linux..."
-          
-          # Install system dependencies for PyInstaller
-          # libgirepository1.0-dev + gir1.2-glib-2.0 + libcairo2-dev are needed to build PyGObject
-          sudo apt-get update
-          sudo apt-get install -y \
-            python3-dev \
-            python3-pip \
-            libportaudio2 \
-            portaudio19-dev \
-            libgirepository1.0-dev \
-            gir1.2-glib-2.0 \
-            pkg-config \
-            libcairo2-dev
-          
-          # Run PyInstaller build script (install from PyPI)
-          REACHY_MINI_SOURCE=pypi TARGET_TRIPLET=${{ matrix.target }} bash ./scripts/build/build-daemon-pyinstaller.sh
-          
-          # Verify the binary was created
-          DAEMON_BIN="src-tauri/binaries/reachy-mini-daemon-${{ matrix.target }}"
-          if [ ! -f "$DAEMON_BIN" ]; then
-            echo "❌ Daemon binary not found: $DAEMON_BIN"
-            exit 1
-          fi
-          
-          echo "✅ PyInstaller build complete"
-          ls -lh "$DAEMON_BIN"
-
-      - name: Update macOS resources config with cpython folder name
-        if: startsWith(matrix.os, 'macos')
-        shell: bash
-        run: |
-          # Find the actual cpython folder name created by uv-bundle
-          CPYTHON_FOLDER=$(ls -d src-tauri/binaries/cpython-* 2>/dev/null | head -1 | xargs basename || echo "")
-          
-          if [ -z "$CPYTHON_FOLDER" ]; then
-            echo "⚠️  No cpython folder found in src-tauri/binaries/, skipping config update"
-            exit 0
-          fi
-          
-          echo "🔧 Found cpython folder: $CPYTHON_FOLDER"
-          echo "   Updating tauri.macos.conf.json..."
-          
-          # Update the tauri.macos.conf.json with the exact cpython folder name
-          # The config has hardcoded aarch64 path, we need to replace it with the actual folder
-          # IMPORTANT: Only replace the exact folder name, not /lib suffix
-          sed -i '' "s|cpython-3.12.13-macos-aarch64-none|$CPYTHON_FOLDER|g" src-tauri/tauri.macos.conf.json
-          
-          echo "✅ Updated tauri.macos.conf.json:"
-          cat src-tauri/tauri.macos.conf.json
-          
-          # Verify the binaries directory contents
-          echo ""
-          echo "📦 Contents of src-tauri/binaries/:"
-          ls -la src-tauri/binaries/
-
-      - name: Use PyInstaller config for Linux
-        if: matrix.os == 'ubuntu-22.04'
-        shell: bash
-        run: |
-          echo "🔧 Using PyInstaller configuration for Linux build..."
-          
-          # Use the simplified PyInstaller config (single binary, no venv)
-          cp src-tauri/tauri.linux.pyinstaller.conf.json src-tauri/tauri.linux.conf.json
-          
-          echo "✅ PyInstaller configuration active:"
-          cat src-tauri/tauri.linux.conf.json
-          
-          # Verify the daemon binary exists
-          echo ""
-          echo "📦 Contents of src-tauri/binaries/:"
-          ls -la src-tauri/binaries/
 
       - name: Build sidecar (Windows)
         if: matrix.os == 'windows-latest'
@@ -200,96 +122,19 @@ jobs:
         run: |
           Write-Host "🔨 Building sidecar for Windows..."
           pwsh -File ./scripts/build/build-sidecar-windows.ps1
-          
-          # Verify critical files exist
-          Write-Host ""
-          Write-Host "🔍 Verifying sidecar build output..."
-          
-          $requiredFiles = @(
-            "src-tauri/binaries/uv.exe",
-            "src-tauri/binaries/.venv"
-          )
-          
-          $missing = @()
-          foreach ($file in $requiredFiles) {
-            if (-not (Test-Path $file)) {
-              $missing += $file
-            }
-          }
-          
-          if ($missing.Count -gt 0) {
-            Write-Host "❌ Missing required files after sidecar build:"
-            foreach ($file in $missing) {
-              Write-Host "   - $file"
-            }
-            Write-Host ""
-            Write-Host "📦 Contents of src-tauri/binaries/:"
+
+          # Verify the sidecar binary was created
+          $TRIPLET = "${{ matrix.target }}"
+          $SIDECAR = "src-tauri/binaries/uv-trampoline-$TRIPLET.exe"
+          if (-not (Test-Path $SIDECAR)) {
+            Write-Host "❌ Sidecar binary not found: $SIDECAR"
             Get-ChildItem src-tauri/binaries/ -ErrorAction SilentlyContinue
-            exit 1
-          }
-          
-          Write-Host "✅ Sidecar build verified!"
-          Write-Host "📦 Contents of src-tauri/binaries/:"
-          Get-ChildItem src-tauri/binaries/
-          
-          # Verify that packages were actually installed in the venv
-          Write-Host ""
-          Write-Host "🔍 Verifying Python packages installed..."
-          $sitePackages = "src-tauri/binaries/.venv/Lib/site-packages"
-          if (Test-Path $sitePackages) {
-            $packageCount = (Get-ChildItem $sitePackages -Directory).Count
-            $venvSize = (Get-ChildItem -Recurse "src-tauri/binaries/.venv" | Measure-Object -Property Length -Sum).Sum / 1MB
-            Write-Host "   📦 Packages in site-packages: $packageCount directories"
-            Write-Host "   📊 Venv size: $([math]::Round($venvSize, 2)) MB"
-            
-            # Check for reachy_mini specifically
-            if (Test-Path "$sitePackages/reachy_mini") {
-              Write-Host "   ✅ reachy_mini package found"
-            } else {
-              Write-Host "❌ ERROR: reachy_mini package NOT found in venv!"
-              Write-Host "   This means pip install failed silently during build."
-              Write-Host "   Contents of site-packages:"
-              Get-ChildItem $sitePackages
-              exit 1
-            }
-            
-            # Verify minimum size (should be ~200MB+)
-            if ($venvSize -lt 50) {
-              Write-Host "❌ ERROR: Venv is too small ($([math]::Round($venvSize, 2)) MB)"
-              Write-Host "   Expected at least 50 MB with all dependencies."
-              Write-Host "   This indicates pip install failed."
-              exit 1
-            }
-          } else {
-            Write-Host "❌ ERROR: site-packages directory not found!"
             exit 1
           }
 
-      - name: Update Windows resources config with cpython folder name
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          # Find the actual cpython folder name created by uv-bundle
-          $CPYTHON_FOLDER = (Get-ChildItem -Directory "src-tauri/binaries/cpython-*" -ErrorAction SilentlyContinue | Select-Object -First 1).Name
-          
-          if (-not $CPYTHON_FOLDER) {
-            Write-Host "❌ No cpython folder found in src-tauri/binaries/"
-            Write-Host "   This is required for Windows build"
-            Get-ChildItem src-tauri/binaries/ -ErrorAction SilentlyContinue
-            exit 1
-          }
-          
-          Write-Host "🔧 Found cpython folder: $CPYTHON_FOLDER"
-          Write-Host "   Updating tauri.windows.conf.json..."
-          
-          # Update the tauri.windows.conf.json with the exact cpython folder name
-          $content = Get-Content src-tauri/tauri.windows.conf.json -Raw
-          $content = $content -replace 'cpython-3\.12\*-windows-x86_64\*', $CPYTHON_FOLDER
-          $content = $content -replace 'cpython-3\.12-windows-x86_64', $CPYTHON_FOLDER
-          $content | Set-Content src-tauri/tauri.windows.conf.json
-          
-          Write-Host "✅ Updated tauri.windows.conf.json:"
-          Get-Content src-tauri/tauri.windows.conf.json
+          Write-Host "✅ Sidecar build verified!"
+          Write-Host "📦 Contents of src-tauri/binaries/:"
+          Get-ChildItem src-tauri/binaries/
 
       - name: Setup Apple Code Signing (macOS only)
         if: startsWith(matrix.os, 'macos')
@@ -888,7 +733,6 @@ jobs:
           # Show resources size
           echo "📦 Resources size:"
           du -sh ../binaries/* 2>/dev/null || echo "No binaries yet"
-          du -sh ../binaries/.venv 2>/dev/null || echo "No venv yet"
           TOTAL_SIZE=$(du -sh ../binaries 2>/dev/null | cut -f1 || echo "unknown")
           echo "📦 Total binaries size: $TOTAL_SIZE"
           

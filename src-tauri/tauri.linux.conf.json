@@ -1,13 +1,5 @@
 {
   "bundle": {
-    "resources": {
-      "binaries/uv": "uv",
-      "binaries/uvx": "uvx",
-      "binaries/.venv": ".venv",
-      "binaries/cpython-3.12-linux-x86_64-gnu": "cpython-3.12-linux-x86_64",
-      "binaries/cpython-3.12-linux-x86_64-gnu/lib": ".venv/lib",
-      "../scripts/avast_ssl_fix.py": "scripts/avast_ssl_fix.py"
-    },
     "linux": {
       "deb": {
         "depends": [
@@ -21,4 +13,3 @@
     }
   }
 }
-

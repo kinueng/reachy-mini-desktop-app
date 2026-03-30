@@ -1,12 +1,6 @@
 {
   "bundle": {
     "resources": {
-      "binaries/uv.exe": "uv.exe",
-      "binaries/uvx.exe": "uvx.exe",
-      "binaries/.venv": ".venv",
-      "binaries/.venv/*": ".venv/",
-      "binaries/cpython-3.12.13-windows-x86_64-none": "cpython-3.12-windows-x86_64",
-      "binaries/cpython-3.12.13-windows-x86_64-none/*": "cpython-3.12-windows-x86_64/",
       "../scripts/avast_ssl_fix.py": "scripts/avast_ssl_fix.py"
     },
     "windows": {
@@ -16,4 +10,3 @@
     }
   }
 }
-
