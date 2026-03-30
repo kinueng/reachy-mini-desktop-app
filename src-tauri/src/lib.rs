@@ -317,8 +317,18 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_blec::init());
+        .plugin(tauri_plugin_deep_link::init());
+
+    // BLE plugin panics if Bluetooth is unavailable (CI runners, VMs, no adapter).
+    // Catch the panic so the app starts without BLE support.
+    // When BT is installed but adapter is off, init succeeds and the UI prompts the user.
+    let builder = match std::panic::catch_unwind(tauri_plugin_blec::init) {
+        Ok(plugin) => builder.plugin(plugin),
+        Err(_) => {
+            log::warn!("Bluetooth not available — BLE features disabled");
+            builder
+        }
+    };
 
     let builder = if cfg!(target_os = "macos") {
         builder.plugin(tauri_plugin_macos_permissions::init())
