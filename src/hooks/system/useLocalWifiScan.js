@@ -51,6 +51,12 @@ export function useLocalWifiScan({ autoScan = false, scanInterval = 0 } = {}) {
       // Extract Reachy hotspots
       const hotspots = result.filter(n => n.is_reachy_hotspot);
       setReachyHotspots(hotspots);
+      console.log(
+        '[wifi-scan] Networks found:',
+        result.map(
+          n => `${n.ssid} (${n.signal_strength}dBm${n.is_reachy_hotspot ? ' ★REACHY' : ''})`
+        )
+      );
 
       return result;
     } catch (err) {

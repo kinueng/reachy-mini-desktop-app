@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -11,17 +11,15 @@ import {
 } from '@mui/material';
 import BluetoothSearchingIcon from '@mui/icons-material/BluetoothSearching';
 import BluetoothConnectedIcon from '@mui/icons-material/BluetoothConnected';
-import SignalCellularAltIcon from '@mui/icons-material/SignalCellularAlt';
 import NetworkCheckIcon from '@mui/icons-material/NetworkCheck';
 import WifiTetheringIcon from '@mui/icons-material/WifiTethering';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import CellTowerIcon from '@mui/icons-material/CellTower';
-import ArticleIcon from '@mui/icons-material/Article';
-
 import useAppStore from '../../store/useAppStore';
 import useBluetooth from '../../hooks/bluetooth/useBluetooth';
 import FullscreenOverlay from '../../components/FullscreenOverlay';
+import LogConsole from '../../components/LogConsole';
 
 const steps = ['Scan', 'PIN', 'Commands'];
 
@@ -37,12 +35,12 @@ const COMMANDS = [
     color: '#6366f1',
     readStatus: true,
   },
-  { id: 'hotspot', label: 'Hotspot', icon: WifiTetheringIcon, color: '#FF9500', script: 'HOTSPOT' },
+  { id: 'hotspot', label: 'Hotspot', icon: WifiTetheringIcon, color: '#6366f1', script: 'HOTSPOT' },
   {
     id: 'restart_daemon',
-    label: 'Restart Daemon',
+    label: 'Software Restart',
     icon: RestartAltIcon,
-    color: '#FF9500',
+    color: '#6366f1',
     script: 'RESTART_DAEMON',
   },
   {
@@ -55,10 +53,6 @@ const COMMANDS = [
   },
 ];
 
-function timestamp() {
-  return new Date().toLocaleTimeString('en-US', { hour12: false });
-}
-
 /**
  * BluetoothSupportView — 3-step native BLE flow:
  * 1. Scan for ReachyMini devices
@@ -66,7 +60,8 @@ function timestamp() {
  * 3. Send commands and view responses
  */
 export default function BluetoothSupportView() {
-  const { darkMode, setShowBluetoothSupportView, blePin, setBlePin } = useAppStore();
+  const { darkMode, setShowBluetoothSupportView, setShowFirstTimeWifiSetup, blePin, setBlePin } =
+    useAppStore();
   const {
     bleStatus,
     bleDevices,
@@ -88,21 +83,45 @@ export default function BluetoothSupportView() {
   const [isSending, setIsSending] = useState(false);
   const [adapterWarning, setAdapterWarning] = useState('');
   const [journalActive, setJournalActive] = useState(false);
-  const logEndRef = useRef(null);
+  const [connectedDevice, setConnectedDevice] = useState(null);
+  const [hotspotPending, setHotspotPending] = useState(false);
+  const [hotspotCountdown, setHotspotCountdown] = useState(0);
 
   const textPrimary = darkMode ? '#f5f5f5' : '#333';
   const textSecondary = darkMode ? '#888' : '#666';
   const bgCard = darkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)';
   const borderColor = darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
 
-  // Auto-scroll activity log
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activityLog]);
-
-  const addLog = useCallback((message, type = 'info') => {
-    setActivityLog(prev => [...prev, { time: timestamp(), message, type }]);
+  const addLog = useCallback((message, level = 'info') => {
+    setActivityLog(prev => [...prev, { message, timestamp: Date.now(), level }]);
   }, []);
+
+  const handleHotspot = useCallback(() => {
+    const pin = blePin || pinInput;
+    setHotspotPending(true);
+    setHotspotCountdown(15);
+    addLog('Switching to hotspot mode...');
+    sendCommand(pin, 'HOTSPOT').catch(() => {});
+    const interval = setInterval(() => {
+      setHotspotCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setHotspotPending(false);
+          setShowBluetoothSupportView(false);
+          setShowFirstTimeWifiSetup(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [
+    blePin,
+    pinInput,
+    sendCommand,
+    addLog,
+    setShowBluetoothSupportView,
+    setShowFirstTimeWifiSetup,
+  ]);
 
   // Journal start/stop handlers
   const handleJournalStart = useCallback(async () => {
@@ -126,10 +145,13 @@ export default function BluetoothSupportView() {
 
   // Step 1: Handle connect to a device
   const handleConnect = useCallback(
-    async address => {
+    async device => {
+      const address = typeof device === 'string' ? device : device.address;
+      const name = typeof device === 'string' ? null : device.name;
       try {
         addLog(`Connecting to ${address}...`);
         await connectToDevice(address);
+        setConnectedDevice({ address, name });
         addLog('Connected!', 'success');
 
         // Check cached PIN for this device (read directly — state not yet updated)
@@ -172,24 +194,35 @@ export default function BluetoothSupportView() {
       const pin = blePin || pinInput;
       addLog(`Sending: ${cmd?.label || commandId}`);
 
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: no response after 15s')), 15000)
+      );
+
+      let timedOut = false;
       try {
         let response;
         if (cmd?.noAuth) {
-          // PING — no auth required
-          response = await sendPing();
+          response = await Promise.race([sendPing(), timeout]);
         } else if (cmd?.readStatus) {
-          // Read from the status characteristic directly
-          response = await readNetworkStatus();
+          response = await Promise.race([readNetworkStatus(), timeout]);
         } else if (cmd?.script) {
-          // CMD_xxx — requires PIN auth first
-          response = await sendCommand(pin, cmd.script);
+          response = await Promise.race([sendCommand(pin, cmd.script), timeout]);
         }
         addLog(`Response: ${response}`, 'success');
       } catch (e) {
         const msg = e?.message || (typeof e === 'string' ? e : JSON.stringify(e));
         addLog(`Error: ${msg}`, 'error');
+        if (msg.includes('Timeout')) {
+          timedOut = true;
+        }
       } finally {
         setIsSending(false);
+        if (timedOut) {
+          disconnectDevice().catch(() => {});
+          setConnectedDevice(null);
+          setJournalActive(false);
+          setActiveStep(0);
+        }
       }
     },
     [isSending, blePin, pinInput, sendCommand, sendPing, readNetworkStatus, addLog]
@@ -206,20 +239,13 @@ export default function BluetoothSupportView() {
     setActiveStep(0);
   }, [disconnectDevice, journalActive, stopJournal, addLog]);
 
-  const handleClose = async () => {
+  const handleClose = () => {
+    setIsSending(false);
     if (bleStatus === 'connected') {
-      if (journalActive) {
-        await stopJournal();
-      }
-      await disconnectDevice();
+      if (journalActive) stopJournal().catch(() => {});
+      disconnectDevice().catch(() => {});
     }
     setShowBluetoothSupportView(false);
-  };
-
-  const logColor = type => {
-    if (type === 'success') return '#22c55e';
-    if (type === 'error') return '#ef4444';
-    return textSecondary;
   };
 
   return (
@@ -254,7 +280,7 @@ export default function BluetoothSupportView() {
             letterSpacing: '-0.3px',
           }}
         >
-          Bluetooth Reset Tool
+          Bluetooth Console
         </Typography>
 
         {/* Stepper */}
@@ -268,13 +294,13 @@ export default function BluetoothSupportView() {
                       fontSize: 10,
                       color: textSecondary,
                       mt: 0.5,
-                      '&.Mui-active': { color: '#FF9500', fontWeight: 600 },
+                      '&.Mui-active': { color: 'primary.main', fontWeight: 600 },
                       '&.Mui-completed': { color: '#22c55e' },
                     },
                     '& .MuiStepIcon-root': {
                       fontSize: 20,
                       color: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-                      '&.Mui-active': { color: '#FF9500' },
+                      '&.Mui-active': { color: 'primary.main' },
                       '&.Mui-completed': { color: '#22c55e' },
                     },
                   }}
@@ -300,134 +326,170 @@ export default function BluetoothSupportView() {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           {/* ============================================================ */}
           {/* STEP 1: SCAN */}
           {/* ============================================================ */}
           {activeStep === 0 && (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                width: '100%',
-                gap: 2,
-              }}
-            >
-              <BluetoothSearchingIcon sx={{ fontSize: 40, color: textSecondary }} />
-              <Typography sx={{ fontSize: 14, fontWeight: 600, color: textPrimary }}>
-                Scan for Reachy Mini
-              </Typography>
-              <Typography
-                sx={{ fontSize: 12, color: textSecondary, textAlign: 'center', lineHeight: 1.5 }}
-              >
-                Make sure your Reachy Mini is powered on and within Bluetooth range.
-              </Typography>
-
-              <Button
-                variant="outlined"
-                onClick={async () => {
-                  setAdapterWarning('');
-                  const state = await checkAdapterState();
-                  if (!state || state === 'Off' || state === 'Unknown') {
-                    setAdapterWarning(
-                      'Bluetooth is turned off or unavailable. Please enable Bluetooth in your system settings.'
-                    );
-                    return;
+            <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 2 }}>
+              {/* Scan button — hidden once devices are found or connecting */}
+              {bleDevices.length === 0 && bleStatus !== 'connecting' && (
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  fullWidth
+                  onClick={async () => {
+                    setAdapterWarning('');
+                    const state = await checkAdapterState();
+                    if (!state || state === 'Off' || state === 'Unknown') {
+                      setAdapterWarning(
+                        'Bluetooth is off or unavailable. Enable it in System Settings.'
+                      );
+                      return;
+                    }
+                    scan();
+                  }}
+                  disabled={bleStatus === 'scanning'}
+                  startIcon={
+                    bleStatus === 'scanning' ? (
+                      <CircularProgress size={15} color="primary" />
+                    ) : (
+                      <BluetoothSearchingIcon sx={{ fontSize: 18 }} />
+                    )
                   }
-                  scan();
-                }}
-                disabled={bleStatus === 'scanning'}
-                startIcon={
-                  bleStatus === 'scanning' ? (
-                    <CircularProgress size={16} sx={{ color: 'inherit' }} />
-                  ) : (
-                    <BluetoothSearchingIcon />
-                  )
-                }
-                sx={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  textTransform: 'none',
-                  py: 1,
-                  px: 3,
-                  borderRadius: '10px',
-                  borderColor: '#FF9500',
-                  color: '#FF9500',
-                  '&:hover': {
-                    borderColor: '#e68600',
-                    bgcolor: 'rgba(255, 149, 0, 0.08)',
-                  },
-                }}
-              >
-                {bleStatus === 'scanning' ? 'Scanning...' : 'Scan for Devices'}
-              </Button>
+                  sx={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    py: 1.25,
+                    borderRadius: '10px',
+                  }}
+                >
+                  {bleStatus === 'scanning' ? 'Scanning...' : 'Scan for Devices'}
+                </Button>
+              )}
 
+              {/* Adapter warning */}
               {adapterWarning && (
                 <Typography
-                  sx={{
-                    fontSize: 12,
-                    color: '#ef4444',
-                    textAlign: 'center',
-                    lineHeight: 1.5,
-                    px: 1,
-                  }}
+                  sx={{ fontSize: 11, color: '#ef4444', textAlign: 'center', lineHeight: 1.5 }}
                 >
                   {adapterWarning}
                 </Typography>
               )}
 
-              {/* Device list */}
-              {bleDevices.length > 0 && (
-                <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {bleDevices.map(device => (
-                    <Box
-                      key={device.address}
-                      onClick={() => handleConnect(device.address)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        p: 1.5,
-                        borderRadius: '8px',
-                        border: '1px solid',
-                        borderColor: borderColor,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        '&:hover': {
-                          borderColor: '#FF9500',
-                          bgcolor: darkMode ? 'rgba(255, 149, 0, 0.06)' : 'rgba(255, 149, 0, 0.04)',
-                        },
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <BluetoothConnectedIcon sx={{ fontSize: 18, color: '#FF9500' }} />
-                        <Box>
-                          <Typography sx={{ fontSize: 13, fontWeight: 500, color: textPrimary }}>
-                            {device.name || 'Unknown Device'}
-                          </Typography>
-                          <Typography sx={{ fontSize: 10, color: textSecondary }}>
-                            {device.address}
-                          </Typography>
+              {/* Device list — hidden while connecting */}
+              {bleDevices.length > 0 && bleStatus !== 'connecting' && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Typography
+                    sx={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: textSecondary,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.6px',
+                    }}
+                  >
+                    Devices found
+                  </Typography>
+                  {bleDevices.map(device => {
+                    const rssi = device.rssi ?? null;
+                    const signalBars = rssi == null ? 0 : rssi > -60 ? 3 : rssi > -75 ? 2 : 1;
+                    return (
+                      <Box
+                        key={device.address}
+                        onClick={() => bleStatus !== 'connecting' && handleConnect(device)}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          px: 1.75,
+                          py: 1.25,
+                          borderRadius: '10px',
+                          border: '1px solid',
+                          borderColor: borderColor,
+                          cursor: bleStatus === 'connecting' ? 'default' : 'pointer',
+                          transition: 'all 0.15s ease',
+                          '&:hover':
+                            bleStatus !== 'connecting'
+                              ? {
+                                  borderColor: 'primary.main',
+                                  bgcolor: 'primary.100',
+                                }
+                              : {},
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                          <BluetoothConnectedIcon
+                            sx={{ fontSize: 16, color: 'primary.main', flexShrink: 0 }}
+                          />
+                          <Box>
+                            <Typography
+                              sx={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: textPrimary,
+                                lineHeight: 1.3,
+                              }}
+                            >
+                              {device.name || 'Unknown Device'}
+                            </Typography>
+                            <Typography
+                              sx={{ fontSize: 10, color: textSecondary, fontFamily: 'monospace' }}
+                            >
+                              {device.address}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        {/* Signal strength dots */}
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'flex-end',
+                            gap: '3px',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {[1, 2, 3].map(bar => (
+                            <Box
+                              key={bar}
+                              sx={{
+                                width: 4,
+                                height: 4 + bar * 3,
+                                borderRadius: '1px',
+                                bgcolor:
+                                  bar <= signalBars
+                                    ? 'primary.main'
+                                    : darkMode
+                                      ? 'rgba(255,255,255,0.15)'
+                                      : 'rgba(0,0,0,0.12)',
+                              }}
+                            />
+                          ))}
                         </Box>
                       </Box>
-                      {device.rssi != null && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <SignalCellularAltIcon sx={{ fontSize: 14, color: textSecondary }} />
-                          <Typography sx={{ fontSize: 10, color: textSecondary }}>
-                            {device.rssi} dBm
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-                  ))}
+                    );
+                  })}
                 </Box>
               )}
 
+              {/* Description — hidden once a device is found */}
+              {bleDevices.length === 0 && bleStatus !== 'connecting' && (
+                <Typography
+                  sx={{ fontSize: 12, color: textSecondary, textAlign: 'center', lineHeight: 1.6 }}
+                >
+                  Make sure Reachy Mini is powered on and within range.
+                </Typography>
+              )}
+
+              {/* Connecting state */}
               {bleStatus === 'connecting' && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CircularProgress size={16} sx={{ color: '#FF9500' }} />
+                <Box
+                  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}
+                >
+                  <CircularProgress size={14} color="primary" />
                   <Typography sx={{ fontSize: 12, color: textSecondary }}>Connecting...</Typography>
                 </Box>
               )}
@@ -481,10 +543,10 @@ export default function BluetoothSupportView() {
                       borderColor: borderColor,
                     },
                     '&:hover fieldset': {
-                      borderColor: '#FF9500',
+                      borderColor: 'primary.main',
                     },
                     '&.Mui-focused fieldset': {
-                      borderColor: '#FF9500',
+                      borderColor: 'primary.main',
                     },
                   },
                 }}
@@ -492,6 +554,7 @@ export default function BluetoothSupportView() {
 
               <Button
                 variant="outlined"
+                color="primary"
                 onClick={handleSavePin}
                 disabled={pinInput.length !== 5}
                 sx={{
@@ -501,16 +564,6 @@ export default function BluetoothSupportView() {
                   py: 1,
                   px: 3,
                   borderRadius: '10px',
-                  borderColor: '#FF9500',
-                  color: '#FF9500',
-                  '&:hover': {
-                    borderColor: '#e68600',
-                    bgcolor: 'rgba(255, 149, 0, 0.08)',
-                  },
-                  '&.Mui-disabled': {
-                    borderColor: borderColor,
-                    color: textSecondary,
-                  },
                 }}
               >
                 Continue
@@ -522,130 +575,98 @@ export default function BluetoothSupportView() {
           {/* STEP 3: COMMANDS */}
           {/* ============================================================ */}
           {activeStep === 2 && (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                width: '100%',
-                gap: 2,
-                flex: 1,
-              }}
-            >
-              {/* Command grid */}
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {COMMANDS.map(cmd => (
-                  <Button
-                    key={cmd.id}
-                    variant="outlined"
-                    onClick={() => handleCommand(cmd.id)}
-                    disabled={isSending || bleStatus !== 'connected'}
-                    startIcon={<cmd.icon sx={{ fontSize: 16 }} />}
-                    sx={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      textTransform: 'none',
-                      py: 0.75,
-                      px: 1.5,
-                      borderRadius: '8px',
-                      borderColor: cmd.danger ? '#ef4444' : cmd.color,
-                      color: cmd.danger ? '#ef4444' : cmd.color,
-                      '&:hover': {
-                        borderColor: cmd.danger ? '#dc2626' : cmd.color,
-                        bgcolor: cmd.danger ? 'rgba(239, 68, 68, 0.08)' : `${cmd.color}14`,
-                      },
-                      '&.Mui-disabled': {
-                        borderColor: borderColor,
-                        color: textSecondary,
-                      },
-                    }}
-                  >
-                    {cmd.label}
-                  </Button>
-                ))}
-                {/* Journal toggle button */}
-                <Button
-                  variant="outlined"
-                  onClick={journalActive ? handleJournalStop : handleJournalStart}
-                  disabled={bleStatus !== 'connected'}
-                  startIcon={<ArticleIcon sx={{ fontSize: 16 }} />}
-                  sx={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    py: 0.75,
-                    px: 1.5,
-                    borderRadius: '8px',
-                    borderColor: journalActive ? '#22c55e' : '#6366f1',
-                    color: journalActive ? '#22c55e' : '#6366f1',
-                    '&:hover': {
-                      borderColor: journalActive ? '#16a34a' : '#6366f1',
-                      bgcolor: journalActive
-                        ? 'rgba(34, 197, 94, 0.08)'
-                        : 'rgba(99, 102, 241, 0.08)',
-                    },
-                    '&.Mui-disabled': {
-                      borderColor: borderColor,
-                      color: textSecondary,
-                    },
-                  }}
-                >
-                  {journalActive ? 'Stop Journal' : 'Journal'}
-                </Button>
+            <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 2, flex: 1 }}>
+              {/* Connected device header */}
+              {connectedDevice && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <BluetoothConnectedIcon sx={{ fontSize: 12, color: '#22c55e' }} />
+                  <Typography sx={{ fontSize: 10, color: textSecondary }}>
+                    Connected —{' '}
+                    <Box component="span" sx={{ fontFamily: 'monospace' }}>
+                      {connectedDevice.address}
+                    </Box>
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Actions 2x2 grid */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                {[
+                  { id: 'network_status', desc: 'Check WiFi network and IP' },
+                  { id: 'hotspot', desc: 'Disconnects WiFi and restarts in hotspot mode.' },
+                  { id: 'restart_daemon', desc: 'Restart the robot software' },
+                  { id: 'software_reset', desc: 'Full reset — last resort' },
+                ].map(({ id, desc }) => {
+                  const cmd = COMMANDS.find(c => c.id === id);
+                  const isDanger = cmd.danger;
+                  const isHotspot = id === 'hotspot';
+                  const isPending = isHotspot && hotspotPending;
+                  return (
+                    <Box key={id}>
+                      <Button
+                        variant="outlined"
+                        color={isDanger ? undefined : 'primary'}
+                        fullWidth
+                        onClick={() => (isHotspot ? handleHotspot() : handleCommand(id))}
+                        disabled={
+                          isSending || bleStatus !== 'connected' || (hotspotPending && !isHotspot)
+                        }
+                        startIcon={
+                          isPending ? (
+                            <CircularProgress size={13} color="primary" />
+                          ) : (
+                            <cmd.icon sx={{ fontSize: 14 }} />
+                          )
+                        }
+                        sx={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          textTransform: 'none',
+                          py: 0.75,
+                          borderRadius: '8px',
+                          justifyContent: 'flex-start',
+                          ...(isDanger && {
+                            borderColor: 'rgba(239,68,68,0.4)',
+                            color: '#ef4444',
+                            '&:hover': { borderColor: '#ef4444', bgcolor: 'rgba(239,68,68,0.06)' },
+                            '&.Mui-disabled': { borderColor: borderColor, color: textSecondary },
+                          }),
+                        }}
+                      >
+                        {isPending ? `Switching… ${hotspotCountdown}s` : cmd.label}
+                      </Button>
+                      <Typography sx={{ fontSize: 10, color: textSecondary, mt: 0.4, px: 0.5 }}>
+                        {desc}
+                      </Typography>
+                    </Box>
+                  );
+                })}
               </Box>
 
               {/* Activity log */}
-              <Box
-                sx={{
-                  flex: 1,
-                  minHeight: 140,
-                  maxHeight: 200,
-                  overflow: 'auto',
-                  bgcolor: darkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.03)',
-                  borderRadius: '8px',
-                  p: 1.5,
-                  fontFamily: 'monospace',
-                }}
-              >
-                {activityLog.length === 0 ? (
-                  <Typography sx={{ fontSize: 11, color: textSecondary, fontStyle: 'italic' }}>
-                    Send a command to see responses here...
-                  </Typography>
-                ) : (
-                  activityLog.map((entry, i) => (
-                    <Typography
-                      key={i}
-                      sx={{
-                        fontSize: 11,
-                        color: logColor(entry.type),
-                        lineHeight: 1.6,
-                        wordBreak: 'break-all',
-                      }}
-                    >
-                      <Box component="span" sx={{ opacity: 0.5 }}>
-                        [{entry.time}]
-                      </Box>{' '}
-                      {entry.message}
-                    </Typography>
-                  ))
-                )}
-                <div ref={logEndRef} />
-              </Box>
+              <LogConsole
+                logs={activityLog}
+                includeStoreLogs={false}
+                darkMode={darkMode}
+                compact
+                maxHeight={120}
+                emptyMessage="Send a command to see responses here..."
+              />
 
-              {/* Disconnect button */}
-              <Button
-                variant="text"
-                onClick={handleDisconnect}
+              {/* Journal link */}
+              <Typography
+                onClick={journalActive ? handleJournalStop : handleJournalStart}
                 sx={{
                   fontSize: 11,
-                  fontWeight: 500,
-                  textTransform: 'none',
-                  color: textSecondary,
-                  alignSelf: 'center',
-                  '&:hover': { color: '#ef4444' },
+                  color: journalActive ? '#22c55e' : 'primary.main',
+                  textAlign: 'center',
+                  textDecoration: 'underline',
+                  cursor: bleStatus === 'connected' ? 'pointer' : 'default',
+                  opacity: bleStatus === 'connected' ? 1 : 0.4,
                 }}
               >
-                Disconnect
-              </Button>
+                {journalActive ? 'Stop Reachy Mini logs' : 'Reachy Mini logs'}
+              </Typography>
             </Box>
           )}
         </Box>
