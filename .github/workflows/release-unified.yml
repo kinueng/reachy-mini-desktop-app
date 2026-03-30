@@ -1557,7 +1557,7 @@ jobs:
 
       - name: Upload artifact for GitHub Pages
         # ✅ Standard: Official GitHub action to upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: docs
 

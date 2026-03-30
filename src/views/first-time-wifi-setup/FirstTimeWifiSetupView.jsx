@@ -40,7 +40,7 @@ const steps = ['Power On', 'Connect to Hotspot', 'Configure WiFi', 'Reconnecting
  * 5. Success - Connect to Reachy
  */
 export default function FirstTimeWifiSetupView() {
-  const { darkMode, setShowFirstTimeWifiSetup } = useAppStore();
+  const { darkMode, setShowFirstTimeWifiSetup, setShowBluetoothSupportView } = useAppStore();
   const [activeStep, setActiveStep] = useState(0);
   const [configuredNetwork, setConfiguredNetwork] = useState(null);
 
@@ -560,6 +560,35 @@ export default function FirstTimeWifiSetupView() {
             />
           )}
         </Box>
+
+        {/* Bluetooth Console hint — shown on step 1 when hotspot not found */}
+        {activeStep === 0 && !hasReachyHotspot && (
+          <Typography
+            sx={{
+              fontSize: 12,
+              color: textSecondary,
+              textAlign: 'center',
+              mt: 2,
+            }}
+          >
+            Can't find the hotspot?{' '}
+            <Box
+              component="span"
+              onClick={() => {
+                setShowFirstTimeWifiSetup(false);
+                setShowBluetoothSupportView(true);
+              }}
+              sx={{
+                color: 'primary.main',
+                cursor: 'pointer',
+                fontWeight: 500,
+                textDecoration: 'underline',
+              }}
+            >
+              Try the Bluetooth Console
+            </Box>
+          </Typography>
+        )}
       </Box>
 
       {/* Toast Notifications - handled by global Toast in App.jsx */}

@@ -256,6 +256,16 @@ pub async fn check_location_permission() -> Result<Option<bool>, String> {
 
     tokio::task::spawn_blocking(|| {
         let status = unsafe { corewlan_location_status() };
+        // If notDetermined (0), the CLLocationManager delegate may not have fired yet.
+        // The delegate typically fires within ~5ms of manager creation. We wait up to
+        // 300ms so the real persisted status is reflected before returning to the JS side.
+        // This prevents the permissions screen from flashing on every app restart.
+        let status = if status == 0 {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            unsafe { corewlan_location_status() }
+        } else {
+            status
+        };
         // 0 = notDetermined, 1 = restricted, 2 = denied, 3 = authorizedAlways, 4 = authorizedWhenInUse
         match status {
             3 | 4 => Ok(Some(true)),
@@ -378,6 +388,9 @@ pub async fn check_bluetooth_permission() -> Result<Option<bool>, String> {
         let status = unsafe { bluetooth_authorization_status() };
         log::debug!("[permissions] Bluetooth authorization status: {}", status);
         // 0=notDetermined, 1=restricted, 2=denied, 3=allowedAlways
+        // Note: notDetermined (0) means the user was never asked - this is expected on first run.
+        // We do NOT add a delay here because CBManager.authorization is a direct TCC read
+        // (unlike CLLocationManager which needs a delegate callback to reflect the real state).
         match status {
             3 => Ok(Some(true)),
             1 | 2 => Ok(Some(false)),

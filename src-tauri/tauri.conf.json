@@ -23,7 +23,6 @@
         "transparent": false,
         "hiddenTitle": true,
         "titleBarStyle": "Transparent",
-        "devtools": false,
         "backgroundThrottling": "disabled"
       }
     ],

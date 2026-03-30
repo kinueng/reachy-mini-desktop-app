@@ -266,7 +266,7 @@ function ConnectionCard({
  * Uses useConnection hook for unified connection handling
  */
 export default function FindingRobotView() {
-  const { darkMode, setShowSetupChoice, clearApps } = useAppStore();
+  const { darkMode, setShowFirstTimeWifiSetup, clearApps } = useAppStore();
   const { isScanning, usbRobot, wifiRobot, wifiRobots, selectWifiRobot } = useRobotDiscovery();
   const { connect, isConnecting, isDisconnecting } = useConnection();
   const [selectedMode, setSelectedMode] = useState(null);
@@ -776,7 +776,7 @@ export default function FindingRobotView() {
           {isBusy ? (isDisconnecting ? 'Stopping...' : 'Connecting...') : 'Start'}
         </PulseButton>
 
-        {/* Setup / troubleshooting link */}
+        {/* Setup / troubleshooting links */}
         <Box
           sx={{
             position: 'absolute',
@@ -784,31 +784,25 @@ export default function FindingRobotView() {
             left: '50%',
             transform: 'translateX(-50%)',
             textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            whiteSpace: 'nowrap',
           }}
         >
-          <Typography
+          <Box
+            component="span"
+            onClick={() => setShowFirstTimeWifiSetup(true)}
             sx={{
               fontSize: 12,
-              color: darkMode ? '#888' : '#666',
+              color: 'primary.main',
+              cursor: 'pointer',
+              fontWeight: 500,
+              textDecoration: 'underline',
             }}
           >
-            First time setup or trouble connecting?{' '}
-            <Box
-              component="span"
-              onClick={() => setShowSetupChoice(true)}
-              sx={{
-                color: '#FF9500',
-                cursor: 'pointer',
-                fontWeight: 500,
-                textDecoration: 'none',
-                '&:hover': {
-                  textDecoration: 'underline',
-                },
-              }}
-            >
-              Click here
-            </Box>
-          </Typography>
+            First time WiFi setup
+          </Box>
         </Box>
       </Box>
     </Box>
