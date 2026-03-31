@@ -14,6 +14,7 @@ import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl } from '../../config/daemo
 import { detectMovementChanges } from '../../utils/movementDetection';
 import { useAppFetching, mergeAppsData } from '../active-robot/application-store/hooks';
 import { ScanErrorDisplay, ScanStepsIndicator, TipsCarousel } from './components';
+import reachyBusteSvg from '../../assets/reachy-buste.svg';
 import { calculatePassiveJointsAsync } from '../../utils/kinematics-wasm/useKinematicsWasm';
 
 /**
@@ -912,43 +913,57 @@ function HardwareScanView({ startupError, onScanComplete: onScanCompleteCallback
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 3,
+            gap: 2,
           }}
         >
-          <CircularProgress size={48} thickness={3} sx={{ color: darkMode ? '#888' : '#666' }} />
-          {isBootstrapping === true && (
+          <Box
+            component="img"
+            src={reachyBusteSvg}
+            alt="Reachy Mini"
+            sx={{
+              width: 80,
+              height: 'auto',
+              opacity: darkMode ? 0.7 : 0.5,
+              mb: 1,
+            }}
+          />
+          {isBootstrapping === true ? (
             <Box sx={{ textAlign: 'center' }}>
               <Typography
                 sx={{
-                  fontSize: 16,
-                  fontWeight: 600,
+                  fontSize: 22,
+                  fontWeight: 700,
                   color: darkMode ? '#f5f5f5' : '#333',
-                  mb: 1,
+                  mb: 0.5,
+                  letterSpacing: '-0.3px',
                 }}
               >
-                First Run Setup
+                Setting things up
               </Typography>
               <Typography
                 sx={{
                   fontSize: 13,
                   fontWeight: 400,
                   color: darkMode ? '#999' : '#666',
+                  mb: 0.5,
                 }}
               >
-                {bootstrapMessage || 'Setting up Python environment...'}
+                {bootstrapMessage || 'Preparing environment...'}
               </Typography>
               <Typography
                 sx={{
                   fontSize: 11,
                   fontWeight: 400,
-                  color: darkMode ? '#666' : '#aaa',
-                  mt: 1,
+                  color: darkMode ? '#555' : '#aaa',
                   fontStyle: 'italic',
                 }}
               >
-                This only happens once — it may take a few minutes
+                This only happens once
               </Typography>
+              <TipsCarousel darkMode={darkMode} interval={5000} />
             </Box>
+          ) : (
+            <CircularProgress size={24} thickness={3} sx={{ color: darkMode ? '#555' : '#bbb' }} />
           )}
         </Box>
       ) : (

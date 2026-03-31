@@ -487,20 +487,67 @@ export default function FindingRobotView() {
         anchorEl={settingsAnchor}
         open={Boolean(settingsAnchor)}
         onClose={() => setSettingsAnchor(null)}
-        PaperProps={{
-          sx: {
-            bgcolor: darkMode ? '#2a2a2a' : '#fff',
-            color: darkMode ? '#eee' : '#333',
-            borderRadius: '8px',
-            minWidth: 220,
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: darkMode ? 'rgba(32, 32, 32, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid',
+              borderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+              borderRadius: '10px',
+              boxShadow: darkMode
+                ? '0 8px 32px rgba(0, 0, 0, 0.5)'
+                : '0 8px 32px rgba(0, 0, 0, 0.08)',
+              minWidth: 220,
+              py: 0.5,
+            },
           },
         }}
       >
-        <MenuItem onClick={handleResetAppsVenv} sx={{ fontSize: 13 }}>
-          Reset Apps Environment
+        <Box sx={{ px: 1.5, pt: 0.75, pb: 0.75 }}>
+          <Typography
+            sx={{
+              fontSize: 11,
+              fontWeight: 500,
+              color: darkMode ? '#777' : '#999',
+              letterSpacing: '0.2px',
+            }}
+          >
+            Local environment (USB &amp; Sim)
+          </Typography>
+        </Box>
+        <MenuItem
+          onClick={handleResetAppsVenv}
+          sx={{
+            fontSize: 12,
+            fontWeight: 450,
+            color: darkMode ? '#ccc' : '#444',
+            borderRadius: '6px',
+            mx: 0.5,
+            px: 1,
+            minHeight: 32,
+            '&:hover': { bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)' },
+          }}
+        >
+          Reset apps environment
         </MenuItem>
-        <MenuItem onClick={handleResetPythonEnv} sx={{ fontSize: 13, color: '#ef4444' }}>
-          Full Environment Reset
+        <MenuItem
+          onClick={handleResetPythonEnv}
+          sx={{
+            fontSize: 12,
+            fontWeight: 450,
+            color: '#ef4444',
+            borderRadius: '6px',
+            mx: 0.5,
+            px: 1,
+            minHeight: 32,
+            '&:hover': { bgcolor: darkMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)' },
+          }}
+        >
+          Full environment reset
         </MenuItem>
       </Menu>
 
@@ -508,29 +555,84 @@ export default function FindingRobotView() {
       <Dialog
         open={pendingReset !== null}
         onClose={() => setPendingReset(null)}
+        slotProps={{
+          backdrop: {
+            sx: {
+              bgcolor: darkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.2)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+            },
+          },
+        }}
         PaperProps={{
           sx: {
-            bgcolor: darkMode ? '#2a2a2a' : '#fff',
-            color: darkMode ? '#eee' : '#333',
-            borderRadius: '12px',
+            bgcolor: darkMode ? 'rgba(32, 32, 32, 0.95)' : 'rgba(255, 255, 255, 0.97)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid',
+            borderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+            borderRadius: '14px',
+            boxShadow: darkMode
+              ? '0 16px 48px rgba(0, 0, 0, 0.5)'
+              : '0 16px 48px rgba(0, 0, 0, 0.1)',
+            maxWidth: 340,
+            p: 1,
           },
         }}
       >
-        <DialogTitle sx={{ fontWeight: 600 }}>
-          {pendingReset === 'full' ? 'Full Environment Reset?' : 'Reset Apps Environment?'}
+        <DialogTitle
+          sx={{
+            fontWeight: 600,
+            fontSize: 16,
+            color: darkMode ? '#f5f5f5' : '#222',
+            pb: 0.5,
+          }}
+        >
+          {pendingReset === 'full' ? 'Full environment reset?' : 'Reset apps environment?'}
         </DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: darkMode ? '#aaa' : '#666' }}>
+          <DialogContentText
+            sx={{
+              color: darkMode ? '#999' : '#666',
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
             {pendingReset === 'full'
-              ? 'This will delete all Python files and require a full re-setup which may take a few minutes.'
+              ? 'This will delete all Python files and require a full re-setup. It may take a few minutes.'
               : 'All installed apps will need to be reinstalled.'}
           </DialogContentText>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPendingReset(null)} sx={{ color: darkMode ? '#aaa' : '#666' }}>
+        <DialogActions sx={{ px: 2, pb: 1.5, gap: 1 }}>
+          <Button
+            onClick={() => setPendingReset(null)}
+            sx={{
+              color: darkMode ? '#999' : '#666',
+              fontSize: 12,
+              fontWeight: 500,
+              textTransform: 'none',
+              borderRadius: '8px',
+              px: 2,
+              '&:hover': {
+                bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+              },
+            }}
+          >
             Cancel
           </Button>
-          <Button onClick={confirmReset} sx={{ color: '#ef4444', fontWeight: 600 }}>
+          <Button
+            onClick={confirmReset}
+            sx={{
+              color: '#fff',
+              bgcolor: '#ef4444',
+              fontSize: 12,
+              fontWeight: 600,
+              textTransform: 'none',
+              borderRadius: '8px',
+              px: 2,
+              '&:hover': { bgcolor: '#dc2626' },
+            }}
+          >
             Reset
           </Button>
         </DialogActions>
