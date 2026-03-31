@@ -240,10 +240,20 @@ fn main() -> ExitCode {
     }
 
     // Step 2b: Upgrade — if the venv already existed but the expected reachy-mini
-    // spec changed (e.g., app was updated), upgrade both venvs in place.
-    let needs_spec_upgrade = !needs_full_bootstrap && needs_upgrade(&data_dir);
+    // spec changed (e.g., app was updated), or the installed version is below the
+    // minimum required (e.g., < 1.6.0 which introduced apps_venv), upgrade both
+    // venvs in place.
+    let needs_version_bump = !needs_full_bootstrap && uv_wrapper::needs_venv_rebuild(&data_dir);
+    let needs_spec_upgrade = !needs_full_bootstrap
+        && (needs_upgrade(&data_dir) || needs_version_bump);
     if needs_spec_upgrade {
-        println!("[upgrade] App updated — reachy-mini spec changed, upgrading venvs...");
+        if needs_version_bump {
+            println!(
+                "[upgrade] Installed reachy-mini is below minimum required version, upgrading venvs..."
+            );
+        } else {
+            println!("[upgrade] App updated — reachy-mini spec changed, upgrading venvs...");
+        }
         if let Err(e) = upgrade_venvs(&data_dir) {
             eprintln!("⚠️  Upgrade failed (will continue with existing venv): {}", e);
             // Non-fatal: the old version may still work. Don't write the marker
