@@ -57,6 +57,63 @@ pub fn venv_exists(data_dir: &PathBuf, venv_name: &str) -> bool {
     python_exe_path(data_dir, venv_name).exists()
 }
 
+/// Minimum reachy-mini version required in .venv.
+/// Versions below this trigger a full venv rebuild.
+/// 1.6.0 introduced apps_venv (shared venv for all apps instead of per-app venvs).
+const MIN_REACHY_MINI_VERSION: (u32, u32, u32) = (1, 6, 0);
+
+/// Read the installed reachy-mini version from a venv's dist-info METADATA.
+/// Returns `Some((major, minor, patch))` or `None` if unreadable.
+pub fn get_installed_version(data_dir: &PathBuf, venv_name: &str) -> Option<(u32, u32, u32)> {
+    let lib_dir = if cfg!(target_os = "windows") {
+        data_dir.join(venv_name).join("Lib").join("site-packages")
+    } else {
+        // Find python3.x directory
+        let lib = data_dir.join(venv_name).join("lib");
+        let python_dir = fs::read_dir(&lib)
+            .ok()?
+            .filter_map(|e| e.ok())
+            .find(|e| e.file_name().to_string_lossy().starts_with("python3"))?;
+        python_dir.path().join("site-packages")
+    };
+
+    let entry = fs::read_dir(&lib_dir)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .find(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            name.starts_with("reachy_mini-") && name.ends_with(".dist-info")
+        })?;
+
+    let metadata = fs::read_to_string(entry.path().join("METADATA")).ok()?;
+    let version_line = metadata
+        .lines()
+        .find(|l| l.starts_with("Version: "))?;
+    let version_str = version_line.strip_prefix("Version: ")?.trim();
+
+    // Parse "X.Y.Z" (ignore pre-release suffixes like rc1, .dev0, etc.)
+    let parts: Vec<&str> = version_str.split('.').collect();
+    if parts.len() >= 3 {
+        let major = parts[0].parse().ok()?;
+        let minor = parts[1].parse().ok()?;
+        // Strip non-numeric suffix from patch (e.g., "0rc1" → "0")
+        let patch_str: String = parts[2].chars().take_while(|c| c.is_ascii_digit()).collect();
+        let patch = patch_str.parse().ok()?;
+        Some((major, minor, patch))
+    } else {
+        None
+    }
+}
+
+/// Check if the .venv has a reachy-mini version too old to work with the current app.
+/// Returns true if a rebuild is needed.
+pub fn needs_venv_rebuild(data_dir: &PathBuf) -> bool {
+    match get_installed_version(data_dir, ".venv") {
+        Some(version) => version < MIN_REACHY_MINI_VERSION,
+        None => false, // Can't determine version — don't force rebuild
+    }
+}
+
 /// Download and install uv into the data directory.
 pub fn download_uv(data_dir: &PathBuf) -> Result<(), String> {
     let uv_path = uv_exe_path(data_dir);
@@ -252,14 +309,14 @@ pub fn upgrade_venvs(data_dir: &PathBuf) -> Result<(), String> {
     println!("[upgrade] Upgrading .venv to {}...", package_spec);
     run_uv(
         data_dir,
-        &["pip", "install", "--python", python_rel, &package_spec],
+        &["pip", "install", "-U", "--python", python_rel, &package_spec],
     )?;
 
     if python_exe_path(data_dir, "apps_venv").exists() {
         println!("[upgrade] Upgrading apps_venv to {}...", package_spec);
         run_uv(
             data_dir,
-            &["pip", "install", "--python", apps_python_rel, &package_spec],
+            &["pip", "install", "-U", "--python", apps_python_rel, &package_spec],
         )?;
     }
 
