@@ -1338,6 +1338,7 @@ jobs:
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
           files: |
             src-tauri/target/*/release/bundle/deb/*.deb
+            src-tauri/target/*/release/bundle/deb/*.deb.sig
             src-tauri/target/*/release/bundle/msi/*.msi
             src-tauri/target/*/release/bundle/msi/*.msi.sig
             src-tauri/target/*/release/bundle/appimage/*.AppImage
@@ -1364,6 +1365,7 @@ jobs:
             ${{ matrix.os == 'windows-latest' && format('src-tauri/target/{0}/release/bundle/msi/*.msi', matrix.target) || '' }}
             ${{ matrix.os == 'windows-latest' && format('src-tauri/target/{0}/release/bundle/msi/*.msi.sig', matrix.target) || '' }}
             ${{ matrix.os == 'ubuntu-22.04' && format('src-tauri/target/{0}/release/bundle/deb/*.deb', matrix.target) || '' }}
+            ${{ matrix.os == 'ubuntu-22.04' && format('src-tauri/target/{0}/release/bundle/deb/*.deb.sig', matrix.target) || '' }}
             ${{ matrix.os == 'ubuntu-22.04' && format('src-tauri/target/{0}/release/bundle/appimage/*.AppImage', matrix.target) || '' }}
             ${{ matrix.os == 'ubuntu-22.04' && format('src-tauri/target/{0}/release/bundle/appimage/*.AppImage.tar.gz', matrix.target) || '' }}
             ${{ matrix.os == 'ubuntu-22.04' && format('src-tauri/target/{0}/release/bundle/appimage/*.AppImage.tar.gz.sig', matrix.target) || '' }}
