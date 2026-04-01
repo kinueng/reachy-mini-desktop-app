@@ -150,15 +150,40 @@ pub fn fix_externally_managed_venvs(data_dir: &PathBuf) -> bool {
         return false;
     }
 
-    println!("[fix] Found EXTERNALLY-MANAGED marker in venv, removing venvs...");
+    println!("[fix] Found EXTERNALLY-MANAGED marker in venv, removing Python environment...");
 
-    for venv_name in &[".venv", "apps_venv"] {
-        let venv_dir = data_dir.join(venv_name);
-        if venv_dir.exists() {
-            if let Err(e) = fs::remove_dir_all(&venv_dir) {
-                eprintln!("[fix] Failed to remove {}: {}", venv_name, e);
+    // Remove uv, venvs, and cpython installations so bootstrap starts completely fresh.
+    // - uv: an old version may be the cause of the stale marker
+    // - cpython: binaries were signed with the previous app identity and macOS will SIGKILL them
+    if let Ok(entries) = fs::read_dir(data_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            let should_remove = name_str == ".venv"
+                || name_str == "apps_venv"
+                || name_str.starts_with("cpython-");
+            if should_remove && entry.path().is_dir() {
+                if let Err(e) = fs::remove_dir_all(entry.path()) {
+                    eprintln!("[fix] Failed to remove {}: {}", name_str, e);
+                } else {
+                    println!("[fix] Removed {}", name_str);
+                }
+            }
+        }
+    }
+
+    // Remove uv/uvx binaries so bootstrap downloads a fresh version
+    for bin_name in &["uv", "uvx"] {
+        let bin_path = data_dir.join(if cfg!(target_os = "windows") {
+            format!("{}.exe", bin_name)
+        } else {
+            bin_name.to_string()
+        });
+        if bin_path.exists() {
+            if let Err(e) = fs::remove_file(&bin_path) {
+                eprintln!("[fix] Failed to remove {}: {}", bin_name, e);
             } else {
-                println!("[fix] Removed {}", venv_name);
+                println!("[fix] Removed {}", bin_name);
             }
         }
     }
