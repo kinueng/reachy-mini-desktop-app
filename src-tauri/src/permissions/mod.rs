@@ -386,7 +386,7 @@ pub async fn check_bluetooth_permission() -> Result<Option<bool>, String> {
     #[cfg(debug_assertions)]
     {
         log::warn!("[dev] Skipping Bluetooth permission check in debug build — reporting granted");
-        return Ok(Some(true));
+        Ok(Some(true))
     }
 
     #[cfg(not(debug_assertions))]
@@ -426,7 +426,7 @@ pub async fn request_bluetooth_permission() -> Result<Option<bool>, String> {
         log::warn!(
             "[dev] Skipping Bluetooth permission request in debug build — reporting granted"
         );
-        return Ok(Some(true));
+        Ok(Some(true))
     }
 
     #[cfg(not(debug_assertions))]
