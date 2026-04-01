@@ -17,6 +17,8 @@ import {
   SettingsWifiCard,
   SettingsPreferencesCard,
   SettingsCacheCard,
+  SettingsDaemonCard,
+  SettingsResetCard,
   ChangeWifiOverlay,
 } from './settings';
 
@@ -109,6 +111,10 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
   const [isClearingNetworks, setIsClearingNetworks] = useState(false);
   const [showResetAppsConfirm, setShowResetAppsConfirm] = useState(false);
   const [isResettingApps, setIsResettingApps] = useState(false);
+  const [showResetAppsVenvConfirm, setShowResetAppsVenvConfirm] = useState(false);
+  const [isResettingAppsVenv, setIsResettingAppsVenv] = useState(false);
+  const [showResetPythonEnvConfirm, setShowResetPythonEnvConfirm] = useState(false);
+  const [isResettingPythonEnv, setIsResettingPythonEnv] = useState(false);
 
   // ═══════════════════════════════════════════════════════════════════
   // TOAST NOTIFICATIONS (global - rendered in App.jsx)
@@ -176,6 +182,7 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {};
+      ws._lastStatus = 'pending'; // Track status for onclose handler
 
       ws.onmessage = event => {
         try {
@@ -183,6 +190,7 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
           const data = JSON.parse(event.data);
 
           if (data.status) {
+            ws._lastStatus = data.status; // Track for onclose handler
             setUpdateJobStatus(data.status);
 
             // Add new logs if present
@@ -231,6 +239,19 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
       };
 
       ws.onclose = event => {
+        // If WebSocket closes while update was in progress (not after 'done'/'failed'),
+        // it likely means the daemon restarted after a successful update.
+        // Treat this as update success to avoid the UI getting stuck on "Updating".
+        const currentStatus = updatePollingRef.current?._lastStatus;
+        if (currentStatus === 'in_progress' || currentStatus === 'pending') {
+          setUpdateJobStatus('restarting');
+          logSuccess('Update likely completed (daemon restarted, connection lost).');
+          setTimeout(() => {
+            setIsUpdating(false);
+            showToast('Update completed! Please reconnect to the robot.', 'success');
+            useAppStore.getState().resetAll();
+          }, 6000);
+        }
         updatePollingRef.current = null;
       };
 
@@ -460,6 +481,48 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
     }
   }, [clearApps, showToast]);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ENVIRONMENT RESET FUNCTIONS (USB/Simulation only)
+  // ═══════════════════════════════════════════════════════════════════
+
+  const handleResetAppsVenvClick = useCallback(() => {
+    setShowResetAppsVenvConfirm(true);
+  }, []);
+
+  const confirmResetAppsVenv = useCallback(async () => {
+    setShowResetAppsVenvConfirm(false);
+    setIsResettingAppsVenv(true);
+    try {
+      await invoke('reset_apps_venv');
+      showToast('Apps environment reset. Reconnecting...', 'success');
+      onClose();
+      setTimeout(() => resetAll(), 500);
+    } catch (err) {
+      showToast(`Failed to reset apps environment: ${err}`, 'error');
+    } finally {
+      setIsResettingAppsVenv(false);
+    }
+  }, [showToast, onClose, resetAll]);
+
+  const handleResetPythonEnvClick = useCallback(() => {
+    setShowResetPythonEnvConfirm(true);
+  }, []);
+
+  const confirmResetPythonEnv = useCallback(async () => {
+    setShowResetPythonEnvConfirm(false);
+    setIsResettingPythonEnv(true);
+    try {
+      await invoke('reset_python_env');
+      showToast('Python environment reset. Reconnecting...', 'success');
+      onClose();
+      setTimeout(() => resetAll(), 500);
+    } catch (err) {
+      showToast(`Failed to reset Python environment: ${err}`, 'error');
+    } finally {
+      setIsResettingPythonEnv(false);
+    }
+  }, [showToast, onClose, resetAll]);
+
   // Connect to WiFi (called from Change Network overlay)
   const handleWifiConnect = useCallback(async () => {
     if (!selectedSSID || !wifiPassword) return;
@@ -609,14 +672,9 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
     >
       <Box
         sx={{
-          width: '90%',
-          maxWidth: isWifiMode ? '680px' : '360px',
+          width: '100%',
           maxHeight: '85vh',
           overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-          // Custom scrollbar
           '&::-webkit-scrollbar': { width: 6 },
           '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
           '&::-webkit-scrollbar-thumb': {
@@ -625,107 +683,132 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
           },
         }}
       >
-        {/* HEADER */}
         <Box
           sx={{
+            width: '90%',
+            maxWidth: isWifiMode ? '680px' : '360px',
+            mx: 'auto',
             display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            pb: 1,
-          }}
-        >
-          <Typography
-            sx={{
-              fontSize: 20,
-              fontWeight: 700,
-              color: textPrimary,
-              letterSpacing: '-0.3px',
-            }}
-          >
-            Settings
-          </Typography>
-          {connectionMode && (
-            <Typography
-              sx={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: textMuted,
-                bgcolor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                px: 1,
-                py: 0.25,
-                borderRadius: '4px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}
-            >
-              {connectionMode === 'wifi'
-                ? 'Reachy WiFi'
-                : connectionMode === 'simulation'
-                  ? 'Simulation'
-                  : 'USB'}
-            </Typography>
-          )}
-          {isWifiMode && remoteHost && (
-            <Typography
-              sx={{
-                fontSize: 11,
-                color: textMuted,
-                fontFamily: 'monospace',
-              }}
-            >
-              {remoteHost}
-            </Typography>
-          )}
-        </Box>
-
-        {/* CONTENT - Grid Layout */}
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: isWifiMode ? 'repeat(2, 1fr)' : '1fr',
+            flexDirection: 'column',
             gap: 2,
           }}
         >
-          {/* Row 1: Update + WiFi (or Update alone) */}
-          <SettingsUpdateCard
-            darkMode={darkMode}
-            title={isWifiMode ? 'System Update' : 'Daemon Update'}
-            updateInfo={updateInfo}
-            isCheckingUpdate={isCheckingUpdate}
-            isUpdating={isUpdating}
-            preRelease={preRelease}
-            onPreReleaseChange={setPreRelease}
-            onCheckUpdate={checkForUpdate}
-            onUpdateClick={handleUpdateClick}
-            cardStyle={cardStyle}
-            buttonStyle={buttonStyle}
-            isOnline={navigator.onLine}
-          />
+          {/* HEADER */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              pb: 1,
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: 20,
+                fontWeight: 700,
+                color: textPrimary,
+                letterSpacing: '-0.3px',
+              }}
+            >
+              Settings
+            </Typography>
+            {connectionMode && (
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: textMuted,
+                  bgcolor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: '4px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                {connectionMode === 'wifi'
+                  ? 'Reachy WiFi'
+                  : connectionMode === 'simulation'
+                    ? 'Simulation'
+                    : 'USB'}
+              </Typography>
+            )}
+            {isWifiMode && remoteHost && (
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  color: textMuted,
+                  fontFamily: 'monospace',
+                }}
+              >
+                {remoteHost}
+              </Typography>
+            )}
+          </Box>
 
-          {isWifiMode && (
-            <SettingsWifiCard
+          {/* CONTENT - Grid Layout */}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: isWifiMode ? 'repeat(2, 1fr)' : '1fr',
+              gap: 2,
+            }}
+          >
+            {/* Row 1: Update + WiFi (or Update alone) */}
+            <SettingsUpdateCard
               darkMode={darkMode}
-              wifiStatus={wifiStatus}
-              isLoadingWifi={isLoadingWifi}
-              onRefresh={fetchWifiStatus}
-              onChangeNetwork={() => setShowChangeWifiOverlay(true)}
-              onClearAllNetworks={() => setShowClearNetworksConfirm(true)}
-              cardStyle={cardStyle}
-            />
-          )}
-
-          {/* Row 2: Preferences (Appearance + Privacy) + Cache (WiFi only) */}
-          <SettingsPreferencesCard darkMode={darkMode} cardStyle={cardStyle} />
-
-          {isWifiMode && (
-            <SettingsCacheCard
-              darkMode={darkMode}
+              title={isWifiMode ? 'System Update' : 'Daemon Update'}
+              updateInfo={updateInfo}
+              isCheckingUpdate={isCheckingUpdate}
+              isUpdating={isUpdating}
+              preRelease={preRelease}
+              onPreReleaseChange={setPreRelease}
+              onCheckUpdate={checkForUpdate}
+              onUpdateClick={handleUpdateClick}
               cardStyle={cardStyle}
               buttonStyle={buttonStyle}
-              onResetAppsClick={handleResetAppsClick}
-              isResettingApps={isResettingApps}
+              isOnline={navigator.onLine}
             />
-          )}
+
+            {isWifiMode && (
+              <SettingsWifiCard
+                darkMode={darkMode}
+                wifiStatus={wifiStatus}
+                isLoadingWifi={isLoadingWifi}
+                onRefresh={fetchWifiStatus}
+                onChangeNetwork={() => setShowChangeWifiOverlay(true)}
+                onClearAllNetworks={() => setShowClearNetworksConfirm(true)}
+                cardStyle={cardStyle}
+              />
+            )}
+
+            {/* Row 2: Preferences + Daemon Control (WiFi) or just Preferences */}
+            <SettingsPreferencesCard darkMode={darkMode} cardStyle={cardStyle} />
+
+            {isWifiMode && <SettingsDaemonCard darkMode={darkMode} cardStyle={cardStyle} />}
+
+            {/* Row 3: Cache (WiFi only) / Environment Reset (USB/Sim only) */}
+            {isWifiMode && (
+              <SettingsCacheCard
+                darkMode={darkMode}
+                cardStyle={cardStyle}
+                buttonStyle={buttonStyle}
+                onResetAppsClick={handleResetAppsClick}
+                isResettingApps={isResettingApps}
+              />
+            )}
+            {!isWifiMode && (
+              <SettingsResetCard
+                darkMode={darkMode}
+                cardStyle={cardStyle}
+                buttonStyle={buttonStyle}
+                onResetAppsVenv={handleResetAppsVenvClick}
+                isResettingAppsVenv={isResettingAppsVenv}
+                onResetPythonEnv={handleResetPythonEnvClick}
+                isResettingPythonEnv={isResettingPythonEnv}
+              />
+            )}
+          </Box>
         </Box>
       </Box>
 
@@ -1135,6 +1218,176 @@ export default function SettingsOverlay({ open, onClose, darkMode }) {
               }}
             >
               Reset all apps
+            </Button>
+          </Box>
+        </Box>
+      </FullscreenOverlay>
+
+      {/* Reset Apps Venv Confirmation Overlay */}
+      <FullscreenOverlay
+        open={showResetAppsVenvConfirm}
+        onClose={() => setShowResetAppsVenvConfirm(false)}
+        darkMode={darkMode}
+        zIndex={10003}
+        backdropOpacity={0.85}
+        debugName="ResetAppsVenvConfirm"
+        backdropBlur={12}
+      >
+        <Box sx={{ width: '100%', maxWidth: 380, mx: 'auto', px: 3, textAlign: 'center' }}>
+          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+            <Box
+              sx={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                bgcolor: darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+                border: `2px solid ${darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <ErrorOutlineIcon sx={{ fontSize: 40, color: '#ef4444' }} />
+            </Box>
+          </Box>
+          <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
+            Reset Apps Environment?
+          </Typography>
+          <Typography sx={{ color: 'text.secondary', fontSize: 14, lineHeight: 1.6, mb: 3 }}>
+            This will{' '}
+            <strong style={{ color: darkMode ? '#fff' : '#333' }}>
+              delete the apps virtual environment
+            </strong>
+            . All installed apps will need to be reinstalled. The daemon will restart.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', alignItems: 'center' }}>
+            <Button
+              onClick={() => setShowResetAppsVenvConfirm(false)}
+              variant="text"
+              sx={{
+                color: 'text.secondary',
+                textTransform: 'none',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+                '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmResetAppsVenv}
+              variant="contained"
+              disabled={isResettingAppsVenv}
+              sx={{
+                minWidth: 160,
+                bgcolor: '#ef4444',
+                color: '#fff',
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': { bgcolor: '#dc2626' },
+                '&:disabled': {
+                  bgcolor: darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
+                  color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.8)',
+                },
+              }}
+            >
+              {isResettingAppsVenv ? (
+                <CircularProgress size={20} sx={{ color: 'inherit' }} />
+              ) : (
+                'Reset apps environment'
+              )}
+            </Button>
+          </Box>
+        </Box>
+      </FullscreenOverlay>
+
+      {/* Reset Python Environment Confirmation Overlay */}
+      <FullscreenOverlay
+        open={showResetPythonEnvConfirm}
+        onClose={() => setShowResetPythonEnvConfirm(false)}
+        darkMode={darkMode}
+        zIndex={10003}
+        backdropOpacity={0.85}
+        debugName="ResetPythonEnvConfirm"
+        backdropBlur={12}
+      >
+        <Box sx={{ width: '100%', maxWidth: 380, mx: 'auto', px: 3, textAlign: 'center' }}>
+          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+            <Box
+              sx={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                bgcolor: darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+                border: `2px solid ${darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <ErrorOutlineIcon sx={{ fontSize: 40, color: '#ef4444' }} />
+            </Box>
+          </Box>
+          <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
+            Full Environment Reset?
+          </Typography>
+          <Typography sx={{ color: 'text.secondary', fontSize: 14, lineHeight: 1.6, mb: 2 }}>
+            This will{' '}
+            <strong style={{ color: darkMode ? '#fff' : '#333' }}>
+              delete all Python files, virtual environments, and the package manager
+            </strong>
+            . Everything will be re-downloaded on next connection.
+          </Typography>
+          <Typography
+            sx={{
+              color: '#ef4444',
+              fontSize: 13,
+              fontWeight: 500,
+              mb: 3,
+              p: 1.5,
+              borderRadius: '8px',
+              bgcolor: darkMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+              border: `1px solid ${darkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.15)'}`,
+            }}
+          >
+            This will require a full re-setup which may take a few minutes.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', alignItems: 'center' }}>
+            <Button
+              onClick={() => setShowResetPythonEnvConfirm(false)}
+              variant="text"
+              sx={{
+                color: 'text.secondary',
+                textTransform: 'none',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+                '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmResetPythonEnv}
+              variant="contained"
+              disabled={isResettingPythonEnv}
+              sx={{
+                minWidth: 160,
+                bgcolor: '#ef4444',
+                color: '#fff',
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': { bgcolor: '#dc2626' },
+                '&:disabled': {
+                  bgcolor: darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
+                  color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.8)',
+                },
+              }}
+            >
+              {isResettingPythonEnv ? (
+                <CircularProgress size={20} sx={{ color: 'inherit' }} />
+              ) : (
+                'Reset everything'
+              )}
             </Button>
           </Box>
         </Box>

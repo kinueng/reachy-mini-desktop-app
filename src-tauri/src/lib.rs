@@ -7,8 +7,10 @@ mod daemon;
 mod discovery;
 mod local_proxy;
 mod network;
+mod paths;
 mod permissions;
 mod python;
+mod reset;
 mod signing;
 mod update;
 mod usb;
@@ -21,12 +23,9 @@ use daemon::{
 };
 
 /// Cross-platform path for the crash marker file.
-/// Uses the OS-standard data/log directory instead of hardcoded macOS paths.
+/// Uses the same data directory as the rest of the app (paths::get_data_dir).
 fn crash_marker_path() -> Option<std::path::PathBuf> {
-    dirs::data_local_dir().map(|d| {
-        d.join("com.pollen-robotics.reachy-mini")
-            .join(".crash_marker")
-    })
+    paths::get_data_dir().ok().map(|d| d.join(".crash_marker"))
 }
 use discovery::DiscoveryState;
 use local_proxy::LocalProxyState;
@@ -320,6 +319,17 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_deep_link::init());
 
+    // BLE plugin panics if Bluetooth is unavailable (CI runners, VMs, no adapter).
+    // Catch the panic so the app starts without BLE support.
+    // When BT is installed but adapter is off, init succeeds and the UI prompts the user.
+    let builder = match std::panic::catch_unwind(tauri_plugin_blec::init) {
+        Ok(plugin) => builder.plugin(plugin),
+        Err(_) => {
+            log::warn!("Bluetooth not available — BLE features disabled");
+            builder
+        }
+    };
+
     let builder = if cfg!(target_os = "macos") {
         builder.plugin(tauri_plugin_macos_permissions::init())
     } else {
@@ -357,6 +367,7 @@ pub fn run() {
                 {
                     if let Some(win) = app.get_webview_window("main") {
                         window::setup_transparent_titlebar(&win);
+                        window::setup_content_process_handler(&win);
                     }
                     permissions::request_all_permissions();
                 }
@@ -382,10 +393,18 @@ pub fn run() {
             permissions::open_local_network_settings,
             permissions::check_local_network_permission,
             permissions::request_local_network_permission,
+            permissions::check_location_permission,
+            permissions::request_location_permission,
+            permissions::open_location_settings,
+            permissions::check_bluetooth_permission,
+            permissions::request_bluetooth_permission,
+            permissions::open_bluetooth_settings,
             wifi::scan_local_wifi_networks,
             wifi::get_current_wifi_ssid,
             update::check_daemon_update,
             update::update_daemon,
+            reset::reset_apps_venv,
+            reset::reset_python_env,
             set_local_proxy_target,
             clear_local_proxy_target,
             // Robot discovery (mDNS + manual IP)

@@ -3,7 +3,16 @@ fn main() {
     #[cfg(target_os = "macos")]
     {
         println!("cargo:rustc-link-lib=framework=AVFoundation");
+        println!("cargo:rustc-link-lib=framework=CoreLocation");
+        println!("cargo:rustc-link-lib=framework=CoreWLAN");
         println!("cargo:rustc-link-lib=framework=Network");
+        println!("cargo:rustc-link-lib=framework=CoreBluetooth");
+
+        // Compile the CoreBluetooth permission helper.
+        cc::Build::new()
+            .file("src/permissions/bluetooth_permission.m")
+            .flag("-fobjc-arc")
+            .compile("bluetooth_permission");
 
         // Compile the Objective-C NWBrowser helper for local network
         // permission detection (Apple TN3179 recommended approach).
@@ -11,6 +20,14 @@ fn main() {
             .file("src/permissions/nw_local_network.m")
             .flag("-fobjc-arc")
             .compile("nw_local_network");
+
+        // Compile the CoreWLAN WiFi scanner + location permission helper.
+        // Requires macOS 11+ for CLLocationManager.authorizationStatus instance property.
+        cc::Build::new()
+            .file("src/wifi/corewlan_scan.m")
+            .flag("-fobjc-arc")
+            .flag("-mmacosx-version-min=11.0")
+            .compile("corewlan_scan");
     }
 
     // Link against libX11 on Linux for XInitThreads()

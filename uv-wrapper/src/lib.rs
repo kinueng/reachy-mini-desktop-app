@@ -1,486 +1,328 @@
-use std::{env, process::Command, path::PathBuf, fs};
+use std::{env, fs, path::PathBuf, process::Command};
 
-/// Gets the local app data directory for Windows
-/// Returns %LOCALAPPDATA%\Reachy Mini Control\
-#[cfg(target_os = "windows")]
-pub fn get_local_app_data_dir() -> Option<PathBuf> {
-    env::var("LOCALAPPDATA").ok().map(|local_app_data| {
-        PathBuf::from(local_app_data).join("Reachy Mini Control")
-    })
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn get_local_app_data_dir() -> Option<PathBuf> {
-    None
-}
-
-/// Gets the XDG data home directory for Linux
-/// Returns $XDG_DATA_HOME/reachy-mini-control/ or ~/.local/share/reachy-mini-control/
-/// Note: Uses lowercase with dashes to match Tauri's XDG directory naming convention
-#[cfg(target_os = "linux")]
-pub fn get_xdg_data_home() -> Option<PathBuf> {
-    // First try XDG_DATA_HOME environment variable
-    if let Ok(xdg_data_home) = env::var("XDG_DATA_HOME") {
-        return Some(PathBuf::from(xdg_data_home).join("reachy-mini-control"));
+/// Returns the platform-specific writable data directory for the app.
+///
+/// - macOS: ~/Library/Application Support/com.pollen-robotics.reachy-mini/
+/// - Windows: %LOCALAPPDATA%\Reachy Mini Control\
+/// - Linux: $XDG_DATA_HOME/reachy-mini-control/ or ~/.local/share/reachy-mini-control/
+pub fn get_data_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        env::var("HOME").ok().map(|home| {
+            PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("com.pollen-robotics.reachy-mini")
+        })
     }
-    
-    // Fall back to ~/.local/share/ (XDG default)
-    env::var("HOME").ok().map(|home| {
-        PathBuf::from(home).join(".local/share/reachy-mini-control")
-    })
-}
 
-#[cfg(not(target_os = "linux"))]
-pub fn get_xdg_data_home() -> Option<PathBuf> {
-    None
-}
-
-/// Gets the Application Support directory for macOS
-/// Returns ~/Library/Application Support/com.pollen-robotics.reachy-mini/
-#[cfg(target_os = "macos")]
-pub fn get_macos_app_support_dir() -> Option<PathBuf> {
-    env::var("HOME").ok().map(|home| {
-        PathBuf::from(home)
-            .join("Library")
-            .join("Application Support")
-            .join("com.pollen-robotics.reachy-mini")
-    })
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn get_macos_app_support_dir() -> Option<PathBuf> {
-    None
-}
-
-/// Check if we're running from /usr/lib/ (read-only system directory on Linux)
-#[cfg(target_os = "linux")]
-pub fn is_system_lib_path(path: &std::path::Path) -> bool {
-    let path_str = path.to_string_lossy();
-    path_str.starts_with("/usr/lib/") || path_str.starts_with("/usr/share/")
-}
-
-#[cfg(not(target_os = "linux"))]
-pub fn is_system_lib_path(_path: &std::path::Path) -> bool {
-    false
-}
-
-/// Check if we're running from Program Files (read-only on Windows)
-#[cfg(target_os = "windows")]
-pub fn is_program_files_path(path: &std::path::Path) -> bool {
-    let path_str = path.to_string_lossy().to_lowercase();
-    path_str.contains("program files") || path_str.contains("programfiles")
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn is_program_files_path(_path: &std::path::Path) -> bool {
-    false
-}
-
-/// Check if we're running from inside a .app bundle (macOS production)
-#[cfg(target_os = "macos")]
-pub fn is_app_bundle_path(path: &std::path::Path) -> bool {
-    path.to_string_lossy().contains(".app/Contents")
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn is_app_bundle_path(_path: &std::path::Path) -> bool {
-    false
-}
-
-/// Copy a directory recursively
-pub fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
-    if !src.exists() {
-        return Err(format!("Source directory does not exist: {:?}", src));
+    #[cfg(target_os = "windows")]
+    {
+        env::var("LOCALAPPDATA")
+            .ok()
+            .map(|local_app_data| PathBuf::from(local_app_data).join("Reachy Mini Control"))
     }
-    
-    // Create destination directory if it doesn't exist
-    if !dst.exists() {
-        fs::create_dir_all(dst)
-            .map_err(|e| format!("Failed to create directory {:?}: {}", dst, e))?;
-    }
-    
-    let entries = fs::read_dir(src)
-        .map_err(|e| format!("Failed to read directory {:?}: {}", src, e))?;
-    
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-        
-        if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else {
-            fs::copy(&src_path, &dst_path)
-                .map_err(|e| format!("Failed to copy {:?} to {:?}: {}", src_path, dst_path, e))?;
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(xdg_data_home) = env::var("XDG_DATA_HOME") {
+            return Some(PathBuf::from(xdg_data_home).join("reachy-mini-control"));
         }
+        env::var("HOME")
+            .ok()
+            .map(|home| PathBuf::from(home).join(".local/share/reachy-mini-control"))
     }
-    
+}
+
+/// Returns the path to the uv executable within the data directory.
+pub fn uv_exe_path(data_dir: &PathBuf) -> PathBuf {
+    if cfg!(target_os = "windows") {
+        data_dir.join("uv.exe")
+    } else {
+        data_dir.join("uv")
+    }
+}
+
+/// Returns the path to the Python executable within a venv.
+pub fn python_exe_path(data_dir: &PathBuf, venv_name: &str) -> PathBuf {
+    if cfg!(target_os = "windows") {
+        data_dir.join(venv_name).join("Scripts").join("python.exe")
+    } else {
+        data_dir.join(venv_name).join("bin").join("python3")
+    }
+}
+
+/// Checks if a venv exists and has a valid Python executable.
+pub fn venv_exists(data_dir: &PathBuf, venv_name: &str) -> bool {
+    python_exe_path(data_dir, venv_name).exists()
+}
+
+/// Minimum reachy-mini version required in .venv.
+/// Versions below this trigger a full venv rebuild.
+/// 1.6.0 introduced apps_venv (shared venv for all apps instead of per-app venvs).
+const MIN_REACHY_MINI_VERSION: (u32, u32, u32) = (1, 6, 0);
+
+/// Read the installed reachy-mini version from a venv's dist-info METADATA.
+/// Returns `Some((major, minor, patch))` or `None` if unreadable.
+pub fn get_installed_version(data_dir: &PathBuf, venv_name: &str) -> Option<(u32, u32, u32)> {
+    let lib_dir = if cfg!(target_os = "windows") {
+        data_dir.join(venv_name).join("Lib").join("site-packages")
+    } else {
+        // Find python3.x directory
+        let lib = data_dir.join(venv_name).join("lib");
+        let python_dir = fs::read_dir(&lib)
+            .ok()?
+            .filter_map(|e| e.ok())
+            .find(|e| e.file_name().to_string_lossy().starts_with("python3"))?;
+        python_dir.path().join("site-packages")
+    };
+
+    let entry = fs::read_dir(&lib_dir)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .find(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            name.starts_with("reachy_mini-") && name.ends_with(".dist-info")
+        })?;
+
+    let metadata = fs::read_to_string(entry.path().join("METADATA")).ok()?;
+    let version_line = metadata
+        .lines()
+        .find(|l| l.starts_with("Version: "))?;
+    let version_str = version_line.strip_prefix("Version: ")?.trim();
+
+    // Parse "X.Y.Z" (ignore pre-release suffixes like rc1, .dev0, etc.)
+    let parts: Vec<&str> = version_str.split('.').collect();
+    if parts.len() >= 3 {
+        let major = parts[0].parse().ok()?;
+        let minor = parts[1].parse().ok()?;
+        // Strip non-numeric suffix from patch (e.g., "0rc1" → "0")
+        let patch_str: String = parts[2].chars().take_while(|c| c.is_ascii_digit()).collect();
+        let patch = patch_str.parse().ok()?;
+        Some((major, minor, patch))
+    } else {
+        None
+    }
+}
+
+/// Check if the .venv has a reachy-mini version too old to work with the current app.
+/// Returns true if a rebuild is needed.
+pub fn needs_venv_rebuild(data_dir: &PathBuf) -> bool {
+    match get_installed_version(data_dir, ".venv") {
+        Some(version) => version < MIN_REACHY_MINI_VERSION,
+        None => false, // Can't determine version — don't force rebuild
+    }
+}
+
+/// Download and install uv into the data directory.
+pub fn download_uv(data_dir: &PathBuf) -> Result<(), String> {
+    let uv_path = uv_exe_path(data_dir);
+    if uv_path.exists() {
+        return Ok(());
+    }
+
+    println!("[bootstrap] Downloading uv...");
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let script = format!(
+            "curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR='{}' UV_NO_MODIFY_PATH=1 sh",
+            data_dir.display()
+        );
+        run_command(&script).map_err(|e| format!("Failed to download uv: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Download uv zip directly using curl.exe (the real curl, not PowerShell alias)
+        let zip_path = data_dir.join("uv.zip");
+        let download_cmd = format!(
+            "curl.exe -L -o \"{}\" https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip",
+            zip_path.display()
+        );
+        run_command(&download_cmd).map_err(|e| format!("Failed to download uv: {}", e))?;
+
+        let extract_cmd = format!(
+            "Expand-Archive -Path \"{}\" -DestinationPath \"{}\" -Force",
+            zip_path.display(),
+            data_dir.display()
+        );
+        run_command(&extract_cmd).map_err(|e| format!("Failed to extract uv: {}", e))?;
+
+        // Clean up zip
+        let _ = fs::remove_file(&zip_path);
+    }
+
+    if !uv_path.exists() {
+        return Err(format!("uv not found at {:?} after download", uv_path));
+    }
+
+    println!("[bootstrap] uv downloaded successfully");
     Ok(())
 }
 
-/// Setup local venv on Windows by copying from Program Files to %LOCALAPPDATA%
-/// Returns the local directory path if setup was successful or already done
-#[cfg(target_os = "windows")]
-pub fn setup_local_venv_windows(program_files_dir: &std::path::Path) -> Result<PathBuf, String> {
-    let local_dir = get_local_app_data_dir()
-        .ok_or_else(|| "LOCALAPPDATA environment variable not set".to_string())?;
-    
-    // Check if local venv already exists and is valid
-    let local_venv = local_dir.join(".venv");
-    let local_pyvenv_cfg = local_venv.join("pyvenv.cfg");
-    
-    if local_pyvenv_cfg.exists() {
-        // Check if the pyvenv.cfg points to a valid cpython
-        let content = fs::read_to_string(&local_pyvenv_cfg)
-            .map_err(|e| format!("Failed to read local pyvenv.cfg: {}", e))?;
-        
-        // Check if home path exists
-        for line in content.lines() {
-            if line.starts_with("home = ") {
-                let home_path = line.trim_start_matches("home = ");
-                if std::path::Path::new(home_path).exists() {
-                    // Sync scripts folder if missing (handles upgrades from older versions)
-                    // This ensures avast_ssl_fix.py is present even for existing installations
-                    let dst_avast_fix = local_dir.join("scripts").join("avast_ssl_fix.py");
-                    if !dst_avast_fix.exists() {
-                        let src_scripts = program_files_dir.join("scripts");
-                        let dst_scripts = local_dir.join("scripts");
-                        if src_scripts.exists() {
-                            println!("📁 Syncing scripts folder (upgrade)...");
-                            let _ = fs::create_dir_all(&dst_scripts);
-                            if let Err(e) = copy_dir_recursive(&src_scripts, &dst_scripts) {
-                                println!("⚠️  Failed to sync scripts: {}", e);
-                            } else {
-                                println!("✅ scripts synced");
-                            }
-                        }
-                    }
-                    
-                    println!("✅ Local venv already configured at {:?}", local_dir);
-                    return Ok(local_dir);
-                }
-            }
-        }
-        println!("⚠️  Local venv exists but has invalid paths, reconfiguring...");
+/// Run a uv command in the data directory.
+pub fn run_uv(data_dir: &PathBuf, args: &[&str]) -> Result<(), String> {
+    let uv_path = uv_exe_path(data_dir);
+
+    let status = Command::new(&uv_path)
+        .current_dir(data_dir)
+        .env("UV_PYTHON_INSTALL_DIR", data_dir)
+        .env("UV_WORKING_DIR", data_dir)
+        .args(args)
+        .status()
+        .map_err(|e| format!("Failed to run uv {:?}: {}", args, e))?;
+
+    if !status.success() {
+        return Err(format!(
+            "uv {:?} failed with exit code: {:?}",
+            args,
+            status.code()
+        ));
     }
-    
-    println!("📦 Setting up local Python environment...");
-    println!("   Source: {:?}", program_files_dir);
-    println!("   Target: {:?}", local_dir);
-    
-    // Create local directory
-    fs::create_dir_all(&local_dir)
-        .map_err(|e| format!("Failed to create local directory: {}", e))?;
-    
-    // Copy .venv
-    let src_venv = program_files_dir.join(".venv");
-    if src_venv.exists() {
-        println!("   📁 Copying .venv...");
-        // Remove existing local venv if it exists (to ensure clean copy)
-        if local_venv.exists() {
-            fs::remove_dir_all(&local_venv)
-                .map_err(|e| format!("Failed to remove old local venv: {}", e))?;
+
+    Ok(())
+}
+
+/// Determine the reachy-mini package spec.
+///
+/// Checked in order (first match wins):
+/// 1. Compile-time REACHY_MINI_VERSION → "reachy-mini==0.9.20"
+/// 2. Compile-time REACHY_MINI_SOURCE → "git+...@branch"
+/// 3. Runtime env REACHY_MINI_VERSION → "reachy-mini==0.9.20"
+/// 4. Runtime env REACHY_MINI_SOURCE → "git+...@branch"
+/// 5. default → "reachy-mini" (latest from PyPI)
+pub fn get_reachy_mini_spec() -> String {
+    // Compile-time (set during `cargo build` via env vars)
+    if let Some(version) = option_env!("REACHY_MINI_VERSION") {
+        return format!("reachy-mini=={}", version);
+    }
+    if let Some(source) = option_env!("REACHY_MINI_SOURCE") {
+        if source != "pypi" {
+            return format!(
+                "git+https://github.com/pollen-robotics/reachy_mini.git@{}",
+                source
+            );
         }
-        copy_dir_recursive(&src_venv, &local_venv)?;
-        println!("   ✅ .venv copied");
+    }
+
+    // Runtime (for flexibility, but compile-time takes precedence)
+    if let Ok(version) = env::var("REACHY_MINI_VERSION") {
+        return format!("reachy-mini=={}", version);
+    }
+    if let Ok(source) = env::var("REACHY_MINI_SOURCE") {
+        if source != "pypi" {
+            return format!(
+                "git+https://github.com/pollen-robotics/reachy_mini.git@{}",
+                source
+            );
+        }
+    }
+
+    "reachy-mini".to_string()
+}
+
+/// Bootstrap the Python environment: download uv, install Python, create venvs, install packages.
+pub fn bootstrap(data_dir: &PathBuf) -> Result<(), String> {
+    fs::create_dir_all(data_dir)
+        .map_err(|e| format!("Failed to create data directory {:?}: {}", data_dir, e))?;
+
+    // Step 1: Download uv
+    download_uv(data_dir)?;
+
+    // Step 2: Install Python
+    println!("[bootstrap] Installing Python 3.12...");
+    run_uv(data_dir, &["python", "install", "3.12"])?;
+
+    let package_spec = get_reachy_mini_spec();
+
+    // Step 3: Create .venv and install reachy-mini
+    println!("[bootstrap] Creating .venv...");
+    run_uv(data_dir, &["venv", ".venv"])?;
+
+    println!("[bootstrap] Installing {}...", package_spec);
+    let python_rel = if cfg!(target_os = "windows") {
+        ".venv\\Scripts\\python.exe"
     } else {
-        return Err(format!(".venv not found at {:?}", src_venv));
-    }
-    
-    // Copy cpython folder
-    let cpython_folder = find_cpython_folder(program_files_dir)?;
-    let src_cpython = program_files_dir.join(&cpython_folder);
-    let dst_cpython = local_dir.join(&cpython_folder);
-    
-    if src_cpython.exists() {
-        println!("   📁 Copying {}...", cpython_folder);
-        if dst_cpython.exists() {
-            fs::remove_dir_all(&dst_cpython)
-                .map_err(|e| format!("Failed to remove old cpython: {}", e))?;
-        }
-        copy_dir_recursive(&src_cpython, &dst_cpython)?;
-        println!("   ✅ {} copied", cpython_folder);
+        ".venv/bin/python3"
+    };
+    run_uv(
+        data_dir,
+        &["pip", "install", "--python", python_rel, &package_spec],
+    )?;
+
+    // Step 4: Create apps_venv and install reachy-mini
+    println!("[bootstrap] Creating apps_venv...");
+    run_uv(data_dir, &["venv", "apps_venv"])?;
+
+    let apps_python_rel = if cfg!(target_os = "windows") {
+        "apps_venv\\Scripts\\python.exe"
     } else {
-        return Err(format!("cpython folder not found at {:?}", src_cpython));
-    }
-    
-    // Copy uv.exe and uvx.exe
-    for exe in &["uv.exe", "uvx.exe"] {
-        let src_exe = program_files_dir.join(exe);
-        let dst_exe = local_dir.join(exe);
-        if src_exe.exists() {
-            fs::copy(&src_exe, &dst_exe)
-                .map_err(|e| format!("Failed to copy {}: {}", exe, e))?;
-            println!("   ✅ {} copied", exe);
-        }
-    }
-    
-    // Copy scripts folder (contains avast_ssl_fix.py for Windows)
-    let src_scripts = program_files_dir.join("scripts");
-    let dst_scripts = local_dir.join("scripts");
-    if src_scripts.exists() {
-        println!("   📁 Copying scripts...");
-        if dst_scripts.exists() {
-            fs::remove_dir_all(&dst_scripts)
-                .map_err(|e| format!("Failed to remove old scripts: {}", e))?;
-        }
-        copy_dir_recursive(&src_scripts, &dst_scripts)?;
-        println!("   ✅ scripts copied");
-    }
-    
-    // Patch pyvenv.cfg with local paths
-    println!("   🔧 Patching pyvenv.cfg...");
-    patching_pyvenv_cfg(&local_dir, &cpython_folder)?;
-    println!("   ✅ pyvenv.cfg patched");
-    
-    println!("✅ Local Python environment ready at {:?}", local_dir);
-    Ok(local_dir)
+        "apps_venv/bin/python3"
+    };
+    run_uv(
+        data_dir,
+        &["pip", "install", "--python", apps_python_rel, &package_spec],
+    )?;
+
+    println!("[bootstrap] Packages installed successfully");
+    write_spec_marker(data_dir);
+    Ok(())
 }
 
-#[cfg(not(target_os = "windows"))]
-pub fn setup_local_venv_windows(_program_files_dir: &std::path::Path) -> Result<PathBuf, String> {
-    Err("setup_local_venv_windows is only available on Windows".to_string())
+/// Path to the marker file that records which reachy-mini spec was last installed.
+pub fn spec_marker_path(data_dir: &PathBuf) -> PathBuf {
+    data_dir.join(".reachy_mini_spec")
 }
 
-/// Setup local venv on Linux by copying from /usr/lib/ to ~/.local/share/
-/// Returns the local directory path if setup was successful or already done
-#[cfg(target_os = "linux")]
-pub fn setup_local_venv_linux(system_lib_dir: &std::path::Path) -> Result<PathBuf, String> {
-    let local_dir = get_xdg_data_home()
-        .ok_or_else(|| "HOME environment variable not set".to_string())?;
-    
-    // Check if local venv already exists and is valid
-    let local_venv = local_dir.join(".venv");
-    let local_pyvenv_cfg = local_venv.join("pyvenv.cfg");
-    
-    if local_pyvenv_cfg.exists() {
-        // Check if the pyvenv.cfg points to a valid cpython
-        let content = fs::read_to_string(&local_pyvenv_cfg)
-            .map_err(|e| format!("Failed to read local pyvenv.cfg: {}", e))?;
-        
-        // Check if home path exists
-        for line in content.lines() {
-            if line.starts_with("home = ") {
-                let home_path = line.trim_start_matches("home = ");
-                if std::path::Path::new(home_path).exists() {
-                    println!("✅ Local venv already configured at {:?}", local_dir);
-                    return Ok(local_dir);
-                }
-            }
-        }
-        println!("⚠️  Local venv exists but has invalid paths, reconfiguring...");
+/// Check if the installed reachy-mini spec differs from what this build expects.
+/// Returns true when an upgrade is needed (marker missing or content differs).
+pub fn needs_upgrade(data_dir: &PathBuf) -> bool {
+    let marker = spec_marker_path(data_dir);
+    let current_spec = get_reachy_mini_spec();
+    match fs::read_to_string(&marker) {
+        Ok(saved) => saved.trim() != current_spec,
+        Err(_) => true,
     }
-    
-    println!("📦 Setting up local Python environment...");
-    println!("   Source: {:?}", system_lib_dir);
-    println!("   Target: {:?}", local_dir);
-    
-    // Create local directory
-    fs::create_dir_all(&local_dir)
-        .map_err(|e| format!("Failed to create local directory: {}", e))?;
-    
-    // Copy .venv
-    let src_venv = system_lib_dir.join(".venv");
-    if src_venv.exists() {
-        println!("   📁 Copying .venv...");
-        // Remove existing local venv if it exists (to ensure clean copy)
-        if local_venv.exists() {
-            fs::remove_dir_all(&local_venv)
-                .map_err(|e| format!("Failed to remove old local venv: {}", e))?;
-        }
-        copy_dir_recursive(&src_venv, &local_venv)?;
-        println!("   ✅ .venv copied");
+}
+
+/// Write the current spec to the marker file so subsequent launches skip the upgrade.
+pub fn write_spec_marker(data_dir: &PathBuf) {
+    let _ = fs::write(spec_marker_path(data_dir), get_reachy_mini_spec());
+}
+
+/// Upgrade reachy-mini in both venvs to match the current spec.
+pub fn upgrade_venvs(data_dir: &PathBuf) -> Result<(), String> {
+    let package_spec = get_reachy_mini_spec();
+
+    let python_rel = if cfg!(target_os = "windows") {
+        ".venv\\Scripts\\python.exe"
     } else {
-        return Err(format!(".venv not found at {:?}", src_venv));
-    }
-    
-    // Copy cpython folder
-    let cpython_folder = find_cpython_folder(system_lib_dir)?;
-    let src_cpython = system_lib_dir.join(&cpython_folder);
-    let dst_cpython = local_dir.join(&cpython_folder);
-    
-    if src_cpython.exists() {
-        println!("   📁 Copying {}...", cpython_folder);
-        if dst_cpython.exists() {
-            fs::remove_dir_all(&dst_cpython)
-                .map_err(|e| format!("Failed to remove old cpython: {}", e))?;
-        }
-        copy_dir_recursive(&src_cpython, &dst_cpython)?;
-        println!("   ✅ {} copied", cpython_folder);
+        ".venv/bin/python3"
+    };
+    let apps_python_rel = if cfg!(target_os = "windows") {
+        "apps_venv\\Scripts\\python.exe"
     } else {
-        return Err(format!("cpython folder not found at {:?}", src_cpython));
-    }
-    
-    // Copy uv and uvx binaries
-    for bin in &["uv", "uvx"] {
-        let src_bin = system_lib_dir.join(bin);
-        let dst_bin = local_dir.join(bin);
-        if src_bin.exists() {
-            fs::copy(&src_bin, &dst_bin)
-                .map_err(|e| format!("Failed to copy {}: {}", bin, e))?;
-            // Make executable
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let mut perms = fs::metadata(&dst_bin)
-                    .map_err(|e| format!("Failed to get permissions for {}: {}", bin, e))?
-                    .permissions();
-                perms.set_mode(0o755);
-                fs::set_permissions(&dst_bin, perms)
-                    .map_err(|e| format!("Failed to set permissions for {}: {}", bin, e))?;
-            }
-            println!("   ✅ {} copied", bin);
-        }
-    }
-    
-    // Patch pyvenv.cfg with local paths
-    println!("   🔧 Patching pyvenv.cfg...");
-    patching_pyvenv_cfg(&local_dir, &cpython_folder)?;
-    println!("   ✅ pyvenv.cfg patched");
-    
-    println!("✅ Local Python environment ready at {:?}", local_dir);
-    Ok(local_dir)
-}
+        "apps_venv/bin/python3"
+    };
 
-#[cfg(not(target_os = "linux"))]
-pub fn setup_local_venv_linux(_system_lib_dir: &std::path::Path) -> Result<PathBuf, String> {
-    Err("setup_local_venv_linux is only available on Linux".to_string())
-}
+    println!("[upgrade] Upgrading .venv to {}...", package_spec);
+    run_uv(
+        data_dir,
+        &["pip", "install", "-U", "--python", python_rel, &package_spec],
+    )?;
 
-/// Setup local venv on macOS by copying from .app bundle to ~/Library/Application Support/
-/// Returns the local directory path if setup was successful or already done
-#[cfg(target_os = "macos")]
-pub fn setup_local_venv_macos(bundle_dir: &std::path::Path) -> Result<PathBuf, String> {
-    let local_dir = get_macos_app_support_dir()
-        .ok_or_else(|| "HOME environment variable not set".to_string())?;
-    
-    let local_venv = local_dir.join(".venv");
-    let local_pyvenv_cfg = local_venv.join("pyvenv.cfg");
-    
-    if local_pyvenv_cfg.exists() {
-        let content = fs::read_to_string(&local_pyvenv_cfg)
-            .map_err(|e| format!("Failed to read local pyvenv.cfg: {}", e))?;
-        
-        for line in content.lines() {
-            if line.starts_with("home = ") {
-                let home_path = line.trim_start_matches("home = ");
-                if std::path::Path::new(home_path).exists() {
-                    println!("✅ Local venv already configured at {:?}", local_dir);
-                    return Ok(local_dir);
-                }
-            }
-        }
-        println!("⚠️  Local venv exists but has invalid paths, reconfiguring...");
+    if python_exe_path(data_dir, "apps_venv").exists() {
+        println!("[upgrade] Upgrading apps_venv to {}...", package_spec);
+        run_uv(
+            data_dir,
+            &["pip", "install", "-U", "--python", apps_python_rel, &package_spec],
+        )?;
     }
-    
-    println!("📦 Setting up local Python environment...");
-    println!("   Source: {:?}", bundle_dir);
-    println!("   Target: {:?}", local_dir);
-    
-    fs::create_dir_all(&local_dir)
-        .map_err(|e| format!("Failed to create local directory: {}", e))?;
-    
-    let src_venv = bundle_dir.join(".venv");
-    if src_venv.exists() {
-        println!("   📁 Copying .venv...");
-        if local_venv.exists() {
-            fs::remove_dir_all(&local_venv)
-                .map_err(|e| format!("Failed to remove old local venv: {}", e))?;
-        }
-        copy_dir_recursive(&src_venv, &local_venv)?;
-        println!("   ✅ .venv copied");
-    } else {
-        return Err(format!(".venv not found at {:?}", src_venv));
-    }
-    
-    let cpython_folder = find_cpython_folder(bundle_dir)?;
-    let src_cpython = bundle_dir.join(&cpython_folder);
-    let dst_cpython = local_dir.join(&cpython_folder);
-    
-    if src_cpython.exists() {
-        println!("   📁 Copying {}...", cpython_folder);
-        if dst_cpython.exists() {
-            fs::remove_dir_all(&dst_cpython)
-                .map_err(|e| format!("Failed to remove old cpython: {}", e))?;
-        }
-        copy_dir_recursive(&src_cpython, &dst_cpython)?;
-        println!("   ✅ {} copied", cpython_folder);
-    } else {
-        return Err(format!("cpython folder not found at {:?}", src_cpython));
-    }
-    
-    for bin in &["uv", "uvx"] {
-        let src_bin = bundle_dir.join(bin);
-        let dst_bin = local_dir.join(bin);
-        if src_bin.exists() {
-            fs::copy(&src_bin, &dst_bin)
-                .map_err(|e| format!("Failed to copy {}: {}", bin, e))?;
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let mut perms = fs::metadata(&dst_bin)
-                    .map_err(|e| format!("Failed to get permissions for {}: {}", bin, e))?
-                    .permissions();
-                perms.set_mode(0o755);
-                fs::set_permissions(&dst_bin, perms)
-                    .map_err(|e| format!("Failed to set permissions for {}: {}", bin, e))?;
-            }
-            println!("   ✅ {} copied", bin);
-        }
-    }
-    
-    println!("   🔧 Patching pyvenv.cfg...");
-    patching_pyvenv_cfg(&local_dir, &cpython_folder)?;
-    println!("   ✅ pyvenv.cfg patched");
-    
-    println!("✅ Local Python environment ready at {:?}", local_dir);
-    Ok(local_dir)
-}
 
-#[cfg(not(target_os = "macos"))]
-pub fn setup_local_venv_macos(_bundle_dir: &std::path::Path) -> Result<PathBuf, String> {
-    Err("setup_local_venv_macos is only available on macOS".to_string())
-}
-
-/// Gets the folder containing the current executable
-/// 
-/// Returns the parent directory of the executable, or the current directory
-/// if the executable cannot be located (robust fallback)
-pub fn get_current_folder() -> std::path::PathBuf {
-    env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| {
-            // Fallback: use current directory if we can't find the executable
-            env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
-        })
-}
-
-pub fn lookup_bin_folder(possible_folders: &[&str], bin: &str) -> Option<std::path::PathBuf> {
-    for abs_path in possible_abs_bin(possible_folders) {
-        let candidate = abs_path.join(bin);
-        if candidate.exists() {
-            // Verify the folder also contains cpython and .venv — this prevents
-            // matching incomplete folders (e.g. target/debug/ in dev mode where
-            // Tauri copies uv as a resource but glob-based cpython copy fails)
-            if find_cpython_folder(&abs_path).is_ok() && abs_path.join(".venv").exists() {
-                return Some(abs_path);
-            }
-        }
-    }
-    None
-}
-
-fn possible_abs_bin(possible_folders: &[&str]) -> Vec<std::path::PathBuf> {
-    let cur_folder = get_current_folder();
-    possible_folders.iter().map(|p| {
-        let path = std::path::Path::new(p);
-        // If the path is absolute, use it as-is; otherwise join with cur_folder
-        if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            cur_folder.join(p)
-        }
-    }).collect()
+    write_spec_marker(data_dir);
+    println!("[upgrade] Upgrade complete");
+    Ok(())
 }
 
 pub fn run_command(cmd: &str) -> Result<std::process::ExitStatus, std::io::Error> {
@@ -496,99 +338,13 @@ pub fn run_command(cmd: &str) -> Result<std::process::ExitStatus, std::io::Error
 
     #[cfg(not(target_os = "windows"))]
     let status = Command::new("sh").arg("-c").arg(cmd).status()?;
-    
-    // Check exit code and return error if non-zero
+
     if !status.success() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,
-            format!("Command failed with exit code: {:?}", status.code())
+            format!("Command failed with exit code: {:?}", status.code()),
         ));
     }
-    
+
     Ok(status)
 }
-
-pub fn find_cpython_folder(uv_folder: &std::path::Path) -> Result<String, String> {
-    let entries = std::fs::read_dir(uv_folder)
-        .map_err(|e| format!("Unable to read uv folder for cpython lookup: {}", e))?;
-
-    for entry in entries {
-        let entry = entry
-            .map_err(|e| format!("Unable to read entry in uv folder: {}", e))?;
-        let file_name = entry.file_name();
-        let file_name_str = file_name.to_string_lossy();
-
-        if file_name_str.starts_with("cpython-") && entry.path().is_dir() {
-            return Ok(file_name_str.to_string());
-        }
-    }
-
-    Err(format!(
-        "Unable to find cpython folder in {:?}",
-        uv_folder
-    ))
-}
-
-/// Check if the current path is in AppTranslocation (macOS security feature)
-#[cfg(target_os = "macos")]
-pub fn is_app_translocation_path(path: &std::path::Path) -> bool {
-    path.to_string_lossy().contains("AppTranslocation")
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn is_app_translocation_path(_path: &std::path::Path) -> bool {
-    false
-}
-
-pub fn patching_pyvenv_cfg(uv_folder: &std::path::Path, cpython_folder: &str) -> Result<(), String> {
-    let pyvenv_cfg_path = uv_folder.join(".venv").join("pyvenv.cfg");
-    
-    // Check if file exists before trying to patch it
-    if !pyvenv_cfg_path.exists() {
-        return Err(format!(
-            "pyvenv.cfg file does not exist at {:?}",
-            pyvenv_cfg_path
-        ));
-    }
-    
-    println!("🔧 Patching pyvenv.cfg at {:?}", pyvenv_cfg_path);
-
-    let content = std::fs::read_to_string(&pyvenv_cfg_path)
-        .map_err(|e| format!("Unable to read pyvenv.cfg for patching: {}", e))?;
-
-    #[cfg(target_os = "windows")]
-    let home = uv_folder.join(cpython_folder);
-    #[cfg(not(target_os = "windows"))]
-    let home = uv_folder.join(cpython_folder).join("bin");
-
-    let new_content = content
-        .lines()
-        .map(|line| {
-            if line.starts_with("home = ") {
-                format!("home = {}", home.display())
-            } else {
-                line.to_string()
-            }
-        })
-        .collect::<Vec<String>>()
-        .join("\n");
-
-    // Try to write the patched file
-    match std::fs::write(&pyvenv_cfg_path, new_content) {
-        Ok(_) => Ok(()),
-        Err(e) => {
-            let error_msg = format!("Unable to write patched pyvenv.cfg: {}", e);
-    
-            // Check if we're in AppTranslocation and the error is read-only
-            #[cfg(target_os = "macos")]
-            {
-                if is_app_translocation_path(uv_folder) && error_msg.contains("Read-only") {
-                    return Err(format!("APP_TRANSLOCATION_ERROR: {}", error_msg));
-                }
-            }
-            
-            Err(error_msg)
-        }
-    }
-}
-

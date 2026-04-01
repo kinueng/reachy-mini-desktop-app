@@ -486,7 +486,7 @@ pub fn spawn_and_monitor_sidecar(
     }
     drop(process_lock);
 
-    let daemon_args = build_daemon_args(sim_mode, true)?;
+    let daemon_args = build_daemon_args(&app_handle, sim_mode, true)?;
     log::info!("[tauri] Launching daemon with --preload-datasets");
 
     if sim_mode {
@@ -500,10 +500,7 @@ pub fn spawn_and_monitor_sidecar(
         .sidecar("uv-trampoline")
         .map_err(|e| e.to_string())?
         .args(daemon_args_refs)
-        .env("PYTHONIOENCODING", "utf-8")
-        // Disable GStreamer external plugin scanner to prevent 30s+ hang
-        // caused by libgstpython.dylib trying to load a missing system Python framework
-        .env("GST_PLUGIN_SCANNER", "");
+        .env("PYTHONIOENCODING", "utf-8");
 
     let (mut rx, child) = sidecar_command.spawn().map_err(|e| e.to_string())?;
 
@@ -599,18 +596,19 @@ pub fn spawn_and_monitor_sidecar(
                         use crate::python::build_daemon_args;
                         use tauri_plugin_shell::ShellExt;
 
-                        let daemon_args = match build_daemon_args(sim_mode, false) {
-                            Ok(args) => args,
-                            Err(e) => {
-                                log::error!("[tauri] Failed to build daemon args: {}", e);
-                                let _ = crate::daemon::transition_and_emit(
-                                    &daemon_state,
-                                    crate::daemon::DaemonStatus::Crashed,
-                                    &app_handle_clone,
-                                );
-                                continue;
-                            }
-                        };
+                        let daemon_args =
+                            match build_daemon_args(&app_handle_clone, sim_mode, false) {
+                                Ok(args) => args,
+                                Err(e) => {
+                                    log::error!("[tauri] Failed to build daemon args: {}", e);
+                                    let _ = crate::daemon::transition_and_emit(
+                                        &daemon_state,
+                                        crate::daemon::DaemonStatus::Crashed,
+                                        &app_handle_clone,
+                                    );
+                                    continue;
+                                }
+                            };
 
                         let daemon_args_refs: Vec<&str> =
                             daemon_args.iter().map(|s| s.as_str()).collect();
@@ -631,7 +629,6 @@ pub fn spawn_and_monitor_sidecar(
                         match sidecar_cmd
                             .args(daemon_args_refs)
                             .env("PYTHONIOENCODING", "utf-8")
-                            .env("GST_PLUGIN_SCANNER", "")
                             .spawn()
                         {
                             Ok((mut new_rx, new_child)) => {

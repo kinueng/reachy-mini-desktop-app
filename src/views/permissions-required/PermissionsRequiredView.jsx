@@ -3,7 +3,10 @@ import { Box, Typography, useTheme, alpha } from '@mui/material';
 import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined';
 import MicNoneOutlinedIcon from '@mui/icons-material/MicNoneOutlined';
 import LanOutlinedIcon from '@mui/icons-material/LanOutlined';
+import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
+import BluetoothOutlinedIcon from '@mui/icons-material/BluetoothOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import useAppStore from '../../store/useAppStore';
@@ -15,71 +18,80 @@ import LockedReachy from '../../assets/locked-reachy.svg';
 import SleepingReachy from '../../assets/sleeping-reachy.svg';
 
 /**
- * Permission Card Component
- * Square card similar to ConnectionCard in FindingRobotView
- *
- * @param {boolean} granted - Whether the permission is granted
- * @param {boolean} alwaysClickable - If true, card is always clickable even when granted
+ * Permission Row Component - horizontal list item design that scales to any number of permissions
  */
-const PermissionCard = ({
-  icon: Icon,
-  label,
-  subtitle,
-  granted,
-  onClick,
-  darkMode,
-  alwaysClickable = false,
-}) => {
+const PermissionRow = ({ icon: Icon, label, subtitle, granted, onClick, darkMode }) => {
   const theme = useTheme();
-  // Colors - primary from theme for interactive, success (green) for granted
   const primaryColor = theme.palette.primary.main;
   const successColor = theme.palette.success?.main || '#22c55e';
-
-  const cardColor = granted ? successColor : primaryColor;
-  const isClickable = alwaysClickable || !granted;
+  const rowColor = granted ? successColor : primaryColor;
+  const isClickable = !granted;
 
   return (
     <Box
-      onClick={onClick}
+      onClick={isClickable ? onClick : undefined}
       sx={{
-        position: 'relative',
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 0.5,
-        p: 2,
-        borderRadius: '12px',
+        gap: 1.5,
+        px: 1.5,
+        py: 0.875,
+        borderRadius: '10px',
         border: '1px solid',
-        borderColor: cardColor,
-        bgcolor: alpha(cardColor, darkMode ? 0.1 : 0.05),
+        borderColor: alpha(rowColor, granted ? 0.4 : 0.35),
+        bgcolor: alpha(rowColor, darkMode ? 0.08 : 0.04),
         cursor: isClickable ? 'pointer' : 'default',
         transition: 'all 0.2s ease',
-        flex: 1,
-        minWidth: 100,
-        minHeight: 100,
-        '&:hover': isClickable
-          ? {
-              bgcolor: alpha(cardColor, darkMode ? 0.15 : 0.1),
-            }
-          : {},
+        '&:hover': isClickable ? { bgcolor: alpha(rowColor, darkMode ? 0.14 : 0.09) } : {},
       }}
     >
-      {/* Granted checkmark - top right */}
-      {granted && (
+      {/* Icon badge */}
+      <Box
+        sx={{
+          width: 34,
+          height: 34,
+          borderRadius: '8px',
+          bgcolor: alpha(rowColor, darkMode ? 0.18 : 0.12),
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <Icon sx={{ fontSize: 17, color: rowColor }} />
+      </Box>
+
+      {/* Labels */}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 600, color: rowColor, lineHeight: 1.25 }}>
+          {label}
+        </Typography>
+        {subtitle && (
+          <Typography
+            sx={{
+              fontSize: 10,
+              color: granted ? alpha(successColor, 0.8) : alpha(primaryColor, 0.6),
+              lineHeight: 1.25,
+            }}
+          >
+            {subtitle}
+          </Typography>
+        )}
+      </Box>
+
+      {/* Right indicator */}
+      {granted ? (
         <Box
           sx={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            width: 16,
-            height: 16,
+            width: 20,
+            height: 20,
             borderRadius: '50%',
-            bgcolor: darkMode ? 'rgba(26, 26, 26, 1)' : 'rgba(253, 252, 250, 1)',
+            bgcolor: alpha(successColor, 0.15),
             border: `1.5px solid ${successColor}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            flexShrink: 0,
             animation: 'checkmarkPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
             '@keyframes checkmarkPop': {
               '0%': { transform: 'scale(0)', opacity: 0 },
@@ -87,44 +99,12 @@ const PermissionCard = ({
             },
           }}
         >
-          <CheckRoundedIcon sx={{ fontSize: 10, color: successColor }} />
+          <CheckRoundedIcon sx={{ fontSize: 11, color: successColor }} />
         </Box>
-      )}
-
-      {/* Icon */}
-      <Icon
-        sx={{
-          fontSize: 28,
-          color: cardColor,
-        }}
-      />
-
-      {/* Label */}
-      <Typography
-        sx={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: cardColor,
-          textAlign: 'center',
-          lineHeight: 1.2,
-        }}
-      >
-        {label}
-      </Typography>
-
-      {/* Subtitle */}
-      {subtitle && (
-        <Typography
-          sx={{
-            fontSize: 9,
-            fontWeight: 400,
-            color: granted ? successColor : alpha(primaryColor, 0.7),
-            textAlign: 'center',
-            lineHeight: 1.1,
-          }}
-        >
-          {subtitle}
-        </Typography>
+      ) : (
+        <KeyboardArrowRightRoundedIcon
+          sx={{ fontSize: 18, color: alpha(primaryColor, 0.45), flexShrink: 0 }}
+        />
       )}
     </Box>
   );
@@ -141,6 +121,10 @@ const permissionsViewReducer = (state, action) => {
       return { ...state, microphoneRequested: true };
     case 'SET_LOCAL_NETWORK_REQUESTED':
       return { ...state, localNetworkRequested: true };
+    case 'SET_LOCATION_REQUESTED':
+      return { ...state, locationRequested: true };
+    case 'SET_BLUETOOTH_REQUESTED':
+      return { ...state, bluetoothRequested: true };
     default:
       return state;
   }
@@ -156,6 +140,8 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
     cameraGranted,
     microphoneGranted,
     localNetworkGranted,
+    locationGranted,
+    bluetoothGranted,
     refresh: refreshPermissions,
   } = usePermissions({ checkInterval: 2000 });
 
@@ -163,6 +149,8 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
     cameraRequested: false,
     microphoneRequested: false,
     localNetworkRequested: false,
+    locationRequested: false,
+    bluetoothRequested: false,
     isRestarting: false,
     restartStarted: false,
   });
@@ -375,6 +363,128 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
     }
   }, [refreshPermissions]);
 
+  // Location permission request handler (uses custom Rust command)
+  const requestLocationPermission = useCallback(async () => {
+    if (!isMacOS()) return;
+
+    try {
+      const result = await invoke('request_location_permission');
+      dispatch({ type: 'SET_LOCATION_REQUESTED' });
+
+      if (result === true) {
+        await refreshPermissions();
+        return;
+      }
+
+      // null = dialog pending, poll for user's choice
+      if (permissionPollingRef.current) {
+        clearInterval(permissionPollingRef.current);
+      }
+
+      let checkCount = 0;
+      const maxChecks = 20;
+
+      permissionPollingRef.current = setInterval(async () => {
+        checkCount++;
+
+        try {
+          const status = await invoke('check_location_permission');
+          if (status === true) {
+            if (permissionPollingRef.current) {
+              clearInterval(permissionPollingRef.current);
+              permissionPollingRef.current = null;
+            }
+            await refreshPermissions();
+          } else if (status === false) {
+            if (permissionPollingRef.current) {
+              clearInterval(permissionPollingRef.current);
+              permissionPollingRef.current = null;
+            }
+            await refreshPermissions();
+            await invoke('open_location_settings');
+          }
+        } catch (error) {
+          // Ignore errors during polling
+        }
+
+        if (checkCount >= maxChecks) {
+          if (permissionPollingRef.current) {
+            clearInterval(permissionPollingRef.current);
+            permissionPollingRef.current = null;
+          }
+          await refreshPermissions();
+        }
+      }, 500);
+    } catch (error) {
+      try {
+        await invoke('open_location_settings');
+      } catch {
+        // Failed to open settings
+      }
+    }
+  }, [refreshPermissions]);
+
+  // Bluetooth permission request handler (uses custom Rust command)
+  const requestBluetoothPermission = useCallback(async () => {
+    if (!isMacOS()) return;
+
+    try {
+      const result = await invoke('request_bluetooth_permission');
+      dispatch({ type: 'SET_BLUETOOTH_REQUESTED' });
+
+      if (result === true) {
+        await refreshPermissions();
+        return;
+      }
+
+      // null = dialog pending, poll for user's choice
+      if (permissionPollingRef.current) {
+        clearInterval(permissionPollingRef.current);
+      }
+
+      let checkCount = 0;
+      const maxChecks = 20;
+
+      permissionPollingRef.current = setInterval(async () => {
+        checkCount++;
+
+        try {
+          const status = await invoke('check_bluetooth_permission');
+          if (status === true) {
+            if (permissionPollingRef.current) {
+              clearInterval(permissionPollingRef.current);
+              permissionPollingRef.current = null;
+            }
+            await refreshPermissions();
+          } else if (status === false) {
+            if (permissionPollingRef.current) {
+              clearInterval(permissionPollingRef.current);
+              permissionPollingRef.current = null;
+            }
+            await refreshPermissions();
+            await invoke('open_bluetooth_settings');
+          }
+        } catch (error) {
+          // Ignore errors during polling
+        }
+
+        if (checkCount >= maxChecks) {
+          if (permissionPollingRef.current) {
+            clearInterval(permissionPollingRef.current);
+            permissionPollingRef.current = null;
+          }
+          await refreshPermissions();
+        }
+      }, 500);
+    } catch (error) {
+      try {
+        await invoke('open_bluetooth_settings');
+      } catch {
+        // Failed to open settings
+      }
+    }
+  }, [refreshPermissions]);
+
   const openSettings = useCallback(async type => {
     if (!isMacOS()) {
       return;
@@ -405,7 +515,7 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
       <Box
         sx={{
           position: 'fixed',
-          bottom: 16,
+          bottom: 8,
           left: '50%',
           transform: 'translateX(-50%)',
           width: 'calc(100% - 32px)',
@@ -422,7 +532,7 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
           includeStoreLogs={true}
           compact={true}
           showTimestamp={false}
-          lines={2}
+          lines={1}
           emptyMessage="Waiting for logs..."
           sx={{
             bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
@@ -519,58 +629,84 @@ export default function PermissionsRequiredView({ isRestarting: externalIsRestar
               Grant permissions to use Reachy
             </Typography>
 
-            {/* Permission cards - 3 square cards */}
+            {/* Permission list */}
             <Box
               sx={{
                 display: 'flex',
-                justifyContent: 'center',
-                gap: 1.5,
+                flexDirection: 'column',
+                gap: 1,
                 width: '100%',
-                maxWidth: 360,
+                maxWidth: 300,
                 mb: 2.5,
               }}
             >
-              <PermissionCard
+              <PermissionRow
                 icon={CameraAltOutlinedIcon}
                 label="Camera"
                 subtitle={cameraGranted ? 'Granted' : 'Required'}
                 granted={cameraGranted}
                 onClick={() => {
-                  if (!cameraGranted) {
-                    state.cameraRequested ? openSettings('camera') : requestPermission('camera');
-                  }
+                  state.cameraRequested ? openSettings('camera') : requestPermission('camera');
                 }}
                 darkMode={darkMode}
               />
 
-              <PermissionCard
+              <PermissionRow
                 icon={MicNoneOutlinedIcon}
                 label="Microphone"
                 subtitle={microphoneGranted ? 'Granted' : 'Required'}
                 granted={microphoneGranted}
                 onClick={() => {
-                  if (!microphoneGranted) {
-                    state.microphoneRequested
-                      ? openSettings('microphone')
-                      : requestPermission('microphone');
-                  }
+                  state.microphoneRequested
+                    ? openSettings('microphone')
+                    : requestPermission('microphone');
                 }}
                 darkMode={darkMode}
               />
 
               {/* Local Network - macOS Sequoia+ requires this permission for LAN communication */}
               {isMacOS() && (
-                <PermissionCard
+                <PermissionRow
                   icon={LanOutlinedIcon}
                   label="Local Network"
                   subtitle={localNetworkGranted ? 'Granted' : 'Required'}
                   granted={localNetworkGranted}
                   onClick={() => {
-                    if (!localNetworkGranted) {
-                      state.localNetworkRequested
-                        ? openSettings('local_network')
-                        : requestLocalNetworkPermission();
-                    }
+                    state.localNetworkRequested
+                      ? openSettings('local_network')
+                      : requestLocalNetworkPermission();
+                  }}
+                  darkMode={darkMode}
+                />
+              )}
+
+              {/* Location - macOS requires this for CoreWLAN to return WiFi SSIDs */}
+              {isMacOS() && (
+                <PermissionRow
+                  icon={LocationOnOutlinedIcon}
+                  label="Location"
+                  subtitle={locationGranted ? 'Granted' : 'For WiFi detection'}
+                  granted={locationGranted}
+                  onClick={() => {
+                    state.locationRequested
+                      ? openSettings('location')
+                      : requestLocationPermission();
+                  }}
+                  darkMode={darkMode}
+                />
+              )}
+
+              {/* Bluetooth - macOS requires this for BLE-based WiFi setup */}
+              {isMacOS() && (
+                <PermissionRow
+                  icon={BluetoothOutlinedIcon}
+                  label="Bluetooth"
+                  subtitle={bluetoothGranted ? 'Granted' : 'For BLE setup'}
+                  granted={bluetoothGranted}
+                  onClick={() => {
+                    state.bluetoothRequested
+                      ? openSettings('bluetooth')
+                      : requestBluetoothPermission();
                   }}
                   darkMode={darkMode}
                 />

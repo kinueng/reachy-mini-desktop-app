@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useActiveRobotContext } from '../../context';
 
 /**
@@ -25,82 +25,110 @@ export function useAppHandlers({
   const [expandedApp, setExpandedApp] = useState(null);
   const [startingApp, setStartingApp] = useState(null);
 
-  // ✅ Track if we're waiting for polling to confirm app started
   const waitingForPollingRef = useRef(false);
 
-  // ✅ Helper: Handle installation errors consistently
-  const handleInstallError = (err, appName, action = 'install') => {
-    console.error(`Failed to ${action}:`, err);
-
-    // Reset on error
-    setInstallResult(null);
-    unlockInstall();
-
-    // User-friendly error messages
-    if (err.name === 'PermissionDeniedError' || err.name === 'SystemPopupTimeoutError') {
-      const message = err.userFriendly
-        ? err.message
-        : `${appName}: System permission required. Please accept the permission dialog if it appears.`;
-
-      if (showToast) {
-        showToast(message, 'warning');
-      }
-    } else {
-      if (showToast) {
-        showToast(`Failed to ${action} ${appName}: ${err.message}`, 'error');
-      }
-    }
+  // Stable ref holding latest values for all callbacks.
+  // This allows useCallback([]) handlers to always read fresh deps
+  // without causing re-renders in memoized children.
+  const latest = useRef({});
+  latest.current = {
+    lockForInstall,
+    unlockInstall,
+    setInstallResult,
+    installApp,
+    removeApp,
+    startApp,
+    stopCurrentApp,
+    triggerUpdate,
+    showToast,
+    lockForApp,
+    unlockApp,
+    isCommandRunning,
+    currentApp,
+    DAEMON_CONFIG,
   };
 
-  // ✅ REFACTORED: Simplified install handler
-  const handleInstall = async appInfo => {
+  const handleInstall = useCallback(async appInfo => {
+    const { lockForInstall, installApp, setInstallResult, unlockInstall, showToast } =
+      latest.current;
     try {
-      // Lock store state and start tracking
       lockForInstall(appInfo.name, 'install');
-
-      // Launch installation (async, returns job_id)
       await installApp(appInfo);
-
-      // Note: Job tracking and completion handled by useAppInstallation hook
     } catch (err) {
-      handleInstallError(err, appInfo.name, 'install');
+      console.error('Failed to install:', err);
+      setInstallResult(null);
+      unlockInstall();
+      if (err.name === 'PermissionDeniedError' || err.name === 'SystemPopupTimeoutError') {
+        const message = err.userFriendly
+          ? err.message
+          : `${appInfo.name}: System permission required. Please accept the permission dialog if it appears.`;
+        if (showToast) showToast(message, 'warning');
+      } else {
+        if (showToast) showToast(`Failed to install ${appInfo.name}: ${err.message}`, 'error');
+      }
     }
-  };
+  }, []);
 
-  // ✅ REFACTORED: Simplified uninstall handler
-  const handleUninstall = async appName => {
+  const handleUninstall = useCallback(async appName => {
+    const { lockForInstall, removeApp, setInstallResult, unlockInstall, showToast } =
+      latest.current;
     try {
-      // Lock store state and start tracking
       lockForInstall(appName, 'remove');
-
-      // Launch uninstallation (async, returns job_id)
       await removeApp(appName);
       setExpandedApp(null);
-
-      // Note: Job tracking and completion handled by useAppInstallation hook
     } catch (err) {
-      handleInstallError(err, appName, 'uninstall');
+      console.error('Failed to uninstall:', err);
+      setInstallResult(null);
+      unlockInstall();
+      if (err.name === 'PermissionDeniedError' || err.name === 'SystemPopupTimeoutError') {
+        const message = err.userFriendly
+          ? err.message
+          : `${appName}: System permission required. Please accept the permission dialog if it appears.`;
+        if (showToast) showToast(message, 'warning');
+      } else {
+        if (showToast) showToast(`Failed to uninstall ${appName}: ${err.message}`, 'error');
+      }
     }
-  };
+  }, []);
 
-  // Update handler (same pattern as install/uninstall)
-  const handleUpdate = async appName => {
+  const handleUpdate = useCallback(async appName => {
+    const { lockForInstall, triggerUpdate, setInstallResult, unlockInstall, showToast } =
+      latest.current;
     try {
       lockForInstall(appName, 'update');
       await triggerUpdate(appName);
     } catch (err) {
-      handleInstallError(err, appName, 'update');
+      console.error('Failed to update:', err);
+      setInstallResult(null);
+      unlockInstall();
+      if (err.name === 'PermissionDeniedError' || err.name === 'SystemPopupTimeoutError') {
+        const message = err.userFriendly
+          ? err.message
+          : `${appName}: System permission required. Please accept the permission dialog if it appears.`;
+        if (showToast) showToast(message, 'warning');
+      } else {
+        if (showToast) showToast(`Failed to update ${appName}: ${err.message}`, 'error');
+      }
     }
-  };
+  }, []);
 
-  const handleStartApp = async appName => {
+  const handleStartApp = useCallback(async appName => {
+    const {
+      isCommandRunning,
+      currentApp,
+      showToast,
+      stopCurrentApp,
+      unlockApp,
+      DAEMON_CONFIG,
+      startApp,
+      lockForApp,
+    } = latest.current;
     try {
       if (isCommandRunning) {
         showToast('Please wait for the current action to finish', 'warning');
         return;
       }
 
-      // Only prompt to stop if the current app is truly active (running/starting)
       const isCurrentAppActive =
         currentApp &&
         currentApp.info &&
@@ -119,33 +147,28 @@ export function useAppHandlers({
           setTimeout(resolve, DAEMON_CONFIG.APP_INSTALLATION.HANDLER_DELAY)
         );
       } else if (currentApp && currentApp.info) {
-        // App is in error/done/stopping state — just clear the stale state
         unlockApp();
       }
 
       setStartingApp(appName);
       waitingForPollingRef.current = true;
 
-      const result = await startApp(appName);
-
+      await startApp(appName);
       lockForApp(appName);
     } catch (err) {
       console.error(`Failed to start ${appName}:`, err);
       setStartingApp(null);
       waitingForPollingRef.current = false;
-      unlockApp();
-      if (showToast) {
-        showToast(`Failed to start ${appName}: ${err.message}`, 'error');
+      latest.current.unlockApp();
+      if (latest.current.showToast) {
+        latest.current.showToast(`Failed to start ${appName}: ${err.message}`, 'error');
       }
     }
-  };
+  }, []);
 
-  // ✅ Effect: Clear startingApp when polling confirms app is starting/running
-  // This prevents spinner flicker by keeping the local spinner until polling takes over
   useEffect(() => {
     if (!waitingForPollingRef.current) return;
 
-    // Check if polling has confirmed the app state
     const isPollingConfirmed =
       currentApp &&
       currentApp.info &&
@@ -158,8 +181,6 @@ export function useAppHandlers({
     }
   }, [currentApp, startingApp]);
 
-  // ✅ Safety: Clear startingApp after timeout if polling doesn't confirm
-  // This prevents the spinner from being stuck forever
   useEffect(() => {
     if (!startingApp || !waitingForPollingRef.current) return;
 
@@ -169,30 +190,34 @@ export function useAppHandlers({
         setStartingApp(null);
         waitingForPollingRef.current = false;
       }
-    }, 5000); // 5 seconds max wait for polling
+    }, 5000);
 
     return () => clearTimeout(safetyTimeout);
   }, [startingApp]);
 
-  // Check if an app is being installed/removed
-  const isJobRunning = (appName, jobType) => {
-    for (const [jobId, job] of activeJobs.entries()) {
-      if (job.appName === appName && job.type === jobType) {
-        return true;
+  const isJobRunning = useCallback(
+    (appName, jobType) => {
+      for (const [jobId, job] of activeJobs.entries()) {
+        if (job.appName === appName && job.type === jobType) {
+          return true;
+        }
       }
-    }
-    return false;
-  };
+      return false;
+    },
+    [activeJobs]
+  );
 
-  // Get job info (status + logs). jobType is optional - omit to match any type.
-  const getJobInfo = (appName, jobType) => {
-    for (const [jobId, job] of activeJobs.entries()) {
-      if (job.appName === appName && (jobType === undefined || job.type === jobType)) {
-        return job;
+  const getJobInfo = useCallback(
+    (appName, jobType) => {
+      for (const [jobId, job] of activeJobs.entries()) {
+        if (job.appName === appName && (jobType === undefined || job.type === jobType)) {
+          return job;
+        }
       }
-    }
-    return null;
-  };
+      return null;
+    },
+    [activeJobs]
+  );
 
   return {
     expandedApp,

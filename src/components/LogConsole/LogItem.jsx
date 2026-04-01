@@ -1,6 +1,12 @@
 import React, { useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
-import { TEXT_SELECT_STYLES, ELLIPSIS_STYLES } from './constants';
+import { TEXT_SELECT_STYLES } from './constants';
+
+const WRAP_STYLES = {
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  minWidth: 0,
+};
 
 /**
  * Render a single log item
@@ -27,6 +33,8 @@ export const LogItem = React.memo(
 
       const isFrontend = log.source === 'frontend';
       const isApp = log.source === 'app';
+      const isDaemonRemote = log.source === 'daemon';
+      const isApi = log.source === 'api';
       const message = log.message;
       const logLevel = log.level || 'info';
 
@@ -46,6 +54,8 @@ export const LogItem = React.memo(
       return {
         isFrontend,
         isApp,
+        isDaemonRemote,
+        isApi,
         displayMessage,
         isSuccess,
         isError,
@@ -85,7 +95,7 @@ export const LogItem = React.memo(
               color: darkMode ? '#d1d5db' : '#666',
               lineHeight: 1.6,
               flex: 1,
-              ...ELLIPSIS_STYLES,
+              ...WRAP_STYLES,
               ...TEXT_SELECT_STYLES,
             }}
           >
@@ -96,8 +106,17 @@ export const LogItem = React.memo(
     }
 
     // Destructure memoized values for default style
-    const { isFrontend, isApp, displayMessage, isSuccess, isError, isWarning, isCommand } =
-      memoizedValues;
+    const {
+      isFrontend,
+      isApp,
+      isDaemonRemote,
+      isApi,
+      displayMessage,
+      isSuccess,
+      isError,
+      isWarning,
+      isCommand,
+    } = memoizedValues;
 
     // Default style: full formatting with colors and timestamps
     return (
@@ -124,11 +143,15 @@ export const LogItem = React.memo(
                     ? '#55ff55'
                     : isCommand
                       ? '#ff9500'
-                      : isFrontend
-                        ? '#5db3ff'
-                        : isApp
-                          ? '#a78bfa'
-                          : '#f0f0f0'
+                      : isApi
+                        ? '#34d399'
+                        : isDaemonRemote
+                          ? '#60a5fa'
+                          : isFrontend
+                            ? '#5db3ff'
+                            : isApp
+                              ? '#a78bfa'
+                              : '#f0f0f0'
               : isError
                 ? '#cc0000'
                 : isWarning
@@ -137,17 +160,21 @@ export const LogItem = React.memo(
                     ? '#00aa00'
                     : isCommand
                       ? '#ff6600'
-                      : isFrontend
-                        ? '#0055cc'
-                        : isApp
-                          ? '#7c3aed'
-                          : '#1a1a1a',
+                      : isApi
+                        ? '#059669'
+                        : isDaemonRemote
+                          ? '#2563eb'
+                          : isFrontend
+                            ? '#0055cc'
+                            : isApp
+                              ? '#7c3aed'
+                              : '#1a1a1a',
             fontFamily: 'inherit',
             lineHeight: compact ? 1.4 : 1.6,
             fontWeight: isFrontend ? 500 : 400,
             opacity: 1,
             flex: 1,
-            ...ELLIPSIS_STYLES,
+            ...WRAP_STYLES,
             ...TEXT_SELECT_STYLES,
           }}
         >

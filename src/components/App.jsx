@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 
 import { useDaemon, useDaemonHealthCheck, useDaemonReconciliation } from '../hooks/daemon';
+import useLogViewerBridge from '../hooks/useLogViewerBridge';
 import {
   telemetry,
   initTelemetry,
@@ -234,8 +235,8 @@ function App() {
 
   // 🔄 Automatic update system
   // Tries to fetch latest.json directly - if it works, we have internet + we know if there's an update
-  // In dev mode, skip automatic check but still show the view for minimum time
-  const isDev = isDevMode();
+  // In dev mode, the check runs too: if the update server is unreachable (common in dev),
+  // useUpdater silently swallows the error (see isMissingUpdateServer guard).
   const {
     updateAvailable,
     isChecking,
@@ -245,15 +246,12 @@ function App() {
     checkForUpdates,
     installUpdate,
   } = useUpdater({
-    autoCheck: !isDev, // Disable auto check in dev mode
+    autoCheck: true,
     checkInterval: DAEMON_CONFIG.UPDATE_CHECK.INTERVAL,
-    silent: false,
   });
 
   // ✨ Update view state management with useReducer
-  // Handles all cases: dev mode, production mode, minimum display time, errors
   const shouldShowUpdateView = useUpdateViewState({
-    isDev,
     isChecking,
     updateAvailable,
     isDownloading,
@@ -269,6 +267,9 @@ function App() {
   // Daemon health check (GET /api/daemon/status, USB 3s / WiFi 5s)
   // 4 consecutive timeouts → transitionTo.crashed()
   useDaemonHealthCheck(isActive);
+
+  // Bridge daemon logs to the Log Viewer window (WiFi: WebSocket, Lite: sidecar events are global)
+  useLogViewerBridge();
 
   // 🚀 Unified WebSocket for ALL robot state
   // Streams at 20Hz: head_pose, head_joints, body_yaw, antennas, passive_joints, control_mode, doa

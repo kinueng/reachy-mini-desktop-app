@@ -15,7 +15,7 @@ import { isSimulationMode } from '../utils/simulationMode';
  * above MUI Modals (which also use portals) regardless of parent stacking context.
  */
 export default function AppTopBar() {
-  const { darkMode, connectionMode } = useAppStore();
+  const { darkMode, connectionMode, rightPanelView } = useAppStore();
   const [currentVersion, setCurrentVersion] = useState('');
   const [isMainWindow, setIsMainWindow] = useState(true);
   const appWindow = getAppWindow();
@@ -45,8 +45,11 @@ export default function AppTopBar() {
     checkWindow();
   }, []);
 
-  // Render via portal to escape parent stacking context
-  // z-index 10000000 ensures it's above MUI Modals (which use 9999 by default)
+  // Render via portal to escape parent stacking context.
+  // z-index 10000000 keeps AppTopBar above all modals so drag always works.
+  // Any interactive element that must be clickable within the top 33px of a modal
+  // (e.g. a close button) must be rendered at z-index > 10000000, typically via
+  // its own portal (see FullscreenOverlay).
   return createPortal(
     <Box
       onMouseDown={async e => {
@@ -61,13 +64,14 @@ export default function AppTopBar() {
         position: 'fixed',
         top: 0,
         left: 65,
-        right: 0,
+        right: rightPanelView === 'embedded-app' ? '450px' : 0,
         height: 33,
         cursor: 'move',
         userSelect: 'none',
         WebkitAppRegion: 'drag',
         bgcolor: 'transparent',
-        zIndex: 10000000, // Above MUI Modals (9999) and FullscreenOverlay (9999)
+        zIndex: 10000000,
+        transition: 'right 0.15s ease',
       }}
     >
       {/* Version number à droite - only visible in main window and when not connected */}

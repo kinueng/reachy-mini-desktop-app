@@ -188,119 +188,59 @@ fn sort_networks(networks: &mut [WifiNetwork]) {
 // ============================================================================
 
 #[cfg(target_os = "macos")]
+extern "C" {
+    /// Scan WiFi networks via CoreWLAN (compiled from corewlan_scan.m).
+    /// Returns a JSON C-string or NULL on error.
+    fn corewlan_scan_networks() -> *const std::os::raw::c_char;
+
+    /// Check current location authorization status (non-blocking).
+    fn corewlan_location_status() -> i32;
+}
+
+#[cfg(target_os = "macos")]
 fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
-    use std::process::Command;
+    let loc_status = unsafe { corewlan_location_status() };
+    log::info!("[wifi] Location authorization status: {}", loc_status);
 
-    // Use system_profiler which works on modern macOS (airport is deprecated)
-    // Note: Don't use -detailLevel basic, it hides "Other Local Wi-Fi Networks"
-    let output = Command::new("system_profiler")
-        .arg("SPAirPortDataType")
-        .output()
-        .map_err(|e| format!("Failed to run system_profiler: {}", e))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "system_profiler command failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
+    let json_ptr = unsafe { corewlan_scan_networks() };
+    if json_ptr.is_null() {
+        return Err("CoreWLAN scan returned null".to_string());
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut networks = Vec::new();
-    let mut seen_ssids = std::collections::HashSet::new();
-    let mut in_other_networks = false;
-    let mut current_ssid: Option<String> = None;
-    let mut current_signal: Option<i32> = None;
+    let json_str = unsafe { std::ffi::CStr::from_ptr(json_ptr) }
+        .to_string_lossy()
+        .to_string();
 
-    // Parse system_profiler output
-    // Format:
-    //   Other Local Wi-Fi Networks:
-    //     NetworkName:
-    //       PHY Mode: ...
-    //       Signal / Noise: -50 dBm / -86 dBm
-    for line in stdout.lines() {
-        let trimmed = line.trim();
+    // Parse JSON array: [{"ssid":"...","rssi":-50}, ...]
+    let parsed: Vec<serde_json::Value> =
+        serde_json::from_str(&json_str).map_err(|e| format!("Failed to parse scan JSON: {}", e))?;
 
-        // Start parsing when we hit "Other Local Wi-Fi Networks:"
-        if trimmed.contains("Other Local Wi-Fi Networks:") {
-            in_other_networks = true;
-            continue;
-        }
-
-        // Stop parsing if we hit another major section
-        if in_other_networks
-            && !trimmed.is_empty()
-            && !line.starts_with(' ')
-            && !line.starts_with('\t')
-        {
-            // Save last network if exists
-            if let Some(ssid) = current_ssid.take() {
-                if !seen_ssids.contains(&ssid) {
-                    seen_ssids.insert(ssid.clone());
-                    networks.push(WifiNetwork {
-                        is_reachy_hotspot: is_reachy_hotspot(&ssid),
-                        ssid,
-                        signal_strength: current_signal.take(),
-                    });
-                }
+    let mut networks: Vec<WifiNetwork> = parsed
+        .into_iter()
+        .filter_map(|v| {
+            let ssid = v.get("ssid")?.as_str()?.to_string();
+            if ssid.is_empty() {
+                return None;
             }
-            break;
-        }
-
-        if in_other_networks {
-            // Check if this is a network name (ends with colon, moderate indentation)
-            // Network names have ~12 spaces of indentation
-            let leading_spaces = line.len() - line.trim_start().len();
-
-            if trimmed.ends_with(':')
-                && !trimmed.contains('/')
-                && (10..=16).contains(&leading_spaces)
-            {
-                // Save previous network
-                if let Some(ssid) = current_ssid.take() {
-                    if !seen_ssids.contains(&ssid) {
-                        seen_ssids.insert(ssid.clone());
-                        networks.push(WifiNetwork {
-                            is_reachy_hotspot: is_reachy_hotspot(&ssid),
-                            ssid,
-                            signal_strength: current_signal.take(),
-                        });
-                    }
-                }
-
-                // Start new network
-                let ssid = trimmed.trim_end_matches(':').to_string();
-                if !ssid.is_empty() && !ssid.contains("Wi-Fi") {
-                    current_ssid = Some(ssid);
-                    current_signal = None;
-                }
-            }
-
-            // Parse signal strength
-            if trimmed.starts_with("Signal / Noise:") {
-                // Format: "Signal / Noise: -50 dBm / -86 dBm"
-                if let Some(signal_part) = trimmed.split(':').nth(1) {
-                    if let Some(dbm_str) = signal_part.split('/').next() {
-                        let clean = dbm_str.trim().replace("dBm", "").trim().to_string();
-                        current_signal = clean.parse().ok();
-                    }
-                }
-            }
-        }
-    }
-
-    // Don't forget the last network
-    if let Some(ssid) = current_ssid {
-        if !seen_ssids.contains(&ssid) {
-            networks.push(WifiNetwork {
+            let rssi = v.get("rssi").and_then(|r| r.as_i64()).map(|r| r as i32);
+            Some(WifiNetwork {
                 is_reachy_hotspot: is_reachy_hotspot(&ssid),
                 ssid,
-                signal_strength: current_signal,
-            });
-        }
-    }
+                signal_strength: rssi,
+            })
+        })
+        .collect();
 
     sort_networks(&mut networks);
+    log::info!("[wifi] Found {} WiFi networks", networks.len());
+    for n in &networks {
+        log::info!(
+            "[wifi] Network: ssid={:?} rssi={:?} is_reachy={}",
+            n.ssid,
+            n.signal_strength,
+            n.is_reachy_hotspot
+        );
+    }
     Ok(networks)
 }
 

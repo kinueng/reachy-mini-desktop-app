@@ -16,7 +16,7 @@ export const DAEMON_CONFIG = {
     HEALTHCHECK_WIFI: 3500, // WiFi health check timeout (3.5s) - higher latency on wireless
     STATE_FULL: 10000, // Read full state with all motors (10s for WiFi)
     COMMAND: 10000, // Movement commands (can be long)
-    STARTUP_CHECK: 10000, // Per startup attempt (10s for WiFi after idle)
+    STARTUP_CHECK: 3000, // Per startup attempt (3s - allows ~10 retries in 30s window)
     VERSION: 3000, // Daemon info (lightweight endpoint)
     EMOTIONS_CHECK: 3000, // Emotions library check
     APPS_LIST: 5000, // Available apps list
@@ -52,7 +52,7 @@ export const DAEMON_CONFIG = {
 
   // Startup timeouts (in milliseconds)
   STARTUP: {
-    TIMEOUT_NORMAL: 30000, // 30s for normal mode (robot connected)
+    TIMEOUT_NORMAL: 30000, // 30s for normal mode
     TIMEOUT_SIMULATION: 90000, // 1.5 minutes for simulation mode (extra buffer for first launch)
     ACTIVITY_RESET_DELAY: 15000, // Reset timeout when we see activity (logs from sidecar)
   },
@@ -88,7 +88,7 @@ export const DAEMON_CONFIG = {
   // Update check intervals
   UPDATE_CHECK: {
     INTERVAL: 3600000, // Check for updates every hour (1h)
-    STARTUP_DELAY: 2000, // Delay before first check on startup (2s)
+    STARTUP_DELAY: 500, // Short delay to let the webview settle before network call
     RETRY_DELAY: 1000, // Delay between retry attempts (1s)
     CHECK_TIMEOUT: 30000, // Timeout for check() call (30s) - prevents infinite blocking
   },

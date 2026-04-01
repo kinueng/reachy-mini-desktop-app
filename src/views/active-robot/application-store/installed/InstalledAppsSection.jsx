@@ -4,24 +4,24 @@ import {
   Typography,
   Button,
   Chip,
-  Collapse,
   CircularProgress,
   IconButton,
   Tooltip,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import PlayArrowOutlinedIcon from '@mui/icons-material/PlayArrowOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StopCircleOutlinedIcon from '@mui/icons-material/StopCircleOutlined';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import LaunchIcon from '@mui/icons-material/Launch';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import DiscoverAppsButton from '../discover/Button';
 import ReachiesCarousel from '@components/ReachiesCarousel';
 import { getDaemonHostname } from '../../../../config/daemon';
-import { openAppWindow } from '../../../../utils/windowManager';
 import useAppStore from '../../../../store/useAppStore';
 
 // ✅ Timeout for app to transition from "starting" to "running"
@@ -250,12 +250,30 @@ function OpenAppButton({
     60000 // 60 seconds timeout (doubled for slow app startups)
   );
 
-  // Reset timeout state when app stops/starts
+  // Reset state when app stops/starts
   useEffect(() => {
     if (!isStartingOrRunning) {
       setHasTimedOut(false);
+      // Reset dismissed flag so next app launch can auto-open
+      useAppStore.getState().resetEmbeddedAppDismissed();
     }
   }, [isStartingOrRunning]);
+
+  // Auto-open the embedded view as soon as the URL becomes accessible
+  useEffect(() => {
+    if (!isAccessible || !customAppUrl) return;
+    const store = useAppStore.getState();
+    // Don't auto-open if user dismissed, or if already embedded
+    if (store.embeddedAppDismissed) return;
+    if (store.rightPanelView === 'embedded-app') return;
+    try {
+      const url = new URL(customAppUrl);
+      url.hostname = getDaemonHostname();
+      store.openEmbeddedApp(url.toString());
+    } catch {
+      // URL parsing failed — user can still open manually
+    }
+  }, [isAccessible, customAppUrl]);
 
   // Don't show button if no URL
   if (!customAppUrl) return null;
@@ -266,24 +284,16 @@ function OpenAppButton({
   // Don't show button if timed out (app will be in error state)
   if (hasTimedOut) return null;
 
-  // Only show button if still checking (waiting)
-  // Once accessible, show the active button
+  // Don't show button if already embedded
+  const store = useAppStore.getState();
+  if (store.rightPanelView === 'embedded-app' && store.embeddedAppUrl) return null;
+
   const handleClick = async e => {
     e.stopPropagation();
     try {
       const url = new URL(customAppUrl);
       url.hostname = getDaemonHostname();
-
-      // Open in a dedicated Tauri window (falls back to browser if not in Tauri)
-      const appWindow = await openAppWindow(appName, url.toString());
-      if (!appWindow) {
-        try {
-          const { open } = await import('@tauri-apps/plugin-shell');
-          await open(url.toString());
-        } catch {
-          window.open(url.toString(), '_blank', 'noopener,noreferrer');
-        }
-      }
+      useAppStore.getState().openEmbeddedApp(url.toString());
     } catch (err) {
       console.error('Failed to open app web interface:', err);
     }
@@ -360,9 +370,10 @@ const openExternalUrl = async url => {
 /**
  * Section displaying installed apps with call-to-actions for discovery and creation
  *
- * New compact design:
+ * Compact flat card design:
+ * - Description always visible under app name/author
  * - Actions always visible (Start/Stop, Open if custom_app_url)
- * - Settings button (⚙️) toggles accordion for details/uninstall
+ * - Three-dot context menu on hover for secondary actions (HF link, Uninstall)
  * - Visual indicator when app is running (green accent)
  */
 export default function InstalledAppsSection({
@@ -389,6 +400,20 @@ export default function InstalledAppsSection({
 }) {
   const { robotStatus } = useAppStore();
   const isSleeping = robotStatus === 'sleeping';
+
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+  const [menuAppName, setMenuAppName] = useState(null);
+
+  const handleMenuOpen = (event, appName) => {
+    event.stopPropagation();
+    setMenuAnchorEl(event.currentTarget);
+    setMenuAppName(appName);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchorEl(null);
+    setMenuAppName(null);
+  };
 
   // Check if any app is currently running or starting (based on currentApp state)
   const isAnyAppActive =
@@ -500,10 +525,8 @@ export default function InstalledAppsSection({
             }}
           >
             {installedApps.map(app => {
-              const isExpanded = expandedApp === app.name;
               const isRemoving = isJobRunning(app.name, 'remove');
 
-              // Handle all current app states
               const isThisAppCurrent =
                 currentApp && currentApp.info && currentApp.info.name === app.name;
               const appState = isThisAppCurrent && currentApp.state ? currentApp.state : null;
@@ -513,16 +536,13 @@ export default function InstalledAppsSection({
               const hasAppError = isThisAppCurrent && (currentApp.error || isAppError);
 
               const isStarting = startingApp === app.name || isAppStarting;
-
-              // Check if app is starting or running (for Open button visibility)
               const isStartingOrRunning = isStarting || isCurrentlyRunning;
 
-              // Get author from app data
               const author = app.extra?.id?.split('/')?.[0] || app.extra?.author || null;
-
-              // Get HuggingFace URL
               const hfUrl =
                 app.url || (app.extra?.id ? `https://huggingface.co/spaces/${app.extra.id}` : null);
+
+              const isMenuOpen = menuAppName === app.name;
 
               return (
                 <Box
@@ -535,11 +555,9 @@ export default function InstalledAppsSection({
                         ? '#ef4444'
                         : isCurrentlyRunning
                           ? '#22c55e'
-                          : isExpanded
-                            ? '#FF9500'
-                            : darkMode
-                              ? 'rgba(255, 255, 255, 0.08)'
-                              : 'rgba(0, 0, 0, 0.08)'
+                          : darkMode
+                            ? 'rgba(255, 255, 255, 0.08)'
+                            : 'rgba(0, 0, 0, 0.08)'
                     }`,
                     transition: 'opacity 0.25s ease, filter 0.25s ease, border-color 0.2s ease',
                     overflow: 'hidden',
@@ -550,9 +568,11 @@ export default function InstalledAppsSection({
                         : 'none',
                     opacity: isRemoving ? 0.5 : isBusy && !isCurrentlyRunning ? 0.4 : 1,
                     filter: isBusy && !isCurrentlyRunning ? 'grayscale(50%)' : 'none',
+                    '&:hover .more-menu-btn': {
+                      display: 'inline-flex',
+                    },
                   }}
                 >
-                  {/* ✅ Timeout watcher for "starting" state - stops app if stuck */}
                   <AppStartingTimeoutWatcher
                     isStarting={isAppStarting}
                     isRunning={isCurrentlyRunning}
@@ -565,13 +585,13 @@ export default function InstalledAppsSection({
                     }}
                   />
 
-                  {/* Header - Always visible */}
                   <Box
                     sx={{
                       p: 2,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      gap: 1,
                       bgcolor: hasAppError
                         ? darkMode
                           ? 'rgba(239, 68, 68, 0.06)'
@@ -592,10 +612,8 @@ export default function InstalledAppsSection({
                         flex: 1,
                         minWidth: 0,
                         overflow: 'hidden',
-                        pr: 1,
                       }}
                     >
-                      {/* Emoji */}
                       <Box sx={{ flexShrink: 0 }}>
                         <Box
                           sx={{
@@ -626,7 +644,6 @@ export default function InstalledAppsSection({
                         </Box>
                       </Box>
 
-                      {/* App name and metadata */}
                       <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.3 }}>
                           <Typography
@@ -645,7 +662,6 @@ export default function InstalledAppsSection({
                             {app.name}
                           </Typography>
 
-                          {/* Error / Crashed indicator */}
                           {hasAppError && (
                             <Chip
                               label={currentApp?.error ? 'Crashed' : 'Error'}
@@ -726,13 +742,32 @@ export default function InstalledAppsSection({
                     </Box>
 
                     {/* Right: Action buttons */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+                      {/* Three-dot menu - visible on hover */}
+                      <IconButton
+                        className="more-menu-btn"
+                        size="small"
+                        onClick={e => handleMenuOpen(e, app.name)}
+                        sx={{
+                          width: 28,
+                          height: 28,
+                          display: isMenuOpen ? 'inline-flex' : 'none',
+                          color: darkMode ? '#888' : '#999',
+                          transition: 'color 0.15s ease, background-color 0.15s ease',
+                          '&:hover': {
+                            color: darkMode ? '#ccc' : '#666',
+                            bgcolor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                          },
+                        }}
+                      >
+                        <MoreVertIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+
                       {/* Update badge */}
                       {(() => {
                         const isUpdating = isJobRunning(app.name, 'update');
 
                         if (isUpdating) {
-                          // Updating: orange spinner
                           return (
                             <Tooltip title="Updating..." arrow placement="top">
                               <CircularProgress
@@ -745,23 +780,22 @@ export default function InstalledAppsSection({
                         }
 
                         if (hasUpdate && hasUpdate(app.name)) {
-                          // Update available: orange arrow button
                           return (
                             <Tooltip title="Update available" arrow placement="top">
                               <span>
                                 <IconButton
                                   size="small"
-                                  disabled={isCurrentlyRunning || isSleeping}
+                                  disabled={isCurrentlyRunning || isBusy || isSleeping}
                                   onClick={e => {
                                     e.stopPropagation();
                                     if (handleUpdate) handleUpdate(app.name);
                                   }}
                                   sx={{
-                                    width: 24,
-                                    height: 24,
+                                    width: 32,
+                                    height: 32,
                                     color: '#FF9500',
                                     border: '1px solid #FF9500',
-                                    borderRadius: '6px',
+                                    borderRadius: '8px',
                                     transition: 'all 0.2s ease',
                                     '&:hover': {
                                       bgcolor: 'rgba(255, 149, 0, 0.1)',
@@ -781,77 +815,10 @@ export default function InstalledAppsSection({
                           );
                         }
 
-                        // Up to date: subtle green check (only after first check completes)
-                        if (hasUpdate && hasCheckedOnce && !isCheckingUpdates) {
-                          return (
-                            <Tooltip title="Up to date" arrow placement="top">
-                              <CheckCircleOutlinedIcon
-                                sx={{
-                                  fontSize: 16,
-                                  color: '#22c55e',
-                                  opacity: 0.7,
-                                  flexShrink: 0,
-                                }}
-                              />
-                            </Tooltip>
-                          );
-                        }
-
                         return null;
                       })()}
 
-                      {/* Settings button - toggles accordion (disabled when sleeping) */}
-                      <Tooltip
-                        title={isSleeping ? 'Wake robot first' : 'Settings'}
-                        arrow
-                        placement="top"
-                      >
-                        <IconButton
-                          size="small"
-                          disabled={isSleeping}
-                          onClick={e => {
-                            e.stopPropagation();
-                            if (!isSleeping) {
-                              setExpandedApp(isExpanded ? null : app.name);
-                            }
-                          }}
-                          sx={{
-                            width: 32,
-                            height: 32,
-                            color: isExpanded ? '#FF9500' : darkMode ? '#888' : '#999',
-                            bgcolor: isExpanded
-                              ? darkMode
-                                ? 'rgba(255, 149, 0, 0.1)'
-                                : 'rgba(255, 149, 0, 0.08)'
-                              : 'transparent',
-                            border: `1px solid ${
-                              isExpanded
-                                ? '#FF9500'
-                                : darkMode
-                                  ? 'rgba(255, 255, 255, 0.1)'
-                                  : 'rgba(0, 0, 0, 0.1)'
-                            }`,
-                            transition: 'all 0.2s ease',
-                            '&:hover': {
-                              color: '#FF9500',
-                              bgcolor: darkMode
-                                ? 'rgba(255, 149, 0, 0.1)'
-                                : 'rgba(255, 149, 0, 0.08)',
-                              borderColor: '#FF9500',
-                            },
-                          }}
-                        >
-                          <SettingsOutlinedIcon
-                            sx={{
-                              fontSize: 16,
-                              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                              transition: 'transform 0.3s ease',
-                            }}
-                          />
-                        </IconButton>
-                      </Tooltip>
-
-                      {/* Open button - shows when starting (ghost mode) or running (active) */}
+                      {/* Open button */}
                       <OpenAppButton
                         appName={app.name}
                         customAppUrl={app.extra?.custom_app_url}
@@ -859,7 +826,6 @@ export default function InstalledAppsSection({
                         isRunning={isCurrentlyRunning}
                         darkMode={darkMode}
                         onTimeout={() => {
-                          // App web interface failed to start within 30s - stop the app
                           console.error(`[${app.name}] Web interface timeout - stopping app`);
                           if (isThisAppCurrent) {
                             stopCurrentApp();
@@ -867,13 +833,10 @@ export default function InstalledAppsSection({
                         }}
                       />
 
-                      {/* Start/Stop button - 4 states: Stopping (spinner), Running (Stop), Starting (spinner), Idle (Start) */}
+                      {/* Start/Stop button */}
                       {isStoppingApp && isThisAppCurrent ? (
-                        // ✅ This app is stopping: Show disabled button with red spinner
                         <Tooltip title="Stopping app..." arrow placement="top">
                           <span>
-                            {' '}
-                            {/* Wrapper needed for disabled button tooltip */}
                             <IconButton
                               size="small"
                               disabled
@@ -898,7 +861,6 @@ export default function InstalledAppsSection({
                           </span>
                         </Tooltip>
                       ) : isCurrentlyRunning ? (
-                        // ✅ App is running: Show active Stop button
                         <Tooltip title="Stop app" arrow placement="top">
                           <IconButton
                             size="small"
@@ -929,11 +891,8 @@ export default function InstalledAppsSection({
                           </IconButton>
                         </Tooltip>
                       ) : isStarting ? (
-                        // ✅ App is starting: Show disabled button with spinner (Stop-like style)
                         <Tooltip title="App is starting..." arrow placement="top">
                           <span>
-                            {' '}
-                            {/* Wrapper needed for disabled button tooltip */}
                             <IconButton
                               size="small"
                               disabled
@@ -958,7 +917,6 @@ export default function InstalledAppsSection({
                           </span>
                         </Tooltip>
                       ) : (
-                        // ✅ App is idle: Show Start button
                         <Button
                           size="small"
                           disabled={isBusy || isRemoving}
@@ -1000,112 +958,105 @@ export default function InstalledAppsSection({
                       )}
                     </Box>
                   </Box>
-
-                  {/* Expanded Content - Settings panel */}
-                  <Collapse in={isExpanded}>
-                    <Box
-                      sx={{
-                        px: 2,
-                        pb: 2,
-                        pt: 1.5,
-                        borderTop: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 1.5,
-                      }}
-                    >
-                      {/* Description */}
-                      <Typography
-                        sx={{
-                          fontSize: 11,
-                          color: darkMode ? '#aaa' : '#666',
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {app.description || 'No description available'}
-                      </Typography>
-
-                      {/* Actions row */}
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: 1,
-                          pt: 1,
-                          borderTop: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
-                        }}
-                      >
-                        {/* View on HuggingFace link */}
-                        {hfUrl && (
-                          <Button
-                            size="small"
-                            onClick={async e => {
-                              e.stopPropagation();
-                              await openExternalUrl(hfUrl);
-                            }}
-                            startIcon={<LaunchIcon sx={{ fontSize: 12 }} />}
-                            sx={{
-                              fontSize: 10,
-                              fontWeight: 500,
-                              textTransform: 'none',
-                              color: darkMode ? '#888' : '#999',
-                              px: 1,
-                              py: 0.5,
-                              '&:hover': {
-                                bgcolor: darkMode
-                                  ? 'rgba(255, 255, 255, 0.05)'
-                                  : 'rgba(0, 0, 0, 0.05)',
-                                color: darkMode ? '#aaa' : '#666',
-                              },
-                            }}
-                          >
-                            View on HuggingFace
-                          </Button>
-                        )}
-
-                        {/* Spacer */}
-                        <Box sx={{ flex: 1 }} />
-
-                        {/* Uninstall button */}
-                        <Button
-                          size="small"
-                          disabled={isRemoving || isCurrentlyRunning}
-                          startIcon={
-                            isRemoving ? (
-                              <CircularProgress size={12} />
-                            ) : (
-                              <DeleteOutlineIcon sx={{ fontSize: 14 }} />
-                            )
-                          }
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleUninstall(app.name);
-                          }}
-                          sx={{
-                            px: 1.5,
-                            py: 0.5,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            textTransform: 'none',
-                            color: '#ef4444',
-                            borderRadius: '6px',
-                            '&:hover': {
-                              bgcolor: 'rgba(239, 68, 68, 0.08)',
-                            },
-                            '&:disabled': {
-                              color: darkMode ? '#555' : '#999',
-                            },
-                          }}
-                        >
-                          {isRemoving ? 'Uninstalling...' : 'Uninstall'}
-                        </Button>
-                      </Box>
-                    </Box>
-                  </Collapse>
                 </Box>
               );
             })}
+
+            {/* Context menu for app actions */}
+            <Menu
+              anchorEl={menuAnchorEl}
+              open={Boolean(menuAnchorEl)}
+              onClose={handleMenuClose}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              slotProps={{
+                paper: {
+                  sx: {
+                    bgcolor: darkMode ? '#1a1a1a' : '#fff',
+                    border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+                    borderRadius: '10px',
+                    boxShadow: darkMode
+                      ? '0 8px 24px rgba(0, 0, 0, 0.5)'
+                      : '0 8px 24px rgba(0, 0, 0, 0.12)',
+                    minWidth: 180,
+                    py: 0.5,
+                  },
+                },
+              }}
+            >
+              {(() => {
+                const menuApp = installedApps.find(a => a.name === menuAppName);
+                if (!menuApp) return null;
+
+                const hfUrl =
+                  menuApp.url ||
+                  (menuApp.extra?.id ? `https://huggingface.co/spaces/${menuApp.extra.id}` : null);
+                const isRemoving = isJobRunning(menuAppName, 'remove');
+                const isThisAppCurrent =
+                  currentApp && currentApp.info && currentApp.info.name === menuAppName;
+                const appState = isThisAppCurrent && currentApp.state ? currentApp.state : null;
+                const isCurrentlyRunning = appState === 'running';
+
+                return [
+                  hfUrl && (
+                    <MenuItem
+                      key="hf-link"
+                      onClick={async () => {
+                        await openExternalUrl(hfUrl);
+                        handleMenuClose();
+                      }}
+                      sx={{
+                        fontSize: 12,
+                        py: 1,
+                        color: darkMode ? '#ccc' : '#444',
+                        '&:hover': {
+                          bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+                        },
+                      }}
+                    >
+                      <ListItemIcon>
+                        <LaunchIcon sx={{ fontSize: 15, color: darkMode ? '#888' : '#999' }} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="View on HuggingFace"
+                        primaryTypographyProps={{ fontSize: 12 }}
+                      />
+                    </MenuItem>
+                  ),
+                  <MenuItem
+                    key="uninstall"
+                    disabled={isRemoving || isCurrentlyRunning}
+                    onClick={() => {
+                      handleUninstall(menuAppName);
+                      handleMenuClose();
+                    }}
+                    sx={{
+                      fontSize: 12,
+                      py: 1,
+                      color: '#ef4444',
+                      '&:hover': {
+                        bgcolor: 'rgba(239, 68, 68, 0.06)',
+                      },
+                      '&.Mui-disabled': {
+                        color: darkMode ? '#555' : '#bbb',
+                      },
+                    }}
+                  >
+                    <ListItemIcon>
+                      {isRemoving ? (
+                        <CircularProgress size={15} sx={{ color: '#ef4444' }} />
+                      ) : (
+                        <DeleteOutlineIcon sx={{ fontSize: 15, color: '#ef4444' }} />
+                      )}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={isRemoving ? 'Uninstalling...' : 'Uninstall'}
+                      primaryTypographyProps={{ fontSize: 12 }}
+                    />
+                  </MenuItem>,
+                ];
+              })()}
+            </Menu>
 
             {/* Compact version: Discover apps / Build your own */}
             <Box

@@ -1,5 +1,6 @@
 import React, { useMemo, useRef } from 'react';
 import { Box, Typography, IconButton, Tooltip } from '@mui/material';
+import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import useAppStore from '../../store/useAppStore';
@@ -32,6 +33,7 @@ function LogConsole({
   logs,
   darkMode = false,
   includeStoreLogs = true,
+  remoteLogs = EMPTY_ARRAY,
   sx = {},
   maxHeight = null,
   height = null,
@@ -40,16 +42,17 @@ function LogConsole({
   compact = false,
   simpleStyle = false,
   emptyMessage = 'No logs',
+  onExpand = null,
 }) {
   // Select logs from store - will trigger re-render when logs change
   const frontendLogs = useAppStore(state => (includeStoreLogs ? state.frontendLogs : EMPTY_ARRAY));
   const appLogs = useAppStore(state => (includeStoreLogs ? state.appLogs : EMPTY_ARRAY));
 
-  // Process and normalize all logs
+  // Process and normalize all logs (remoteLogs bypass shouldFilterLog via appLogs path)
   const normalizedLogs = useLogProcessing(
     logs,
     frontendLogs,
-    appLogs,
+    [...appLogs, ...remoteLogs],
     includeStoreLogs,
     simpleStyle
   );
@@ -175,12 +178,12 @@ function LogConsole({
         },
       }}
     >
-      {/* Copy button - hidden by default, visible on hover */}
+      {/* Expand or Copy button - hidden by default, visible on hover */}
       {normalizedLogs.length > 0 && (
-        <Tooltip title="Copy all logs" arrow placement="left">
+        <Tooltip title={onExpand ? 'Expand logs' : 'Copy all logs'} arrow placement="left">
           <IconButton
             className="copy-logs-button"
-            onClick={handleCopyLogs}
+            onClick={onExpand ?? handleCopyLogs}
             sx={{
               position: 'absolute',
               top: 8,
@@ -198,12 +201,21 @@ function LogConsole({
               padding: 0.5,
             }}
           >
-            <ContentCopyIcon
-              sx={{
-                fontSize: 14,
-                color: darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)',
-              }}
-            />
+            {onExpand ? (
+              <OpenInFullIcon
+                sx={{
+                  fontSize: 13,
+                  color: darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)',
+                }}
+              />
+            ) : (
+              <ContentCopyIcon
+                sx={{
+                  fontSize: 14,
+                  color: darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)',
+                }}
+              />
+            )}
           </IconButton>
         </Tooltip>
       )}

@@ -561,26 +561,34 @@ export default function FirstTimeWifiSetupView() {
           )}
         </Box>
 
-        {/* Help link */}
-        <Typography
-          onClick={() => {
-            setShowFirstTimeWifiSetup(false);
-            setShowBluetoothSupportView(true);
-          }}
-          sx={{
-            fontSize: 11,
-            color: textSecondary,
-            textAlign: 'center',
-            mt: 2,
-            cursor: 'pointer',
-            textDecoration: 'underline',
-            '&:hover': {
-              color: '#FF9500',
-            },
-          }}
-        >
-          Having trouble detecting Reachy? Click here
-        </Typography>
+        {/* Bluetooth Console hint — shown on step 1 when hotspot not found */}
+        {activeStep === 0 && !hasReachyHotspot && (
+          <Typography
+            sx={{
+              fontSize: 12,
+              color: textSecondary,
+              textAlign: 'center',
+              mt: 2,
+            }}
+          >
+            Can't find the hotspot?{' '}
+            <Box
+              component="span"
+              onClick={() => {
+                setShowFirstTimeWifiSetup(false);
+                setShowBluetoothSupportView(true);
+              }}
+              sx={{
+                color: 'primary.main',
+                cursor: 'pointer',
+                fontWeight: 500,
+                textDecoration: 'underline',
+              }}
+            >
+              Try the Bluetooth Console
+            </Box>
+          </Typography>
+        )}
       </Box>
 
       {/* Toast Notifications - handled by global Toast in App.jsx */}

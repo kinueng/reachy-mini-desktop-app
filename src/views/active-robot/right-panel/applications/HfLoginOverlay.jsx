@@ -1,12 +1,19 @@
 import React from 'react';
-import { Box, Typography, Button, CircularProgress } from '@mui/material';
+import { Box, Typography, Button, CircularProgress, Link } from '@mui/material';
 import hfLogo from '../../../../assets/hf-logo.svg';
 
 /**
  * Full-panel overlay shown when the user is not logged into Hugging Face.
  * Covers the entire RightPanel content with a blur backdrop and a centered login CTA.
  */
-export default function HfLoginOverlay({ darkMode, onLogin, isLoading, isWaitingForAuth, error }) {
+export default function HfLoginOverlay({
+  darkMode,
+  onLogin,
+  onSkip,
+  isLoading,
+  isWaitingForAuth,
+  error,
+}) {
   const busy = isLoading || isWaitingForAuth;
 
   return (
@@ -119,6 +126,27 @@ export default function HfLoginOverlay({ darkMode, onLogin, isLoading, isWaiting
         >
           {error}
         </Typography>
+      )}
+
+      {/* Skip login link */}
+      {!busy && onSkip && (
+        <Link
+          component="button"
+          onClick={onSkip}
+          underline="hover"
+          sx={{
+            mt: 0.5,
+            fontSize: 11.5,
+            color: darkMode ? '#666' : '#999',
+            cursor: 'pointer',
+            transition: 'color 0.15s ease',
+            '&:hover': {
+              color: darkMode ? '#999' : '#555',
+            },
+          }}
+        >
+          Continue without signing in
+        </Link>
       )}
     </Box>
   );

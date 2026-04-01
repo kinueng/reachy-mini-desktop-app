@@ -1,15 +1,32 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Typography, CircularProgress, Select, MenuItem } from '@mui/material';
+import {
+  Box,
+  Typography,
+  CircularProgress,
+  Select,
+  MenuItem,
+  IconButton,
+  Menu,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
+} from '@mui/material';
 import UsbOutlinedIcon from '@mui/icons-material/UsbOutlined';
 import PulseButton from '@components/PulseButton';
 import WifiOutlinedIcon from '@mui/icons-material/WifiOutlined';
 import ViewInArOutlinedIcon from '@mui/icons-material/ViewInArOutlined';
 import PlayArrowOutlinedIcon from '@mui/icons-material/PlayArrowOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import useAppStore from '../../store/useAppStore';
 import { useRobotDiscovery } from '../../hooks/system';
 import { useConnection, ConnectionMode } from '../../hooks/useConnection';
 import { fetchWithTimeout, DAEMON_CONFIG } from '../../config/daemon';
+import { invoke } from '@tauri-apps/api/core';
+import { useToast } from '../../hooks/useToast';
 import reachyBuste from '../../assets/reachy-buste.png';
 
 // LocalStorage key for persisting last connection mode
@@ -30,6 +47,7 @@ function ConnectionCard({
   darkMode,
   alwaysAvailable = false,
   betaTag = false,
+  scanning = false,
 }) {
   const isClickable = (available || alwaysAvailable) && !disabled;
   const isAvailable = available || alwaysAvailable;
@@ -95,6 +113,26 @@ function ConnectionCard({
               borderRadius: '50%',
               bgcolor: available ? '#22c55e' : '#ef4444',
             }}
+          />
+        </Box>
+      )}
+
+      {/* Scanning spinner - top left, shown while actively searching */}
+      {scanning && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 7,
+            left: 7,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <CircularProgress
+            size={10}
+            thickness={4}
+            sx={{ color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }}
           />
         </Box>
       )}
@@ -228,13 +266,50 @@ function ConnectionCard({
  * Uses useConnection hook for unified connection handling
  */
 export default function FindingRobotView() {
-  const { darkMode, setShowFirstTimeWifiSetup } = useAppStore();
+  const { darkMode, setShowFirstTimeWifiSetup, clearApps } = useAppStore();
   const { isScanning, usbRobot, wifiRobot, wifiRobots, selectWifiRobot } = useRobotDiscovery();
   const { connect, isConnecting, isDisconnecting } = useConnection();
   const [selectedMode, setSelectedMode] = useState(null);
   const [dots, setDots] = useState('');
   const [externalDaemonAvailable, setExternalDaemonAvailable] = useState(false);
   const hasRestoredFromStorage = useRef(false);
+  const { showToast } = useToast();
+
+  // Settings menu for environment reset
+  const [settingsAnchor, setSettingsAnchor] = useState(null);
+  const [isResetting, setIsResetting] = useState(false);
+  const [pendingReset, setPendingReset] = useState(null); // 'apps' | 'full' | null
+
+  const handleResetAppsVenv = useCallback(() => {
+    setSettingsAnchor(null);
+    setPendingReset('apps');
+  }, []);
+
+  const handleResetPythonEnv = useCallback(() => {
+    setSettingsAnchor(null);
+    setPendingReset('full');
+  }, []);
+
+  const confirmReset = useCallback(async () => {
+    const type = pendingReset;
+    setPendingReset(null);
+    setIsResetting(true);
+    try {
+      if (type === 'apps') {
+        await invoke('reset_apps_venv');
+        clearApps();
+        showToast('Apps environment reset successfully', 'success');
+      } else {
+        await invoke('reset_python_env');
+        clearApps();
+        showToast('Python environment reset successfully', 'success');
+      }
+    } catch (err) {
+      showToast(`Failed: ${err}`, 'error');
+    } finally {
+      setIsResetting(false);
+    }
+  }, [pendingReset, showToast, clearApps]);
 
   // Block interactions during connection state changes
   const isBusy = isConnecting || isDisconnecting;
@@ -388,6 +463,181 @@ export default function FindingRobotView() {
         position: 'relative',
       }}
     >
+      {/* Settings gear icon (top-right) */}
+      <IconButton
+        onClick={e => setSettingsAnchor(e.currentTarget)}
+        disabled={isResetting}
+        sx={{
+          position: 'absolute',
+          top: 40,
+          right: 12,
+          zIndex: 10,
+          color: darkMode ? '#666' : '#999',
+          '&:hover': { color: darkMode ? '#aaa' : '#666' },
+        }}
+        size="small"
+      >
+        {isResetting ? (
+          <CircularProgress size={18} sx={{ color: 'inherit' }} />
+        ) : (
+          <SettingsOutlinedIcon sx={{ fontSize: 18 }} />
+        )}
+      </IconButton>
+      <Menu
+        anchorEl={settingsAnchor}
+        open={Boolean(settingsAnchor)}
+        onClose={() => setSettingsAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: darkMode ? 'rgba(32, 32, 32, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid',
+              borderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+              borderRadius: '10px',
+              boxShadow: darkMode
+                ? '0 8px 32px rgba(0, 0, 0, 0.5)'
+                : '0 8px 32px rgba(0, 0, 0, 0.08)',
+              minWidth: 220,
+              py: 0.5,
+            },
+          },
+        }}
+      >
+        <Box sx={{ px: 1.5, pt: 0.75, pb: 0.75 }}>
+          <Typography
+            sx={{
+              fontSize: 11,
+              fontWeight: 500,
+              color: darkMode ? '#777' : '#999',
+              letterSpacing: '0.2px',
+            }}
+          >
+            Local environment (USB &amp; Sim)
+          </Typography>
+        </Box>
+        <MenuItem
+          onClick={handleResetAppsVenv}
+          sx={{
+            fontSize: 12,
+            fontWeight: 450,
+            color: darkMode ? '#ccc' : '#444',
+            borderRadius: '6px',
+            mx: 0.5,
+            px: 1,
+            minHeight: 32,
+            '&:hover': { bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)' },
+          }}
+        >
+          Reset apps environment
+        </MenuItem>
+        <MenuItem
+          onClick={handleResetPythonEnv}
+          sx={{
+            fontSize: 12,
+            fontWeight: 450,
+            color: '#ef4444',
+            borderRadius: '6px',
+            mx: 0.5,
+            px: 1,
+            minHeight: 32,
+            '&:hover': { bgcolor: darkMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)' },
+          }}
+        >
+          Full environment reset
+        </MenuItem>
+      </Menu>
+
+      {/* Reset confirmation dialog */}
+      <Dialog
+        open={pendingReset !== null}
+        onClose={() => setPendingReset(null)}
+        slotProps={{
+          backdrop: {
+            sx: {
+              bgcolor: darkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.2)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+            },
+          },
+        }}
+        PaperProps={{
+          sx: {
+            bgcolor: darkMode ? 'rgba(32, 32, 32, 0.95)' : 'rgba(255, 255, 255, 0.97)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid',
+            borderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+            borderRadius: '14px',
+            boxShadow: darkMode
+              ? '0 16px 48px rgba(0, 0, 0, 0.5)'
+              : '0 16px 48px rgba(0, 0, 0, 0.1)',
+            maxWidth: 340,
+            p: 1,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: 600,
+            fontSize: 16,
+            color: darkMode ? '#f5f5f5' : '#222',
+            pb: 0.5,
+          }}
+        >
+          {pendingReset === 'full' ? 'Full environment reset?' : 'Reset apps environment?'}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText
+            sx={{
+              color: darkMode ? '#999' : '#666',
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            {pendingReset === 'full'
+              ? 'This will delete all Python files and require a full re-setup. It may take a few minutes.'
+              : 'All installed apps will need to be reinstalled.'}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 2, pb: 1.5, gap: 1 }}>
+          <Button
+            onClick={() => setPendingReset(null)}
+            sx={{
+              color: darkMode ? '#999' : '#666',
+              fontSize: 12,
+              fontWeight: 500,
+              textTransform: 'none',
+              borderRadius: '8px',
+              px: 2,
+              '&:hover': {
+                bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+              },
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={confirmReset}
+            sx={{
+              color: '#fff',
+              bgcolor: '#ef4444',
+              fontSize: 12,
+              fontWeight: 600,
+              textTransform: 'none',
+              borderRadius: '8px',
+              px: 2,
+              '&:hover': { bgcolor: '#dc2626' },
+            }}
+          >
+            Reset
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Box
         sx={{
           display: 'flex',
@@ -544,6 +794,7 @@ export default function FindingRobotView() {
             onClick={() => wifiRobots.available && handleSelectMode(ConnectionMode.WIFI)}
             disabled={isBusy}
             darkMode={darkMode}
+            scanning={isScanning}
           />
 
           <ConnectionCard
@@ -627,7 +878,7 @@ export default function FindingRobotView() {
           {isBusy ? (isDisconnecting ? 'Stopping...' : 'Connecting...') : 'Start'}
         </PulseButton>
 
-        {/* First time WiFi setup link */}
+        {/* Setup / troubleshooting links */}
         <Box
           sx={{
             position: 'absolute',
@@ -635,31 +886,25 @@ export default function FindingRobotView() {
             left: '50%',
             transform: 'translateX(-50%)',
             textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            whiteSpace: 'nowrap',
           }}
         >
-          <Typography
+          <Box
+            component="span"
+            onClick={() => setShowFirstTimeWifiSetup(true)}
             sx={{
               fontSize: 12,
-              color: darkMode ? '#888' : '#666',
+              color: 'primary.main',
+              cursor: 'pointer',
+              fontWeight: 500,
+              textDecoration: 'underline',
             }}
           >
-            First time connecting to your WiFi Reachy?{' '}
-            <Box
-              component="span"
-              onClick={() => setShowFirstTimeWifiSetup(true)}
-              sx={{
-                color: '#FF9500',
-                cursor: 'pointer',
-                fontWeight: 500,
-                textDecoration: 'none',
-                '&:hover': {
-                  textDecoration: 'underline',
-                },
-              }}
-            >
-              Click here
-            </Box>
-          </Typography>
+            First time WiFi setup
+          </Box>
         </Box>
       </Box>
     </Box>

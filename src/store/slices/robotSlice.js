@@ -81,7 +81,6 @@ export const robotInitialState = {
   consecutiveTimeouts: 0,
   healthFailureReasons: [],
   startupTimeoutId: null,
-
   // Robot connection state
   isUsbConnected: false,
   usbPortName: null,
@@ -271,7 +270,6 @@ export const createRobotSlice = (set, get) => ({
   setDaemonVersion: value => set({ daemonVersion: value }),
   setStartupError: value => set({ startupError: value }),
   setHardwareError: value => set({ hardwareError: value }),
-
   // ✅ Pure setter - NO side effects
   // USB polling only runs when !connectionMode (searching for robot)
   // Once connected, USB detection is not used (daemon health check handles disconnection)

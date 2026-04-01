@@ -44,6 +44,10 @@ export const invoke = async (command, args = {}) => {
     // Sign binaries (macOS specific - no-op in web mode)
     sign_python_binaries: { method: 'GET', url: null, noop: true },
 
+    // Environment reset (Tauri-only - no-op in web mode)
+    reset_apps_venv: { method: 'GET', url: null, noop: true },
+    reset_python_env: { method: 'GET', url: null, noop: true },
+
     // External daemon mode flag (Rust-side only - no-op in web mode)
     set_daemon_external_mode: { method: 'GET', url: null, noop: true },
   };
