@@ -312,7 +312,7 @@ export default function FindingRobotView() {
   }, [pendingReset, showToast, clearApps]);
 
   // Block interactions during connection state changes
-  const isBusy = isConnecting || isDisconnecting;
+  const isBusy = isConnecting || isDisconnecting || isResetting;
 
   // Animated ellipsis dots
   useEffect(() => {
@@ -866,7 +866,7 @@ export default function FindingRobotView() {
           onClick={handleStart}
           disabled={!canStart || isBusy}
           endIcon={
-            isBusy ? (
+            isConnecting || isDisconnecting ? (
               <CircularProgress size={18} sx={{ color: 'inherit' }} />
             ) : (
               <PlayArrowOutlinedIcon sx={{ fontSize: 22 }} />
@@ -875,7 +875,7 @@ export default function FindingRobotView() {
           darkMode={darkMode}
           sx={{ minWidth: 140, minHeight: 44 }}
         >
-          {isBusy ? (isDisconnecting ? 'Stopping...' : 'Connecting...') : 'Start'}
+          {isConnecting ? 'Connecting...' : isDisconnecting ? 'Stopping...' : 'Start'}
         </PulseButton>
 
         {/* Setup / troubleshooting links */}
