@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 use std::fs;
 
-use uv_wrapper::{get_data_dir, bootstrap, venv_exists, uv_exe_path, needs_upgrade, upgrade_venvs};
+use uv_wrapper::{get_data_dir, bootstrap, venv_exists, uv_exe_path, needs_upgrade, upgrade_venvs, fix_externally_managed_venv};
 
 #[cfg(not(target_os = "windows"))]
 use signal_hook::{consts::TERM_SIGNALS, flag::register};
@@ -241,7 +241,13 @@ fn main() -> ExitCode {
         }
     }
 
-    // Step 2b: Upgrade — if the venv already existed but the expected reachy-mini
+    // Step 2b: Fix stale EXTERNALLY-MANAGED markers in existing venvs
+    if !needs_full_bootstrap {
+        fix_externally_managed_venv(&data_dir, ".venv");
+        fix_externally_managed_venv(&data_dir, "apps_venv");
+    }
+
+    // Step 2c: Upgrade — if the venv already existed but the expected reachy-mini
     // spec changed (e.g., app was updated), or the installed version is below the
     // minimum required (e.g., < 1.6.0 which introduced apps_venv), upgrade both
     // venvs in place.
