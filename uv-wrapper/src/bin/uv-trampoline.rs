@@ -229,7 +229,7 @@ fn main() -> ExitCode {
         } else {
             "apps_venv/bin/python3"
         };
-        if let Err(e) = uv_wrapper::run_uv(&data_dir, &["venv", "apps_venv"]) {
+        if let Err(e) = uv_wrapper::run_uv(&data_dir, &["venv", "--python", "3.12", "apps_venv"]) {
             eprintln!("❌ Failed to create apps_venv: {}", e);
         } else if let Err(e) = uv_wrapper::run_uv(
             &data_dir,

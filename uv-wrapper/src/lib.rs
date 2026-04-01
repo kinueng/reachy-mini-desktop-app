@@ -238,7 +238,7 @@ pub fn bootstrap(data_dir: &PathBuf) -> Result<(), String> {
 
     // Step 3: Create .venv and install reachy-mini
     println!("[bootstrap] Creating .venv...");
-    run_uv(data_dir, &["venv", ".venv"])?;
+    run_uv(data_dir, &["venv", "--python", "3.12", ".venv"])?;
 
     println!("[bootstrap] Installing {}...", package_spec);
     let python_rel = if cfg!(target_os = "windows") {
@@ -253,7 +253,7 @@ pub fn bootstrap(data_dir: &PathBuf) -> Result<(), String> {
 
     // Step 4: Create apps_venv and install reachy-mini
     println!("[bootstrap] Creating apps_venv...");
-    run_uv(data_dir, &["venv", "apps_venv"])?;
+    run_uv(data_dir, &["venv", "--python", "3.12", "apps_venv"])?;
 
     let apps_python_rel = if cfg!(target_os = "windows") {
         "apps_venv\\Scripts\\python.exe"
