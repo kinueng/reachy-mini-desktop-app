@@ -1,5 +1,8 @@
 use std::{env, fs, path::PathBuf, process::Command};
 
+/// The Python version used for all venvs created by the bootstrap process.
+pub const PYTHON_VERSION: &str = "3.12";
+
 /// Returns the platform-specific writable data directory for the app.
 ///
 /// - macOS: ~/Library/Application Support/com.pollen-robotics.reachy-mini/
@@ -231,14 +234,14 @@ pub fn bootstrap(data_dir: &PathBuf) -> Result<(), String> {
     download_uv(data_dir)?;
 
     // Step 2: Install Python
-    println!("[bootstrap] Installing Python 3.12...");
-    run_uv(data_dir, &["python", "install", "3.12"])?;
+    println!("[bootstrap] Installing Python {}...", PYTHON_VERSION);
+    run_uv(data_dir, &["python", "install", PYTHON_VERSION])?;
 
     let package_spec = get_reachy_mini_spec();
 
     // Step 3: Create .venv and install reachy-mini
     println!("[bootstrap] Creating .venv...");
-    run_uv(data_dir, &["venv", ".venv"])?;
+    run_uv(data_dir, &["venv", "--python", PYTHON_VERSION, ".venv"])?;
 
     println!("[bootstrap] Installing {}...", package_spec);
     let python_rel = if cfg!(target_os = "windows") {
@@ -253,7 +256,7 @@ pub fn bootstrap(data_dir: &PathBuf) -> Result<(), String> {
 
     // Step 4: Create apps_venv and install reachy-mini
     println!("[bootstrap] Creating apps_venv...");
-    run_uv(data_dir, &["venv", "apps_venv"])?;
+    run_uv(data_dir, &["venv", "--python", PYTHON_VERSION, "apps_venv"])?;
 
     let apps_python_rel = if cfg!(target_os = "windows") {
         "apps_venv\\Scripts\\python.exe"

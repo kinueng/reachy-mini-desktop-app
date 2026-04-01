@@ -126,7 +126,9 @@ fn resign_all_venv_binaries(venv_dir: &PathBuf, signing_identity: &str) -> Resul
     let mut error_count = 0;
 
     // Sign python3 and libpython with entitlements
-    for bin_name in &["bin/python3", "bin/python3.12", "lib/libpython3.12.dylib"] {
+    let python_bin = format!("bin/python{}", uv_wrapper::PYTHON_VERSION);
+    let libpython = format!("lib/libpython{}.dylib", uv_wrapper::PYTHON_VERSION);
+    for bin_name in &["bin/python3", python_bin.as_str(), libpython.as_str()] {
         let bin_path = venv_dir.join(bin_name);
         if bin_path.exists() {
             match sign_binary(&bin_path, signing_identity, entitlements_path.as_ref())? {
@@ -229,7 +231,7 @@ fn main() -> ExitCode {
         } else {
             "apps_venv/bin/python3"
         };
-        if let Err(e) = uv_wrapper::run_uv(&data_dir, &["venv", "apps_venv"]) {
+        if let Err(e) = uv_wrapper::run_uv(&data_dir, &["venv", "--python", uv_wrapper::PYTHON_VERSION, "apps_venv"]) {
             eprintln!("❌ Failed to create apps_venv: {}", e);
         } else if let Err(e) = uv_wrapper::run_uv(
             &data_dir,
