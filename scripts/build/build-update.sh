@@ -295,42 +295,11 @@ elif [[ "$PLATFORM" == windows-* ]]; then
         exit 1
     fi
     
-    echo -e "${BLUE}📦 Found MSI: ${BUNDLE_FILE}${NC}"
+    echo -e "${GREEN}✅ Found MSI: ${BUNDLE_FILE}${NC}"
     
-    # Tauri updater expects .msi.zip format for Windows
-    # Create a ZIP archive of the MSI file
-    MSI_BASENAME=$(basename "$BUNDLE_FILE")
-    ZIP_FILE="$OUTPUT_DIR/${MSI_BASENAME}.zip"
-    
-    echo -e "${BLUE}📦 Creating ZIP archive for updater: ${ZIP_FILE}${NC}"
-    
-    # Use zip command (available on Windows Git Bash and Linux/macOS)
-    if command -v zip &> /dev/null; then
-        (cd "$(dirname "$BUNDLE_FILE")" && zip -j "$ZIP_FILE" "$MSI_BASENAME")
-    else
-        # Fallback: use PowerShell on Windows
-        # Convert Unix-style paths to Windows paths for PowerShell
-        echo -e "${YELLOW}   zip not found, trying PowerShell...${NC}"
-        if command -v cygpath &> /dev/null; then
-            WIN_BUNDLE_FILE=$(cygpath -w "$BUNDLE_FILE")
-            WIN_ZIP_FILE=$(cygpath -w "$ZIP_FILE")
-        else
-            # Manual conversion: /d/path -> D:\path
-            WIN_BUNDLE_FILE=$(echo "$BUNDLE_FILE" | sed 's|^/\([a-z]\)/|\U\1:\\|' | sed 's|/|\\|g')
-            WIN_ZIP_FILE=$(echo "$ZIP_FILE" | sed 's|^/\([a-z]\)/|\U\1:\\|' | sed 's|/|\\|g')
-        fi
-        echo -e "${BLUE}   Windows paths: ${WIN_BUNDLE_FILE} -> ${WIN_ZIP_FILE}${NC}"
-        powershell -Command "Compress-Archive -Path '$WIN_BUNDLE_FILE' -DestinationPath '$WIN_ZIP_FILE' -Force"
-    fi
-    
-    if [ ! -f "$ZIP_FILE" ]; then
-        echo -e "${RED}❌ Failed to create ZIP archive${NC}"
-        exit 1
-    fi
-    
-    # The bundle file for signing is now the ZIP
-    BUNDLE_FILE="$ZIP_FILE"
-    echo -e "${GREEN}✅ ZIP archive created: ${BUNDLE_FILE}${NC}"
+    # Tauri v2 updater uses the raw MSI directly (no zip wrapper).
+    # The zip crate in tauri-plugin-updater is compiled without deflate support,
+    # so .msi.zip files with Deflate compression cause "compression method not supported".
     
 elif [[ "$PLATFORM" == linux-* ]]; then
     # Tauri updater for Linux requires AppImage format (not .deb)
@@ -597,7 +566,7 @@ FILE_NAME=$(basename "$BUNDLE_FILE" | tr ' ' '.')
 if [[ "$PLATFORM" == darwin-* ]]; then
     echo -e "${BLUE}   macOS update file: ${FILE_NAME}${NC}"
 elif [[ "$PLATFORM" == windows-* ]]; then
-    # Windows uses .msi.zip format for updater
+    # Windows uses raw .msi for Tauri v2 updater (no zip wrapper)
     echo -e "${BLUE}   Windows update file: ${FILE_NAME}${NC}"
 elif [[ "$PLATFORM" == linux-* ]]; then
     # Linux uses .AppImage.tar.gz format for updater
