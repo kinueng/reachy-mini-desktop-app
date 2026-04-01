@@ -118,17 +118,13 @@ pub fn needs_venv_rebuild(data_dir: &PathBuf) -> bool {
 }
 
 /// Check if a venv contains a stale EXTERNALLY-MANAGED marker.
-/// If found, recreate the venv so that `uv pip install` works.
-/// Returns true if the venv was recreated.
-pub fn fix_externally_managed_venv(data_dir: &PathBuf, venv_name: &str) -> bool {
+fn has_externally_managed_marker(data_dir: &PathBuf, venv_name: &str) -> bool {
     let venv_dir = data_dir.join(venv_name);
     if !venv_dir.exists() {
         return false;
     }
 
-    // The marker can be at lib/python3.x/EXTERNALLY-MANAGED (Unix)
-    // or Lib/EXTERNALLY-MANAGED (Windows)
-    let has_marker = if cfg!(target_os = "windows") {
+    if cfg!(target_os = "windows") {
         venv_dir.join("Lib").join("EXTERNALLY-MANAGED").exists()
     } else {
         let lib_dir = venv_dir.join("lib");
@@ -141,26 +137,33 @@ pub fn fix_externally_managed_venv(data_dir: &PathBuf, venv_name: &str) -> bool 
                     .map(|e| e.path().join("EXTERNALLY-MANAGED").exists())
             })
             .unwrap_or(false)
-    };
+    }
+}
 
-    if !has_marker {
+/// If any venv has a stale EXTERNALLY-MANAGED marker, remove both venvs
+/// so that bootstrap recreates them cleanly.
+/// Returns true if venvs were removed.
+pub fn fix_externally_managed_venvs(data_dir: &PathBuf) -> bool {
+    if !has_externally_managed_marker(data_dir, ".venv")
+        && !has_externally_managed_marker(data_dir, "apps_venv")
+    {
         return false;
     }
 
-    println!(
-        "[fix] Found stale EXTERNALLY-MANAGED marker in {}, recreating venv...",
-        venv_name
-    );
-    match run_uv(data_dir, &["venv", "--python", PYTHON_VERSION, venv_name]) {
-        Ok(()) => {
-            println!("[fix] Recreated {} successfully", venv_name);
-            true
-        }
-        Err(e) => {
-            eprintln!("[fix] Failed to recreate {}: {}", venv_name, e);
-            false
+    println!("[fix] Found EXTERNALLY-MANAGED marker in venv, removing venvs...");
+
+    for venv_name in &[".venv", "apps_venv"] {
+        let venv_dir = data_dir.join(venv_name);
+        if venv_dir.exists() {
+            if let Err(e) = fs::remove_dir_all(&venv_dir) {
+                eprintln!("[fix] Failed to remove {}: {}", venv_name, e);
+            } else {
+                println!("[fix] Removed {}", venv_name);
+            }
         }
     }
+
+    true
 }
 
 /// Download and install uv into the data directory.
