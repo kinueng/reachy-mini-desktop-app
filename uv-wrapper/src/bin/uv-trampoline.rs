@@ -66,13 +66,13 @@ fn sign_python_entitlements(dir: &PathBuf) {
 
         match result {
             Ok(output) if output.status.success() => {
-                println!("   ✅ Signed: {}", rel_path);
+                log::debug!("   ✅ Signed: {}", rel_path);
             }
             Ok(output) => {
-                eprintln!("   ⚠️  Failed to sign {}: {}", rel_path, String::from_utf8_lossy(&output.stderr));
+                log::debug!("   ⚠️  Failed to sign {}: {}", rel_path, String::from_utf8_lossy(&output.stderr));
             }
             Err(e) => {
-                eprintln!("   ⚠️  Error signing {}: {}", rel_path, e);
+                log::debug!("   ⚠️  Error signing {}: {}", rel_path, e);
             }
         }
     }
