@@ -1352,8 +1352,6 @@ jobs:
             src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz
             src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
             releases/**/*.tar.gz
-            releases/**/*.zip
-            releases/**/*.zip.sig
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -1374,8 +1372,6 @@ jobs:
             ${{ startsWith(matrix.os, 'macos') && format('src-tauri/target/{0}/release/bundle/macos/*.app.tar.gz', matrix.target) || '' }}
             ${{ startsWith(matrix.os, 'macos') && format('src-tauri/target/{0}/release/bundle/macos/*.app.tar.gz.sig', matrix.target) || '' }}
             releases/**/*.tar.gz
-            releases/**/*.zip
-            releases/**/*.zip.sig
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
