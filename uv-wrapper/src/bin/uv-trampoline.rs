@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 use std::fs;
 
-use uv_wrapper::{get_data_dir, bootstrap, venv_exists, uv_exe_path, needs_upgrade, upgrade_venvs};
+use uv_wrapper::{get_data_dir, bootstrap, venv_exists, uv_exe_path, needs_upgrade, upgrade_venvs, fix_externally_managed_venvs};
 
 #[cfg(not(target_os = "windows"))]
 use signal_hook::{consts::TERM_SIGNALS, flag::register};
@@ -209,6 +209,10 @@ fn main() -> ExitCode {
     };
 
     println!("📂 Data directory: {:?}", data_dir);
+
+    // Step 1b: If .venv has a stale EXTERNALLY-MANAGED marker, remove both venvs
+    // so bootstrap recreates them cleanly.
+    fix_externally_managed_venvs(&data_dir);
 
     // Step 2: Bootstrap — ensure uv, Python, .venv, and apps_venv all exist.
     // On first run everything is created. After a partial reset (e.g., apps_venv
