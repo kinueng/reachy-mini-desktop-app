@@ -13,6 +13,8 @@ import {
   DialogContentText,
   DialogActions,
   Button,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
 import UsbOutlinedIcon from '@mui/icons-material/UsbOutlined';
 import PulseButton from '@components/PulseButton';
@@ -279,6 +281,7 @@ export default function FindingRobotView() {
   const [settingsAnchor, setSettingsAnchor] = useState(null);
   const [isResetting, setIsResetting] = useState(false);
   const [pendingReset, setPendingReset] = useState(null); // 'apps' | 'full' | null
+  const [manualIp, setManualIp] = useState('');
 
   const handleResetAppsVenv = useCallback(() => {
     setSettingsAnchor(null);
@@ -437,7 +440,11 @@ export default function FindingRobotView() {
         await connect(ConnectionMode.USB, { portName: usbRobot.portName });
         break;
       case ConnectionMode.WIFI:
-        await connect(ConnectionMode.WIFI, { host: wifiRobots.selectedRobot?.displayHost });
+        {
+          const host = wifiRobots.selectedRobot?.displayHost || manualIp.trim();
+          if (!host) return;
+          await connect(ConnectionMode.WIFI, { host });
+        }
         break;
       case ConnectionMode.SIMULATION:
         await connect(ConnectionMode.SIMULATION);
@@ -448,7 +455,7 @@ export default function FindingRobotView() {
   const canStart =
     selectedMode &&
     ((selectedMode === ConnectionMode.USB && usbRobot.available) ||
-      (selectedMode === ConnectionMode.WIFI && wifiRobots.available && wifiRobots.selectedRobot) ||
+      (selectedMode === ConnectionMode.WIFI && (wifiRobots.selectedRobot || manualIp.trim())) ||
       selectedMode === ConnectionMode.SIMULATION);
 
   return (
@@ -860,6 +867,62 @@ export default function FindingRobotView() {
             ))}
           </Select>
         )}
+
+        {/* Manual IP entry — always visible for WiFi connection */}
+        <TextField
+          value={manualIp}
+          onChange={e => {
+            setManualIp(e.target.value);
+            // Auto-select WiFi mode when user starts typing an IP
+            if (e.target.value.trim() && selectedMode !== ConnectionMode.WIFI) {
+              handleSelectMode(ConnectionMode.WIFI);
+            }
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && manualIp.trim()) {
+              if (selectedMode !== ConnectionMode.WIFI) {
+                handleSelectMode(ConnectionMode.WIFI);
+              }
+              handleStart();
+            }
+          }}
+          placeholder="Connect by IP address..."
+          size="small"
+          variant="outlined"
+          disabled={isBusy}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <WifiOutlinedIcon sx={{ fontSize: 16, color: darkMode ? '#555' : '#bbb' }} />
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            width: '100%',
+            maxWidth: 380,
+            mb: 2.5,
+            '& .MuiOutlinedInput-root': {
+              fontSize: 13,
+              color: darkMode ? '#e0e0e0' : '#333',
+              bgcolor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+              borderRadius: '10px',
+              '& fieldset': {
+                borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+              },
+              '&:hover fieldset': {
+                borderColor: darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: '#FF9500',
+                borderWidth: 1,
+              },
+            },
+            '& .MuiInputBase-input::placeholder': {
+              color: darkMode ? '#555' : '#bbb',
+              opacity: 1,
+            },
+          }}
+        />
 
         {/* Start Button - Primary Outlined */}
         <PulseButton
