@@ -333,7 +333,7 @@ pub fn run() {
             builder
         }
     };
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions, target_os = "macos"))]
     let builder = {
         log::warn!("[dev] Skipping BLE plugin in debug build — Bluetooth entitlements require a signed release build");
         builder
