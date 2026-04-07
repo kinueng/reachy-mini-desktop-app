@@ -432,7 +432,8 @@ export default function FindingRobotView() {
    * Uses unified connect() from useConnection - same API for all modes
    */
   const handleStart = useCallback(async () => {
-    if (!selectedMode || isBusy) return;
+    if (isBusy) return;
+    if (!selectedMode && !manualIp.trim()) return;
 
     // 🔌 Unified connection API - same for USB, WiFi, and Simulation
     switch (selectedMode) {
@@ -441,7 +442,8 @@ export default function FindingRobotView() {
         break;
       case ConnectionMode.WIFI:
         {
-          const host = wifiRobots.selectedRobot?.displayHost || manualIp.trim();
+          // Manual IP takes priority over auto-detected robot
+          const host = manualIp.trim() || wifiRobots.selectedRobot?.displayHost;
           if (!host) return;
           await connect(ConnectionMode.WIFI, { host });
         }
@@ -449,14 +451,22 @@ export default function FindingRobotView() {
       case ConnectionMode.SIMULATION:
         await connect(ConnectionMode.SIMULATION);
         break;
+      default:
+        // No mode selected but manual IP entered — connect as WiFi
+        if (manualIp.trim()) {
+          await connect(ConnectionMode.WIFI, { host: manualIp.trim() });
+        }
+        break;
     }
-  }, [selectedMode, isBusy, usbRobot, wifiRobots, connect]);
+  }, [selectedMode, isBusy, usbRobot, wifiRobots, manualIp, connect]);
 
   const canStart =
-    selectedMode &&
-    ((selectedMode === ConnectionMode.USB && usbRobot.available) ||
-      (selectedMode === ConnectionMode.WIFI && (wifiRobots.selectedRobot || manualIp.trim())) ||
-      selectedMode === ConnectionMode.SIMULATION);
+    // Manual IP always allows starting (as WiFi)
+    manualIp.trim() ||
+    (selectedMode &&
+      ((selectedMode === ConnectionMode.USB && usbRobot.available) ||
+        (selectedMode === ConnectionMode.WIFI && wifiRobots.selectedRobot) ||
+        selectedMode === ConnectionMode.SIMULATION));
 
   return (
     <Box
