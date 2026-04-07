@@ -325,7 +325,7 @@ pub fn run() {
     // In debug/dev builds the binary lacks signed Bluetooth entitlements, so CoreBluetooth
     // immediately fires an "unauthorized" state callback that hits an `.expect()` and aborts.
     // Skip BLE entirely in debug builds to keep dev mode stable.
-    #[cfg(not(debug_assertions))]
+    #[cfg(not(all(debug_assertions, target_os = "macos")))]
     let builder = match std::panic::catch_unwind(tauri_plugin_blec::init) {
         Ok(plugin) => builder.plugin(plugin),
         Err(_) => {
