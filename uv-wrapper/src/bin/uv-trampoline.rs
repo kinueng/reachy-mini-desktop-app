@@ -1,7 +1,9 @@
 use std::env;
-use std::path::PathBuf;
 use std::process::{Command, ExitCode};
+#[cfg(target_os = "macos")]
 use std::fs;
+#[cfg(target_os = "macos")]
+use std::path::PathBuf;
 
 use uv_wrapper::{get_data_dir, bootstrap, venv_exists, uv_exe_path, needs_upgrade, upgrade_venvs, fix_externally_managed_venvs};
 
