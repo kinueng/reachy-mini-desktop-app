@@ -435,6 +435,12 @@ export default function FindingRobotView() {
     if (isBusy) return;
     if (!selectedMode && !manualIp.trim()) return;
 
+    // Manual IP always takes priority — connect as WiFi regardless of selected mode
+    if (manualIp.trim()) {
+      await connect(ConnectionMode.WIFI, { host: manualIp.trim() });
+      return;
+    }
+
     // 🔌 Unified connection API - same for USB, WiFi, and Simulation
     switch (selectedMode) {
       case ConnectionMode.USB:
@@ -442,20 +448,13 @@ export default function FindingRobotView() {
         break;
       case ConnectionMode.WIFI:
         {
-          // Manual IP takes priority over auto-detected robot
-          const host = manualIp.trim() || wifiRobots.selectedRobot?.displayHost;
+          const host = wifiRobots.selectedRobot?.displayHost;
           if (!host) return;
           await connect(ConnectionMode.WIFI, { host });
         }
         break;
       case ConnectionMode.SIMULATION:
         await connect(ConnectionMode.SIMULATION);
-        break;
-      default:
-        // No mode selected but manual IP entered — connect as WiFi
-        if (manualIp.trim()) {
-          await connect(ConnectionMode.WIFI, { host: manualIp.trim() });
-        }
         break;
     }
   }, [selectedMode, isBusy, usbRobot, wifiRobots, manualIp, connect]);
