@@ -38,7 +38,7 @@ jobs:
             platform: windows-x86_64
           # Linux uses runtime bootstrap (same as macOS/Windows)
           # uv-trampoline downloads Python + creates venvs on first launch
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
 
@@ -111,7 +111,7 @@ jobs:
         run: yarn install
 
       - name: Build sidecar (macOS/Linux)
-        if: startsWith(matrix.os, 'macos') || matrix.os == 'ubuntu-22.04'
+        if: startsWith(matrix.os, 'macos') || matrix.os == 'ubuntu-24.04'
         shell: bash
         run: |
           TARGET_TRIPLET=${{ matrix.target }} bash ./scripts/build/build-sidecar-unix.sh
@@ -670,7 +670,7 @@ jobs:
           Write-Host "✅ MSI signed and verified successfully!"
 
       - name: Build Tauri app (Linux)
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-24.04'
         shell: bash
         working-directory: src-tauri
         env:
@@ -706,7 +706,7 @@ jobs:
             file \
             libc-bin \
             dpkg-dev \
-            libfuse2 \
+            libfuse2t64 \
             squashfs-tools \
             patchelf
           
@@ -740,7 +740,7 @@ jobs:
           yarn tauri build --target ${{ matrix.target }} -v
 
       - name: Add post-install scripts to .deb (Linux)
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-24.04'
         shell: bash
         working-directory: src-tauri
         run: |
@@ -787,7 +787,7 @@ jobs:
       # E2E Tests - Run directly after Linux build
       # ===========================================
       - name: Install E2E test dependencies (Linux only)
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           echo "📦 Installing E2E test dependencies..."
           
@@ -807,7 +807,7 @@ jobs:
           echo "✅ tauri-driver installed: $(which tauri-driver)"
 
       - name: Install .deb and run E2E tests (Linux only)
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-24.04'
         env:
           # Disable DMA-BUF renderer to avoid WebKit crashes on headless CI systems
           WEBKIT_DISABLE_DMABUF_RENDERER: 1
@@ -1328,7 +1328,7 @@ jobs:
           retention-days: 30
 
       - name: Upload .deb package (Linux)
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-24.04'
         uses: actions/upload-artifact@v4
         with:
           name: deb-${{ matrix.platform }}
@@ -1373,11 +1373,11 @@ jobs:
           files: |
             ${{ matrix.os == 'windows-latest' && format('src-tauri/target/{0}/release/bundle/msi/*.msi', matrix.target) || '' }}
             ${{ matrix.os == 'windows-latest' && format('src-tauri/target/{0}/release/bundle/msi/*.msi.sig', matrix.target) || '' }}
-            ${{ matrix.os == 'ubuntu-22.04' && format('src-tauri/target/{0}/release/bundle/deb/*.deb', matrix.target) || '' }}
-            ${{ matrix.os == 'ubuntu-22.04' && format('src-tauri/target/{0}/release/bundle/deb/*.deb.sig', matrix.target) || '' }}
-            ${{ matrix.os == 'ubuntu-22.04' && format('src-tauri/target/{0}/release/bundle/appimage/*.AppImage', matrix.target) || '' }}
-            ${{ matrix.os == 'ubuntu-22.04' && format('src-tauri/target/{0}/release/bundle/appimage/*.AppImage.tar.gz', matrix.target) || '' }}
-            ${{ matrix.os == 'ubuntu-22.04' && format('src-tauri/target/{0}/release/bundle/appimage/*.AppImage.tar.gz.sig', matrix.target) || '' }}
+            ${{ matrix.os == 'ubuntu-24.04' && format('src-tauri/target/{0}/release/bundle/deb/*.deb', matrix.target) || '' }}
+            ${{ matrix.os == 'ubuntu-24.04' && format('src-tauri/target/{0}/release/bundle/deb/*.deb.sig', matrix.target) || '' }}
+            ${{ matrix.os == 'ubuntu-24.04' && format('src-tauri/target/{0}/release/bundle/appimage/*.AppImage', matrix.target) || '' }}
+            ${{ matrix.os == 'ubuntu-24.04' && format('src-tauri/target/{0}/release/bundle/appimage/*.AppImage.tar.gz', matrix.target) || '' }}
+            ${{ matrix.os == 'ubuntu-24.04' && format('src-tauri/target/{0}/release/bundle/appimage/*.AppImage.tar.gz.sig', matrix.target) || '' }}
             ${{ startsWith(matrix.os, 'macos') && format('src-tauri/target/{0}/release/bundle/macos/*.dmg', matrix.target) || '' }}
             ${{ startsWith(matrix.os, 'macos') && format('src-tauri/target/{0}/release/bundle/macos/*.zip', matrix.target) || '' }}
             ${{ startsWith(matrix.os, 'macos') && format('src-tauri/target/{0}/release/bundle/macos/*.app.tar.gz', matrix.target) || '' }}
