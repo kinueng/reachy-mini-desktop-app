@@ -14,8 +14,6 @@ import { InstalledAppsSection } from '../../application-store/installed';
 import { Modal as DiscoverModal } from '../../application-store/discover';
 import { CreateAppTutorial as CreateAppTutorialModal } from '../../application-store/modals';
 import { Overlay as InstallOverlay } from '../../application-store/installation';
-import SimulationDisclaimer from './SimulationDisclaimer';
-import { isSimulationMode } from '../../../../utils/simulationMode';
 
 /**
  * Applications Section - Displays installed and available apps from Hugging Face
@@ -171,9 +169,6 @@ export default function ApplicationsSection({
     officialOnly
   );
 
-  // Check if we're in simulation mode
-  const inSimulationMode = isSimulationMode();
-
   return (
     <>
       <Box>
@@ -307,11 +302,7 @@ export default function ApplicationsSection({
             </Typography>
           </Box>
         </Box>
-        {/* Apps list container with simulation disclaimer overlay */}
         <Box sx={{ px: 0, mb: 0, bgcolor: 'transparent', position: 'relative' }}>
-          {/* Simulation mode disclaimer - only covers the apps list box */}
-          {inSimulationMode && <SimulationDisclaimer darkMode={effectiveDarkMode} />}
-
           <InstalledAppsSection
             installedApps={installedApps}
             darkMode={effectiveDarkMode}
