@@ -743,10 +743,11 @@ export default function InstalledAppsSection({
 
                     {/* Right: Action buttons */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
-                      {/* Three-dot menu - visible on hover */}
+                      {/* Three-dot menu - visible on hover, disabled while stopping */}
                       <IconButton
                         className="more-menu-btn"
                         size="small"
+                        disabled={isStoppingApp && isThisAppCurrent}
                         onClick={e => handleMenuOpen(e, app.name)}
                         sx={{
                           width: 28,
