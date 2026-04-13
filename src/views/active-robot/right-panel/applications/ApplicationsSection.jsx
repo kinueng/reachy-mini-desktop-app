@@ -47,6 +47,7 @@ export default function ApplicationsSection({
 
   // State
   const [officialOnly, setOfficialOnly] = useState(false);
+  const [privateOnly, setPrivateOnly] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -166,7 +167,8 @@ export default function ApplicationsSection({
     availableApps,
     searchQuery,
     selectedCategory,
-    officialOnly
+    officialOnly,
+    privateOnly
   );
 
   return (
@@ -344,6 +346,8 @@ export default function ApplicationsSection({
         setSearchQuery={setSearchQuery}
         officialOnly={officialOnly}
         setOfficialOnly={setOfficialOnly}
+        privateOnly={privateOnly}
+        setPrivateOnly={setPrivateOnly}
         categories={categories}
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
