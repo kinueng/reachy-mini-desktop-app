@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Box, Typography, Tooltip, IconButton, Avatar } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -50,6 +50,7 @@ export default function ApplicationsSection({
   const [privateOnly, setPrivateOnly] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const previousHfUsernameRef = useRef(hfUser?.username || null);
 
   // ✅ Modal stack hook - declared BEFORE useAppInstallation to avoid stale closure
   const { openModal, closeModal, discoverModalOpen, createAppTutorialModalOpen } = useModalStack();
@@ -80,6 +81,17 @@ export default function ApplicationsSection({
       onLoadingChange(isLoading);
     }
   }, [isLoading, onLoadingChange]);
+
+  // Refresh the catalog when HF auth state changes so private spaces appear/disappear promptly.
+  useEffect(() => {
+    const currentUsername = hfUser?.username || null;
+    if (previousHfUsernameRef.current === currentUsername) {
+      return;
+    }
+
+    previousHfUsernameRef.current = currentUsername;
+    fetchAvailableApps(true);
+  }, [hfUser?.username, fetchAvailableApps]);
 
   // Reset category when switching between official/non-official
   useEffect(() => {
@@ -300,7 +312,7 @@ export default function ApplicationsSection({
                 fontWeight: 500,
               }}
             >
-              Extend Reachy's capabilities
+              Extend Reachy&apos;s capabilities
             </Typography>
           </Box>
         </Box>
