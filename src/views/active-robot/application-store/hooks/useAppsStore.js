@@ -240,7 +240,7 @@ export function useAppsStore(isActive) {
     cleanup: cleanupJobs,
   } = useAppJobs(setActiveJobs, () => {
     if (fetchAvailableAppsRef.current) {
-      fetchAvailableAppsRef.current(true); // Force refresh after job completion
+      return fetchAvailableAppsRef.current(true); // Force refresh after job completion
     }
   });
 
