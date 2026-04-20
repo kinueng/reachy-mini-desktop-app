@@ -1,5 +1,5 @@
 /**
- * Barrel export for system-related hooks
+ * Barrel export for system-related hooks.
  */
 // Global system hooks
 export { useLogs } from './useLogs';

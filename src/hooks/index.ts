@@ -1,6 +1,6 @@
 /**
- * Main barrel export for global hooks
- * Hooks specific to components/views are now located near their usage
+ * Main barrel export for global hooks.
+ * Hooks specific to components/views are located near their usage.
  *
  * Global hooks (used across multiple areas):
  * - useConnection: 🔌 Unified connection interface (USB/WiFi/Simulation)
