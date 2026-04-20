@@ -1,12 +1,10 @@
 /**
- * Telemetry Events - All trackable events for Reachy Mini Control
+ * Telemetry Events - All trackable events for Reachy Mini Control.
  *
- * Privacy-first analytics using Aptabase:
+ * Privacy-first analytics:
  * - No cookies, no fingerprinting, no device identifiers
  * - GDPR/CCPA compliant out-of-the-box
  * - Only aggregated, anonymized data
- *
- * @see https://aptabase.com
  */
 
 // ============================================================================
@@ -48,53 +46,37 @@ export const EVENTS = {
   // Crash Reporting
   APP_CRASH: 'app_crash',
   APP_CRASH_REPORT: 'app_crash_report',
-};
+} as const;
+
+export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
 
 // ============================================================================
 // PROPERTY VALIDATORS - Ensure clean data
 // ============================================================================
 
-/**
- * Connection modes
- * @type {Array<string>}
- */
-export const CONNECTION_MODES = ['usb', 'wifi', 'simulation'];
+export const CONNECTION_MODES = ['usb', 'wifi', 'simulation'] as const;
+export type ConnectionMode = (typeof CONNECTION_MODES)[number];
 
-/**
- * Controller types
- * @type {Array<string>}
- */
-export const CONTROLLER_TYPES = ['joystick', 'slider', 'gamepad', 'keyboard'];
+export const CONTROLLER_TYPES = ['joystick', 'slider', 'gamepad', 'keyboard'] as const;
+export type ControllerType = (typeof CONTROLLER_TYPES)[number];
 
-/**
- * Expression types
- * @type {Array<string>}
- */
-export const EXPRESSION_TYPES = ['emotion', 'dance'];
+export const EXPRESSION_TYPES = ['emotion', 'dance'] as const;
+export type ExpressionType = (typeof EXPRESSION_TYPES)[number];
 
-/**
- * Validate connection mode
- * @param {string} mode
- * @returns {string|null}
- */
-export const validateConnectionMode = mode => {
-  return CONNECTION_MODES.includes(mode) ? mode : null;
+export const validateConnectionMode = (mode: string | null | undefined): ConnectionMode | null => {
+  return mode != null && (CONNECTION_MODES as ReadonlyArray<string>).includes(mode)
+    ? (mode as ConnectionMode)
+    : null;
 };
 
-/**
- * Validate controller type
- * @param {string} type
- * @returns {string|null}
- */
-export const validateControllerType = type => {
-  return CONTROLLER_TYPES.includes(type) ? type : null;
+export const validateControllerType = (type: string | null | undefined): ControllerType | null => {
+  return type != null && (CONTROLLER_TYPES as ReadonlyArray<string>).includes(type)
+    ? (type as ControllerType)
+    : null;
 };
 
-/**
- * Validate expression type
- * @param {string} type
- * @returns {string|null}
- */
-export const validateExpressionType = type => {
-  return EXPRESSION_TYPES.includes(type) ? type : null;
+export const validateExpressionType = (type: string | null | undefined): ExpressionType | null => {
+  return type != null && (EXPRESSION_TYPES as ReadonlyArray<string>).includes(type)
+    ? (type as ExpressionType)
+    : null;
 };
