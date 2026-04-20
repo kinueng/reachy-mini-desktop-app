@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 
@@ -16,14 +16,14 @@ const DEV_MODE = isDevPath && !isWebMode;
 if (typeof window !== 'undefined' && !window.__TAURI__) {
   window.__TAURI__ = {
     core: {
-      invoke: (cmd, args) => {
+      invoke: (cmd: string, args?: Record<string, unknown>) => {
         console.log('[Mock Tauri] invoke:', cmd, args);
         return Promise.resolve({ status: 'mocked' });
       },
     },
   };
 
-  const mockWindow = {
+  const mockWindow: MockTauriWindow = {
     startDragging: () => {
       return Promise.resolve();
     },
@@ -53,8 +53,8 @@ setTimeout(() => {
 }, 100);
 
 // Theme wrapper component that adapts to darkMode
-function ThemeWrapper({ children }) {
-  const darkMode = useAppStore(state => state.darkMode);
+function ThemeWrapper({ children }: { children: ReactNode }) {
+  const darkMode = useAppStore((state: { darkMode: boolean }) => state.darkMode);
 
   const theme = useMemo(
     () =>
@@ -228,7 +228,12 @@ if (import.meta.env.DEV) {
 
 // 🚀 No StrictMode for production robot app
 // StrictMode double-invokes effects in dev, causing WebSocket/connection issues
-ReactDOM.createRoot(document.getElementById('root')).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Root element #root not found in index.html');
+}
+
+ReactDOM.createRoot(rootElement).render(
   <ThemeWrapper>
     <ErrorBoundary>
       <div style={{ width: '100%', height: '100%' }}>
