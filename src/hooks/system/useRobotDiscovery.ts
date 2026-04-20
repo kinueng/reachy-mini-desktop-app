@@ -2,7 +2,7 @@
  * 🌐 Robot Discovery Hook
  *
  * Scans for available robots via USB and WiFi in parallel.
- * Used by FindingRobotView to detect and list connection options.
+ * Used by `FindingRobotView` to detect and list connection options.
  *
  * V2: Uses native Rust discovery (mDNS, cache, static peers) for reliability.
  * Supports multiple WiFi robots with selection.
@@ -14,29 +14,76 @@ import useAppStore from '../../store/useAppStore';
 import { DAEMON_CONFIG } from '../../config/daemon';
 
 /**
- * Check if a USB robot is connected
- * @returns {Promise<{available: boolean, portName: string | null}>}
+ * Raw robot payload returned by the `discover_robots` Tauri command.
+ * Matches `RobotInfo` in `src-tauri/src/discovery/mod.rs`.
  */
-async function checkUsbRobot() {
+export interface RawDiscoveredRobot {
+  name: string;
+  ip: string;
+  port: number;
+  discovery_method: string;
+  hostname: string | null;
+}
+
+/**
+ * Robot augmented with a UI-friendly display host.
+ */
+export interface DiscoveredRobot extends RawDiscoveredRobot {
+  displayHost: string;
+}
+
+export interface UsbRobotState {
+  available: boolean;
+  portName: string | null;
+}
+
+export interface WifiRobotsState {
+  available: boolean;
+  robots: DiscoveredRobot[];
+  selectedRobot: DiscoveredRobot | null;
+}
+
+export interface WifiRobotCompat {
+  available: boolean;
+  host: string | null;
+}
+
+export interface UseRobotDiscoveryResult {
+  isScanning: boolean;
+  usbRobot: UsbRobotState;
+  wifiRobots: WifiRobotsState;
+  wifiRobot: WifiRobotCompat;
+  hasAnyRobot: boolean;
+  selectWifiRobot: (robot: DiscoveredRobot | null) => void;
+  startScanning: () => void;
+  stopScanning: () => void;
+  refresh: () => void;
+}
+
+type IntervalId = ReturnType<typeof setInterval>;
+
+/**
+ * Check if a USB robot is connected.
+ */
+async function checkUsbRobot(): Promise<UsbRobotState> {
   try {
-    const portName = await invoke('check_usb_robot');
+    const portName = (await invoke('check_usb_robot')) as string | null;
     return { available: portName !== null, portName };
-  } catch (e) {
+  } catch {
     return { available: false, portName: null };
   }
 }
 
 /**
- * Discover WiFi robots using the native Rust discovery system
- * Uses cache → static peers → mDNS in order for speed
- * @returns {Promise<{available: boolean, robots: Array}>}
+ * Discover WiFi robots using the native Rust discovery system.
+ * Uses cache → static peers → mDNS in order for speed.
  */
-async function checkWifiRobotV2() {
+async function checkWifiRobotV2(): Promise<{ available: boolean; robots: DiscoveredRobot[] }> {
   try {
-    const rawRobots = await invoke('discover_robots');
+    const rawRobots = (await invoke('discover_robots')) as RawDiscoveredRobot[] | null;
 
     if (rawRobots && rawRobots.length > 0) {
-      const robots = rawRobots.map(robot => ({
+      const robots: DiscoveredRobot[] = rawRobots.map(robot => ({
         ...robot,
         displayHost: robot.ip,
       }));
@@ -45,57 +92,57 @@ async function checkWifiRobotV2() {
     }
 
     return { available: false, robots: [] };
-  } catch (e) {
+  } catch {
     return { available: false, robots: [] };
   }
 }
 
 /**
- * Robot Discovery Hook
+ * Robot Discovery Hook.
  *
  * Scans for USB and WiFi robots in parallel.
  * Returns the current state of discovered robots.
  */
-export function useRobotDiscovery() {
+export function useRobotDiscovery(): UseRobotDiscoveryResult {
   const isFirstCheck = useAppStore(state => state.isFirstCheck);
   const setIsFirstCheck = useAppStore(state => state.setIsFirstCheck);
   const cleanupBlacklist = useAppStore(state => state.cleanupBlacklist);
 
-  // Discovery state
-  const [isScanning, setIsScanning] = useState(true);
-  const [usbRobot, setUsbRobot] = useState({ available: false, portName: null });
-  const [wifiRobots, setWifiRobots] = useState({
+  // Discovery state.
+  const [isScanning, setIsScanning] = useState<boolean>(true);
+  const [usbRobot, setUsbRobot] = useState<UsbRobotState>({
+    available: false,
+    portName: null,
+  });
+  const [wifiRobots, setWifiRobots] = useState<WifiRobotsState>({
     available: false,
     robots: [],
     selectedRobot: null,
   });
 
-  // Refs for interval management
-  const scanIntervalRef = useRef(null);
-  const isMountedRef = useRef(true);
-  const isScanningRef = useRef(false); // Prevent overlapping scans
+  // Refs for interval management.
+  const scanIntervalRef = useRef<IntervalId | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+  // Prevent overlapping scans.
+  const isScanningRef = useRef<boolean>(false);
 
-  // Cleanup expired blacklist entries periodically
+  // Cleanup expired blacklist entries periodically.
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
       cleanupBlacklist();
-    }, 2000); // Every 2 seconds
+    }, 2000);
 
     return () => clearInterval(cleanupInterval);
   }, [cleanupBlacklist]);
 
-  /**
-   * Select a specific WiFi robot from the discovered list
-   */
-  const selectWifiRobot = useCallback(robot => {
+  const selectWifiRobot = useCallback((robot: DiscoveredRobot | null): void => {
     setWifiRobots(prev => ({ ...prev, selectedRobot: robot }));
   }, []);
 
   /**
-   * Perform a single discovery scan (USB + WiFi in parallel)
+   * Perform a single discovery scan (USB + WiFi in parallel).
    */
-  const performScan = useCallback(async () => {
-    // Skip if already scanning (prevents callback accumulation)
+  const performScan = useCallback(async (): Promise<void> => {
     if (isScanningRef.current) {
       return;
     }
@@ -104,42 +151,40 @@ export function useRobotDiscovery() {
     const startTime = Date.now();
 
     try {
-      // Scan USB and WiFi in parallel
       const usbPromise = checkUsbRobot();
       const wifiPromise = checkWifiRobotV2();
 
-      // Get USB result first (it's fast)
+      // Get USB result first (it's fast).
       const usbResult = await usbPromise;
 
-      // Update USB immediately so user sees it (don't wait for slow WiFi check)
+      // Update USB immediately so the user sees it (don't wait for slow WiFi check).
       if (isMountedRef.current) {
         setUsbRobot(usbResult);
       }
 
-      // Wait for WiFi (may be slow on first discovery, fast with cache)
+      // Wait for WiFi (may be slow on first discovery, fast with cache).
       const wifiResult = await wifiPromise;
 
-      // Ensure minimum delay on first check for smooth UX
+      // Ensure minimum delay on first check for smooth UX.
       if (isFirstCheck) {
         const elapsed = Date.now() - startTime;
         const minDelay = DAEMON_CONFIG.MIN_DISPLAY_TIMES.USB_CHECK_FIRST;
 
         if (elapsed < minDelay) {
-          await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
+          await new Promise<void>(resolve => setTimeout(resolve, minDelay - elapsed));
         }
 
         setIsFirstCheck(false);
       }
 
-      // Only update state if still mounted
       if (isMountedRef.current) {
         setWifiRobots(prev => {
-          // Auto-select when exactly 1 robot found
+          // Auto-select when exactly 1 robot is found, otherwise keep previous
+          // selection if it's still valid.
           const selectedRobot =
             wifiResult.robots.length === 1
               ? wifiResult.robots[0]
-              : // Keep previous selection if still valid
-                prev.selectedRobot && wifiResult.robots.some(r => r.ip === prev.selectedRobot.ip)
+              : prev.selectedRobot && wifiResult.robots.some(r => r.ip === prev.selectedRobot!.ip)
                 ? prev.selectedRobot
                 : null;
 
@@ -156,21 +201,15 @@ export function useRobotDiscovery() {
     }
   }, [isFirstCheck, setIsFirstCheck]);
 
-  /**
-   * Start continuous scanning
-   */
-  const startScanning = useCallback(() => {
-    // Clear any existing interval
+  const startScanning = useCallback((): void => {
     if (scanIntervalRef.current) {
       clearInterval(scanIntervalRef.current);
     }
 
     setIsScanning(true);
 
-    // Perform initial scan immediately
     performScan();
 
-    // Then scan periodically
     scanIntervalRef.current = setInterval(() => {
       if (isMountedRef.current) {
         performScan();
@@ -178,10 +217,7 @@ export function useRobotDiscovery() {
     }, DAEMON_CONFIG.INTERVALS.DISCOVERY_SCAN);
   }, [performScan]);
 
-  /**
-   * Stop scanning
-   */
-  const stopScanning = useCallback(() => {
+  const stopScanning = useCallback((): void => {
     if (scanIntervalRef.current) {
       clearInterval(scanIntervalRef.current);
       scanIntervalRef.current = null;
@@ -189,18 +225,15 @@ export function useRobotDiscovery() {
     setIsScanning(false);
   }, []);
 
-  /**
-   * Refresh scan manually
-   */
-  const refresh = useCallback(() => {
+  const refresh = useCallback((): void => {
     setIsScanning(true);
     performScan();
   }, [performScan]);
 
-  // Start scanning on mount, cleanup on unmount
+  // Start scanning on mount, cleanup on unmount.
   useEffect(() => {
     isMountedRef.current = true;
-    // Reset scanning flag on mount (fixes HMR issues)
+    // Reset scanning flag on mount (fixes HMR issues).
     isScanningRef.current = false;
     startScanning();
 
@@ -210,26 +243,23 @@ export function useRobotDiscovery() {
     };
   }, [startScanning, stopScanning]);
 
-  // Backward-compatible wifiRobot derived property
-  const wifiRobot = useMemo(() => {
+  // Backward-compatible `wifiRobot` derived property.
+  const wifiRobot = useMemo<WifiRobotCompat>(() => {
     if (!wifiRobots.available || wifiRobots.robots.length === 0) {
       return { available: false, host: null };
     }
-    const robot = wifiRobots.selectedRobot || wifiRobots.robots[0];
+    const robot = wifiRobots.selectedRobot ?? wifiRobots.robots[0];
     return { available: true, host: robot.displayHost };
   }, [wifiRobots]);
 
   return {
-    // State
     isScanning,
-    usbRobot, // { available: boolean, portName: string | null }
-    wifiRobots, // { available: boolean, robots: Array, selectedRobot: object | null }
-    wifiRobot, // backward-compat: { available: boolean, host: string | null }
+    usbRobot,
+    wifiRobots,
+    wifiRobot,
 
-    // Helpers
     hasAnyRobot: usbRobot.available || wifiRobots.available,
 
-    // Actions
     selectWifiRobot,
     startScanning,
     stopScanning,

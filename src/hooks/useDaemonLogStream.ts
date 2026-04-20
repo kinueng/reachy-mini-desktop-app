@@ -5,33 +5,46 @@ import useAppStore from '../store/useAppStore';
  * Streams daemon logs from the remote robot via WebSocket.
  * Only active when at least one category is enabled and in WiFi mode.
  *
- * Returns an array of normalized log objects compatible with LogConsole,
+ * Returns an array of normalized log objects compatible with `LogConsole`,
  * filtered by the enabled categories.
  */
 
+export type DaemonLogSource = 'api' | 'app' | 'daemon';
+export type DaemonLogLevel = 'info' | 'warning' | 'error';
+
+export interface DaemonLogEntry {
+  message: string;
+  timestamp: string;
+  timestampNumeric: number;
+  source: DaemonLogSource;
+  level: DaemonLogLevel;
+}
+
+type TimeoutId = ReturnType<typeof setTimeout>;
+
 const MAX_REMOTE_LOGS = 2000;
 
-function categorize(line) {
+function categorize(line: string): DaemonLogSource {
   if (line.includes('uvicorn.access') || line.includes('uvicorn.error')) return 'api';
   if (line.includes('reachy_mini.apps') || line.includes('_app.') || line.includes('[app]'))
     return 'app';
   return 'daemon';
 }
 
-function parseLevel(line) {
+function parseLevel(line: string): DaemonLogLevel {
   if (line.includes(' - ERROR - ') || line.includes(' ERROR ')) return 'error';
   if (line.includes(' - WARNING - ') || line.includes(' WARNING ')) return 'warning';
   return 'info';
 }
 
-export default function useDaemonLogStream(enabledCategories) {
-  const [allLogs, setAllLogs] = useState([]);
+export default function useDaemonLogStream(enabledCategories: DaemonLogSource[]): DaemonLogEntry[] {
+  const [allLogs, setAllLogs] = useState<DaemonLogEntry[]>([]);
   const { connectionMode, remoteHost } = useAppStore();
-  const wsRef = useRef(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   const shouldConnect = enabledCategories.length > 0 && connectionMode === 'wifi' && !!remoteHost;
 
-  // WebSocket — connects once, stores ALL logs regardless of filter
+  // WebSocket — connects once, stores ALL logs regardless of filter.
   useEffect(() => {
     if (!shouldConnect) {
       if (wsRef.current) {
@@ -39,26 +52,27 @@ export default function useDaemonLogStream(enabledCategories) {
         wsRef.current = null;
       }
       setAllLogs([]);
-      return;
+      return undefined;
     }
 
     let stopped = false;
-    let reconnectTimer;
+    let reconnectTimer: TimeoutId | undefined;
 
-    const connect = () => {
+    const connect = (): void => {
       if (stopped) return;
-      const cleanHost = remoteHost.replace(/^https?:\/\//, '');
+      // `remoteHost` is guaranteed non-null by `shouldConnect` above.
+      const cleanHost = (remoteHost as string).replace(/^https?:\/\//, '');
       const wsUrl = `ws://${cleanHost}:8000/logs/ws/daemon`;
       try {
         const ws = new WebSocket(wsUrl);
-        ws.onmessage = event => {
+        ws.onmessage = (event: MessageEvent<string>) => {
           if (!event.data || !event.data.trim()) return;
           const line = event.data;
           const cat = categorize(line);
           const level = parseLevel(line);
           const now = Date.now();
           setAllLogs(prev => {
-            const next = [
+            const next: DaemonLogEntry[] = [
               ...prev,
               {
                 message: line,
@@ -95,7 +109,9 @@ export default function useDaemonLogStream(enabledCategories) {
 
     return () => {
       stopped = true;
-      clearTimeout(reconnectTimer);
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -103,8 +119,8 @@ export default function useDaemonLogStream(enabledCategories) {
     };
   }, [shouldConnect, remoteHost]);
 
-  // Filter logs by enabled categories (cheap, no WebSocket reconnect)
-  const filteredLogs = useMemo(
+  // Filter logs by enabled categories (cheap, no WebSocket reconnect).
+  const filteredLogs = useMemo<DaemonLogEntry[]>(
     () => allLogs.filter(log => enabledCategories.includes(log.source)),
     [allLogs, enabledCategories]
   );

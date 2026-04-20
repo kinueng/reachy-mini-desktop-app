@@ -1,10 +1,16 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import useAppStore from '../../store/useAppStore';
 import { isSimulationMode, SIMULATED_USB_PORT } from '../../utils/simulationMode';
 import { DAEMON_CONFIG } from '../../config/daemon';
 
-export const useUsbDetection = () => {
+export interface UseUsbDetectionResult {
+  isUsbConnected: boolean;
+  usbPortName: string | null;
+  checkUsbRobot: () => Promise<void>;
+}
+
+export const useUsbDetection = (): UseUsbDetectionResult => {
   const {
     isUsbConnected,
     usbPortName,
@@ -14,11 +20,11 @@ export const useUsbDetection = () => {
     setIsFirstCheck,
   } = useAppStore();
 
-  // Track if a check is already in progress to avoid overlapping calls
-  const isCheckingRef = useRef(false);
+  // Track if a check is already in progress to avoid overlapping calls.
+  const isCheckingRef = useRef<boolean>(false);
 
-  const checkUsbRobot = useCallback(async () => {
-    // Skip if already checking (prevents callback accumulation)
+  const checkUsbRobot = useCallback(async (): Promise<void> => {
+    // Skip if already checking (prevents callback accumulation).
     if (isCheckingRef.current) {
       return;
     }
@@ -27,52 +33,51 @@ export const useUsbDetection = () => {
     const startTime = Date.now();
 
     try {
-      // 🎭 Simulation mode: simulate USB connection
+      // 🎭 Simulation mode: simulate USB connection.
       if (isSimulationMode()) {
-        // Ensure at least minimum delay for smooth UX on first check only
+        // Ensure at least minimum delay for smooth UX on first check only.
         if (isFirstCheck) {
           const elapsed = Date.now() - startTime;
           const minDelay = DAEMON_CONFIG.MIN_DISPLAY_TIMES.USB_CHECK_FIRST;
 
           if (elapsed < minDelay) {
-            await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
+            await new Promise<void>(resolve => setTimeout(resolve, minDelay - elapsed));
           }
 
           setIsFirstCheck(false);
         }
 
-        // Simulate USB connection
         setIsUsbConnected(true);
         setUsbPortName(SIMULATED_USB_PORT);
         return;
       }
 
-      // Normal mode: real USB check
-      const portName = await invoke('check_usb_robot');
+      // Normal mode: real USB check.
+      const portName = (await invoke('check_usb_robot')) as string | null;
 
-      // Ensure at least minimum delay for smooth UX on first check only
+      // Ensure at least minimum delay for smooth UX on first check only.
       if (isFirstCheck) {
         const elapsed = Date.now() - startTime;
         const minDelay = DAEMON_CONFIG.MIN_DISPLAY_TIMES.USB_CHECK_FIRST;
 
         if (elapsed < minDelay) {
-          await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
+          await new Promise<void>(resolve => setTimeout(resolve, minDelay - elapsed));
         }
 
         setIsFirstCheck(false);
       }
 
-      // portName is either a string (connected) or null (not connected)
+      // portName is either a string (connected) or null (not connected).
       setIsUsbConnected(portName !== null);
       setUsbPortName(portName);
-    } catch (e) {
-      // Still apply minimum delay even on error for first check
+    } catch {
+      // Still apply minimum delay even on error for first check.
       if (isFirstCheck) {
         const elapsed = Date.now() - startTime;
         const minDelay = 1500;
 
         if (elapsed < minDelay) {
-          await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
+          await new Promise<void>(resolve => setTimeout(resolve, minDelay - elapsed));
         }
 
         setIsFirstCheck(false);
