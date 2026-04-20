@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import useAppStore from '../../store/useAppStore';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useShallow } from 'zustand/react/shallow';
+import useAppStore from '../../store/useAppStore';
 import { useLogger } from '../../utils/logging';
 import {
   DAEMON_CONFIG,
@@ -15,24 +15,92 @@ import { findErrorConfig, createErrorFromConfig } from '../../utils/hardwareErro
 import { useDaemonEventBus } from './useDaemonEventBus';
 import { handleDaemonError } from '../../utils/daemonErrorHandler';
 import { closeAllAppWindows } from '../../utils/windowManager';
+import type { AppState } from '../../types/store';
+import type { FullAppState } from '../../store/useStore';
 
-export const useDaemon = () => {
+// ─────────────────────────────────────────────────────────────────────────────
+// Local types for daemon payloads and event bus events
+// (promotable to types/daemon.ts once this hook stabilises)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Shape of the Tauri `daemon-status-changed` event payload (from Rust). */
+interface DaemonStatusChangedPayload {
+  current?: string;
+  previous?: string;
+}
+
+/**
+ * Minimal shape of /api/daemon/status responses we care about.
+ * The Python daemon may include additional fields (backend_status, version, ...).
+ */
+interface DaemonStatusResponse {
+  state?: 'not_initialized' | 'starting' | 'running' | 'stopped' | 'stopping' | 'error';
+  error?: string;
+  version?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Hardware error configuration (see `utils/hardwareErrors.js`).
+ * We mirror the runtime shape here to preserve typing until the source is migrated.
+ */
+interface HardwareErrorConfig {
+  type: string;
+  patterns: string[];
+  message: { text: string; bold: string; suffix: string };
+  meshPatterns: string[] | null;
+  linkName: string | null;
+  cameraPreset: string | null;
+  code: string | null;
+}
+
+/** Event bus payloads emitted and consumed by this hook. */
+interface DaemonHardwareErrorEvent {
+  errorConfig: HardwareErrorConfig;
+  errorLine: string;
+}
+
+interface DaemonCrashEvent {
+  status: string;
+}
+
+interface DaemonStartSuccessEvent {
+  existing?: boolean;
+  external?: boolean;
+  wifi?: boolean;
+  simMode?: boolean;
+}
+
+export interface UseDaemonResult {
+  isActive: boolean;
+  isStarting: boolean;
+  isStopping: boolean;
+  startupError: AppState['startupError'];
+  startDaemon: () => Promise<void>;
+  stopDaemon: () => Promise<void>;
+  fetchDaemonVersion: () => Promise<void>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+type TimeoutId = ReturnType<typeof setTimeout>;
+type IntervalId = ReturnType<typeof setInterval>;
+
+export const useDaemon = (): UseDaemonResult => {
   const logger = useLogger();
   const {
-    robotStatus,
     isActive,
     isStarting,
     isStopping,
     startupError,
     transitionTo,
     setDaemonVersion,
-    setStartupError,
     setHardwareError,
     setStartupTimeout,
     clearStartupTimeout,
     resetAll,
   } = useAppStore(
-    useShallow(state => ({
+    useShallow((state: FullAppState) => ({
       robotStatus: state.robotStatus,
       isActive: state.isActive,
       isStarting: state.isStarting,
@@ -53,13 +121,17 @@ export const useDaemon = () => {
   // Register event handlers (centralized error handling)
   useEffect(() => {
     const unsubStartSuccess = eventBus.on('daemon:start:success', data => {
-      if (data?.simMode) {
+      const payload = data as DaemonStartSuccessEvent | null;
+      if (payload?.simMode) {
         logger.info('Daemon started in simulation mode (mockup-sim)');
       }
     });
 
     const unsubStartError = eventBus.on('daemon:start:error', error => {
-      handleDaemonError('startup', error);
+      // `handleDaemonError` accepts `Error | string | object`; the event bus
+      // carries `unknown`. The producer-side emit sites below always send one
+      // of those types, so this cast is safe in practice.
+      handleDaemonError('startup', error as Error | string | object);
       clearStartupTimeout();
     });
 
@@ -74,20 +146,22 @@ export const useDaemon = () => {
     });
 
     const unsubCrash = eventBus.on('daemon:crash', data => {
+      const payload = data as DaemonCrashEvent;
       const currentState = useAppStore.getState();
       if (currentState.isStarting) {
         handleDaemonError(
           'crash',
           {
-            message: `Daemon process terminated unexpectedly (status: ${data.status})`,
+            message: `Daemon process terminated unexpectedly (status: ${payload.status})`,
           },
-          { status: data.status }
+          { status: payload.status }
         );
         clearStartupTimeout();
       }
     });
 
     const unsubHardwareError = eventBus.on('daemon:hardware:error', data => {
+      const payload = data as DaemonHardwareErrorEvent;
       const currentState = useAppStore.getState();
       const shouldProcess = currentState.isStarting || currentState.hardwareError;
 
@@ -95,11 +169,11 @@ export const useDaemon = () => {
         return;
       }
 
-      if (data.errorConfig) {
-        const errorObject = createErrorFromConfig(data.errorConfig, data.errorLine);
+      if (payload.errorConfig) {
+        const errorObject = createErrorFromConfig(payload.errorConfig, payload.errorLine);
         setHardwareError(errorObject);
         transitionTo.starting();
-        handleDaemonError('hardware', data.errorLine, { code: data.errorConfig.code });
+        handleDaemonError('hardware', payload.errorLine, { code: payload.errorConfig.code });
       }
     });
 
@@ -112,63 +186,69 @@ export const useDaemon = () => {
     };
   }, [eventBus, setHardwareError, transitionTo, clearStartupTimeout, logger]);
 
-  const fetchDaemonVersion = useCallback(async () => {
+  const fetchDaemonVersion = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetchWithTimeoutSkipInstall(
+      const response: Response = await fetchWithTimeoutSkipInstall(
         buildApiUrl(DAEMON_CONFIG.ENDPOINTS.DAEMON_STATUS),
         {},
         DAEMON_CONFIG.TIMEOUTS.VERSION,
         { silent: true }
       );
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as DaemonStatusResponse;
         setDaemonVersion(data.version || null);
       }
-    } catch (error) {
-      if (error.name === 'SkippedError') {
+    } catch (error: unknown) {
+      const name = (error as { name?: string } | null)?.name;
+      if (name === 'SkippedError') {
         return;
       }
     }
   }, [setDaemonVersion]);
 
   // Refs to store unlisten functions (avoid race conditions on cleanup)
-  const unlistenDaemonStatusRef = useRef(null);
-  const unlistenStderrRef = useRef(null);
-  const unlistenStdoutRef = useRef(null);
-  const unlistenStderrActivityRef = useRef(null);
-  const lastActivityResetRef = useRef(0);
+  const unlistenDaemonStatusRef = useRef<UnlistenFn | null>(null);
+  const unlistenStderrRef = useRef<UnlistenFn | null>(null);
+  const unlistenStdoutRef = useRef<UnlistenFn | null>(null);
+  const unlistenStderrActivityRef = useRef<UnlistenFn | null>(null);
+  const lastActivityResetRef = useRef<number>(0);
 
   // Listen to Rust-side daemon-status-changed for instant crash detection
   useEffect(() => {
     let isMounted = true;
 
-    const setup = async () => {
+    const setup = async (): Promise<void> => {
       if (unlistenDaemonStatusRef.current) {
         unlistenDaemonStatusRef.current();
         unlistenDaemonStatusRef.current = null;
       }
 
       try {
-        const unlisten = await listen('daemon-status-changed', event => {
-          if (!isMounted) return;
-          const { current } = event.payload || {};
-          if (current === 'Crashed') {
-            const currentState = useAppStore.getState();
-            if (currentState.isStarting) {
-              eventBus.emit('daemon:crash', { status: 'process-terminated' });
-              clearStartupTimeout();
-            } else if (currentState.isActive) {
-              currentState.transitionTo.crashed();
+        const unlisten = await listen<DaemonStatusChangedPayload>(
+          'daemon-status-changed',
+          event => {
+            if (!isMounted) return;
+            const { current } = event.payload || {};
+            if (current === 'Crashed') {
+              const currentState = useAppStore.getState();
+              if (currentState.isStarting) {
+                eventBus.emit('daemon:crash', { status: 'process-terminated' });
+                clearStartupTimeout();
+              } else if (currentState.isActive) {
+                currentState.transitionTo.crashed();
+              }
             }
           }
-        });
+        );
 
         if (isMounted) {
           unlistenDaemonStatusRef.current = unlisten;
         } else {
           unlisten();
         }
-      } catch {}
+      } catch {
+        // Listener setup can fail outside of Tauri; nothing to do.
+      }
     };
 
     setup();
@@ -189,14 +269,14 @@ export const useDaemon = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const setupStderrListener = async () => {
+    const setupStderrListener = async (): Promise<void> => {
       if (unlistenStderrRef.current) {
         unlistenStderrRef.current();
         unlistenStderrRef.current = null;
       }
 
       try {
-        const unlisten = await listen('sidecar-stderr', event => {
+        const unlisten = await listen<unknown>('sidecar-stderr', event => {
           if (!isMounted) return;
 
           const currentState = useAppStore.getState();
@@ -206,10 +286,11 @@ export const useDaemon = () => {
             return;
           }
 
+          const payload = event.payload;
           const errorLine =
-            typeof event.payload === 'string' ? event.payload : event.payload?.toString() || '';
+            typeof payload === 'string' ? payload : payload != null ? String(payload) : '';
 
-          const errorConfig = findErrorConfig(errorLine);
+          const errorConfig = findErrorConfig(errorLine) as HardwareErrorConfig | null;
 
           if (errorConfig) {
             eventBus.emit('daemon:hardware:error', { errorConfig, errorLine });
@@ -221,7 +302,9 @@ export const useDaemon = () => {
         } else {
           unlisten();
         }
-      } catch {}
+      } catch {
+        // Listener setup can fail outside of Tauri; nothing to do.
+      }
     };
 
     setupStderrListener();
@@ -240,7 +323,7 @@ export const useDaemon = () => {
   //   not_initialized → starting → running | error
   // When state === "error", the response includes an "error" field with
   // the actual exception message - much more reliable than parsing stderr.
-  const daemonStatusPollRef = useRef(null);
+  const daemonStatusPollRef = useRef<IntervalId | null>(null);
 
   useEffect(() => {
     if (!isStarting) {
@@ -252,19 +335,21 @@ export const useDaemon = () => {
     }
 
     // Wait a few seconds before starting to poll (daemon needs time to start Uvicorn)
-    const startDelay = setTimeout(() => {
+    const startDelay: TimeoutId = setTimeout(() => {
       if (!useAppStore.getState().isStarting) return;
 
-      const pollDaemonStatus = async () => {
+      const pollDaemonStatus = async (): Promise<void> => {
         const state = useAppStore.getState();
         if (!state.isStarting || state.isActive) {
-          clearInterval(daemonStatusPollRef.current);
-          daemonStatusPollRef.current = null;
+          if (daemonStatusPollRef.current) {
+            clearInterval(daemonStatusPollRef.current);
+            daemonStatusPollRef.current = null;
+          }
           return;
         }
 
         try {
-          const response = await fetchWithTimeout(
+          const response: Response = await fetchWithTimeout(
             buildApiUrl(DAEMON_CONFIG.ENDPOINTS.DAEMON_STATUS),
             {},
             DAEMON_CONFIG.TIMEOUTS.STARTUP_CHECK,
@@ -273,11 +358,11 @@ export const useDaemon = () => {
 
           if (!response.ok) return;
 
-          const data = await response.json();
+          const data = (await response.json()) as DaemonStatusResponse;
 
           if (data.state === 'error' && data.error) {
             // Check if the structured error matches a known hardware error first
-            const errorConfig = findErrorConfig(data.error);
+            const errorConfig = findErrorConfig(data.error) as HardwareErrorConfig | null;
             if (errorConfig) {
               eventBus.emit('daemon:hardware:error', {
                 errorConfig,
@@ -289,8 +374,10 @@ export const useDaemon = () => {
               clearStartupTimeout();
             }
 
-            clearInterval(daemonStatusPollRef.current);
-            daemonStatusPollRef.current = null;
+            if (daemonStatusPollRef.current) {
+              clearInterval(daemonStatusPollRef.current);
+              daemonStatusPollRef.current = null;
+            }
           }
         } catch {
           // Daemon not reachable yet - expected during early startup
@@ -310,12 +397,12 @@ export const useDaemon = () => {
     };
   }, [isStarting, eventBus, clearStartupTimeout]);
 
-  // Listen to sidecar stdout/stderr events to reset timeout when we see activity
-  // Daemon logs go to stderr (Python logging), so we must listen to both
+  // Listen to sidecar stdout/stderr events to reset timeout when we see activity.
+  // Daemon logs go to stderr (Python logging), so we must listen to both.
   useEffect(() => {
     let isMounted = true;
 
-    const resetStartupTimeoutOnActivity = () => {
+    const resetStartupTimeoutOnActivity = (): void => {
       if (!isMounted) return;
 
       const currentState = useAppStore.getState();
@@ -333,11 +420,11 @@ export const useDaemon = () => {
       clearStartupTimeout();
 
       const simMode = isSimulationMode();
-      const startupTimeout = simMode
+      const startupTimeout: number = simMode
         ? DAEMON_CONFIG.STARTUP.TIMEOUT_SIMULATION
         : DAEMON_CONFIG.STARTUP.TIMEOUT_NORMAL;
 
-      const newTimeoutId = setTimeout(() => {
+      const newTimeoutId: TimeoutId = setTimeout(() => {
         const state = useAppStore.getState();
         if (!state.isActive && state.isStarting) {
           eventBus.emit('daemon:start:timeout');
@@ -347,7 +434,7 @@ export const useDaemon = () => {
       setStartupTimeout(newTimeoutId);
     };
 
-    const setupListeners = async () => {
+    const setupListeners = async (): Promise<void> => {
       // Cleanup previous listeners
       if (unlistenStdoutRef.current) {
         unlistenStdoutRef.current();
@@ -369,7 +456,9 @@ export const useDaemon = () => {
           unlistenStdout();
           unlistenStderr();
         }
-      } catch {}
+      } catch {
+        // Listener setup can fail outside of Tauri; nothing to do.
+      }
     };
 
     setupListeners();
@@ -387,19 +476,20 @@ export const useDaemon = () => {
     };
   }, [eventBus, clearStartupTimeout, setStartupTimeout]);
 
-  const startDaemon = useCallback(async () => {
+  const startDaemon = useCallback(async (): Promise<void> => {
     const currentConnectionMode = useAppStore.getState().connectionMode;
 
-    // External mode: daemon is already running externally, verify it's alive and initialize if needed
+    // External mode: daemon is already running externally, verify it's alive
+    // and initialize if needed.
     if (currentConnectionMode === 'external') {
       eventBus.emit('daemon:start:attempt');
 
-      await new Promise(resolve =>
+      await new Promise<void>(resolve =>
         setTimeout(resolve, DAEMON_CONFIG.ANIMATIONS.SPINNER_RENDER_DELAY)
       );
 
       try {
-        const statusResponse = await fetchWithTimeout(
+        const statusResponse: Response = await fetchWithTimeout(
           buildApiUrl(DAEMON_CONFIG.ENDPOINTS.DAEMON_STATUS),
           {},
           DAEMON_CONFIG.TIMEOUTS.STARTUP_CHECK,
@@ -410,7 +500,7 @@ export const useDaemon = () => {
           throw new Error(`External daemon status check failed: ${statusResponse.status}`);
         }
 
-        const statusData = await statusResponse.json();
+        const statusData = (await statusResponse.json()) as DaemonStatusResponse;
 
         // Start daemon if it's in a non-active state (same logic as WiFi mode)
         if (
@@ -426,29 +516,30 @@ export const useDaemon = () => {
               DAEMON_CONFIG.TIMEOUTS.STARTUP_CHECK * 2,
               { label: 'External daemon start' }
             );
-          } catch (e) {
-            // Request sent, response may be delayed
+          } catch {
+            // Request sent, response may be delayed.
           }
         }
 
         eventBus.emit('daemon:start:success', { existing: true, external: true });
-      } catch (e) {
-        eventBus.emit('daemon:start:error', new Error(`External daemon error: ${e.message}`));
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        eventBus.emit('daemon:start:error', new Error(`External daemon error: ${message}`));
         resetAll();
       }
       return;
     }
 
-    // WiFi mode: daemon is remote, initialize it if needed
+    // WiFi mode: daemon is remote, initialize it if needed.
     if (currentConnectionMode === 'wifi') {
       eventBus.emit('daemon:start:attempt');
 
-      await new Promise(resolve =>
+      await new Promise<void>(resolve =>
         setTimeout(resolve, DAEMON_CONFIG.ANIMATIONS.SPINNER_RENDER_DELAY)
       );
 
       try {
-        const statusResponse = await fetchWithTimeout(
+        const statusResponse: Response = await fetchWithTimeout(
           buildApiUrl(DAEMON_CONFIG.ENDPOINTS.DAEMON_STATUS),
           {},
           DAEMON_CONFIG.TIMEOUTS.STARTUP_CHECK,
@@ -459,7 +550,7 @@ export const useDaemon = () => {
           throw new Error(`Daemon status check failed: ${statusResponse.status}`);
         }
 
-        const statusData = await statusResponse.json();
+        const statusData = (await statusResponse.json()) as DaemonStatusResponse;
 
         // Start daemon WITHOUT wake_up - robot stays sleeping
         if (
@@ -475,39 +566,42 @@ export const useDaemon = () => {
               DAEMON_CONFIG.TIMEOUTS.STARTUP_CHECK * 2,
               { label: 'WiFi daemon start' }
             );
-          } catch (e) {
-            // Request sent, response may be delayed
+          } catch {
+            // Request sent, response may be delayed.
           }
         }
 
         eventBus.emit('daemon:start:success', { existing: true, wifi: true });
-      } catch (e) {
+      } catch (e: unknown) {
         // ⚠️ IMPORTANT: Emit error BEFORE resetAll() so telemetry captures the connectionMode
-        eventBus.emit('daemon:start:error', new Error(`WiFi daemon error: ${e.message}`));
+        const message = e instanceof Error ? e.message : String(e);
+        eventBus.emit('daemon:start:error', new Error(`WiFi daemon error: ${message}`));
 
         // 🧹 Clean up the local proxy; otherwise it keeps routing 127.0.0.1:8000
         // to the (unreachable/stale) WiFi host and poisons any subsequent
         // connection attempt (including local sim daemon launches).
         try {
           await invoke('clear_local_proxy_target');
-        } catch {}
+        } catch {
+          // Best effort - nothing actionable if this fails.
+        }
 
         resetAll();
       }
       return;
     }
 
-    // USB/Simulation mode
+    // USB / Simulation mode
     eventBus.emit('daemon:start:attempt');
 
-    await new Promise(resolve =>
+    await new Promise<void>(resolve =>
       setTimeout(resolve, DAEMON_CONFIG.ANIMATIONS.SPINNER_RENDER_DELAY)
     );
 
     try {
       // Check if daemon already running
       try {
-        const response = await fetchWithTimeout(
+        const response: Response = await fetchWithTimeout(
           buildApiUrl(DAEMON_CONFIG.ENDPOINTS.STATE_FULL),
           {},
           DAEMON_CONFIG.TIMEOUTS.STARTUP_CHECK,
@@ -518,8 +612,8 @@ export const useDaemon = () => {
           eventBus.emit('daemon:start:success', { existing: true });
           return;
         }
-      } catch (e) {
-        // No daemon detected, starting new one
+      } catch {
+        // No daemon detected, starting new one.
       }
 
       const simMode = isSimulationMode();
@@ -529,26 +623,26 @@ export const useDaemon = () => {
         .then(() => {
           eventBus.emit('daemon:start:success', { existing: false, simMode });
         })
-        .catch(e => {
+        .catch((e: unknown) => {
           eventBus.emit('daemon:start:error', e);
         });
 
-      await new Promise(resolve =>
+      await new Promise<void>(resolve =>
         setTimeout(resolve, DAEMON_CONFIG.ANIMATIONS.BUTTON_SPINNER_DELAY)
       );
 
-      const startupTimeout = simMode
+      const startupTimeout: number = simMode
         ? DAEMON_CONFIG.STARTUP.TIMEOUT_SIMULATION
         : DAEMON_CONFIG.STARTUP.TIMEOUT_NORMAL;
 
-      const timeoutId = setTimeout(() => {
+      const timeoutId: TimeoutId = setTimeout(() => {
         const currentState = useAppStore.getState();
         if (!currentState.isActive && currentState.isStarting) {
           eventBus.emit('daemon:start:timeout');
         }
       }, startupTimeout);
       setStartupTimeout(timeoutId);
-    } catch (e) {
+    } catch (e: unknown) {
       eventBus.emit('daemon:start:error', e);
     }
   }, [eventBus, setStartupTimeout, resetAll]);
@@ -556,23 +650,23 @@ export const useDaemon = () => {
   /**
    * Graceful shutdown: goto_sleep animation → disable motors → kill daemon
    */
-  const performGracefulShutdown = useCallback(async () => {
+  const performGracefulShutdown = useCallback(async (): Promise<void> => {
     try {
-      const sleepResponse = await fetchWithTimeout(
+      const sleepResponse: Response = await fetchWithTimeout(
         buildApiUrl('/api/move/play/goto_sleep'),
         { method: 'POST' },
         DAEMON_CONFIG.TIMEOUTS.COMMAND,
         { label: 'Goto sleep animation', silent: true }
       );
-      const sleepData = await sleepResponse.json();
+      const sleepData = (await sleepResponse.json()) as { uuid?: string } | null;
       const moveUuid = sleepData?.uuid;
 
       // Wait for the sleep animation to finish (fixed timeout fallback)
       const waitMs = moveUuid ? 6000 : 4000;
-      await new Promise(resolve => setTimeout(resolve, waitMs));
+      await new Promise<void>(resolve => setTimeout(resolve, waitMs));
     } catch {
-      // Animation may fail if robot is in a weird state - continue anyway
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Animation may fail if robot is in a weird state - continue anyway.
+      await new Promise<void>(resolve => setTimeout(resolve, 1000));
     }
 
     try {
@@ -582,13 +676,13 @@ export const useDaemon = () => {
         DAEMON_CONFIG.TIMEOUTS.COMMAND,
         { label: 'Disable motors', silent: true }
       );
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise<void>(resolve => setTimeout(resolve, 300));
     } catch {
-      // Continue with shutdown even if motor disable fails
+      // Continue with shutdown even if motor disable fails.
     }
   }, []);
 
-  const stopDaemon = useCallback(async () => {
+  const stopDaemon = useCallback(async (): Promise<void> => {
     const currentConnectionMode = useAppStore.getState().connectionMode;
     const currentIsAppRunning = useAppStore.getState().isAppRunning;
 
@@ -606,14 +700,14 @@ export const useDaemon = () => {
           { label: 'Stop app before shutdown', silent: true }
         );
       } catch {
-        // Continue with shutdown
+        // Continue with shutdown.
       }
     }
     await closeAllAppWindows();
     useAppStore.getState().closeEmbeddedApp();
 
     // Wait for any daemon goto_target to complete
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise<void>(resolve => setTimeout(resolve, 500));
 
     // External mode: sleep + disable motors, but don't stop daemon
     if (currentConnectionMode === 'external') {
@@ -635,15 +729,15 @@ export const useDaemon = () => {
           DAEMON_CONFIG.TIMEOUTS.COMMAND,
           { label: 'Daemon stop' }
         );
-      } catch (e) {
-        // Continue with reset
+      } catch {
+        // Continue with reset.
       }
 
-      // Clear the local proxy so discovery doesn't detect a stale forwarded daemon
+      // Clear the local proxy so discovery doesn't detect a stale forwarded daemon.
       try {
         await invoke('clear_local_proxy_target');
-      } catch (e) {
-        // Continue with reset
+      } catch {
+        // Continue with reset.
       }
 
       setTimeout(() => {
@@ -652,7 +746,7 @@ export const useDaemon = () => {
       return;
     }
 
-    // USB/Simulation mode: sleep + disable motors + kill daemon process
+    // USB / Simulation mode: sleep + disable motors + kill daemon process
     try {
       await performGracefulShutdown();
 
@@ -663,8 +757,8 @@ export const useDaemon = () => {
           DAEMON_CONFIG.TIMEOUTS.COMMAND,
           { label: 'Daemon stop' }
         );
-      } catch (e) {
-        // Continue with kill
+      } catch {
+        // Continue with kill.
       }
 
       await invoke('stop_daemon');
@@ -672,7 +766,7 @@ export const useDaemon = () => {
       setTimeout(() => {
         resetAll();
       }, DAEMON_CONFIG.ANIMATIONS.STOP_DAEMON_DELAY);
-    } catch (e) {
+    } catch {
       resetAll();
     }
   }, [clearStartupTimeout, resetAll, transitionTo, performGracefulShutdown]);

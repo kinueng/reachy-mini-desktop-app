@@ -28,7 +28,7 @@ interface CrossSliceActions {
   update: (updates: Partial<AppState>) => void;
 }
 
-type FullAppState = AppState & CrossSliceActions;
+export type FullAppState = AppState & CrossSliceActions;
 
 const PROTECTED_UPDATE_FIELDS: Array<keyof AppState> = [
   'robotStatus',
