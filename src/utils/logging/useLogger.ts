@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useStore } from '../../store';
 import {
   LOG_LEVELS,
@@ -115,5 +115,8 @@ export function useLogger(): UseLoggerResult {
     [addFrontendLog]
   );
 
-  return { info, success, warning, error, api, daemon, app, userAction, permission, timeout };
+  return useMemo(
+    () => ({ info, success, warning, error, api, daemon, app, userAction, permission, timeout }),
+    [info, success, warning, error, api, daemon, app, userAction, permission, timeout]
+  );
 }
