@@ -3,6 +3,24 @@ import useAppStore from '../../store/useAppStore';
 import { getWsBaseUrl, buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '../../config/daemon';
 
 /**
+ * WebSocket updates emitted by /api/move/ws/updates.
+ */
+type MoveUpdateType = 'move_started' | 'move_completed' | 'move_failed' | 'move_cancelled';
+
+interface MoveUpdate {
+  type: MoveUpdateType;
+  uuid: string;
+  details?: string;
+}
+
+interface ActiveMove {
+  uuid: string;
+  [key: string]: unknown;
+}
+
+type TimeoutId = ReturnType<typeof setTimeout>;
+
+/**
  * 🎯 Real-time hook for active moves via WebSocket
  *
  * Responsibilities:
@@ -10,19 +28,19 @@ import { getWsBaseUrl, buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '../.
  * - Receive real-time updates when moves start/stop
  * - Update activeMoves in store
  *
- * Replaces the old polling of GET /api/move/running every 500ms
+ * Replaces the old polling of GET /api/move/running every 500ms.
  *
  * Benefits:
  * - ⚡ Real-time updates (no 500ms lag)
  * - 🚀 Less network overhead
  * - 🎯 Instant notification when moves complete
  */
-export function useActiveMoves(isActive) {
+export function useActiveMoves(isActive: boolean): void {
   const { setActiveMoves, isDaemonCrashed } = useAppStore();
-  const wsRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
-  const isMountedRef = useRef(true);
-  const reconnectAttemptsRef = useRef(0);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<TimeoutId | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+  const reconnectAttemptsRef = useRef<number>(0);
   const MAX_RECONNECT_ATTEMPTS = 5;
 
   useEffect(() => {
@@ -31,13 +49,11 @@ export function useActiveMoves(isActive) {
     return () => {
       isMountedRef.current = false;
 
-      // Cleanup WebSocket
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
 
-      // Clear reconnect timeout
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
@@ -63,9 +79,9 @@ export function useActiveMoves(isActive) {
     }
 
     // Fetch initial list of active moves via HTTP
-    const fetchInitialMoves = async () => {
+    const fetchInitialMoves = async (): Promise<void> => {
       try {
-        const response = await fetchWithTimeout(
+        const response: Response = await fetchWithTimeout(
           buildApiUrl('/api/move/running'),
           {},
           DAEMON_CONFIG.TIMEOUTS.COMMAND,
@@ -73,17 +89,17 @@ export function useActiveMoves(isActive) {
         );
 
         if (response.ok && isMountedRef.current) {
-          const data = await response.json();
+          const data = (await response.json()) as unknown;
           if (Array.isArray(data)) {
             setActiveMoves(data);
           }
         }
-      } catch (err) {
-        // Ignore errors on initial fetch (WebSocket will handle updates)
+      } catch {
+        // Ignore errors on initial fetch (WebSocket will handle updates).
       }
     };
 
-    const connectWebSocket = () => {
+    const connectWebSocket = (): void => {
       // Check max reconnection attempts
       if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
         return;
@@ -97,41 +113,44 @@ export function useActiveMoves(isActive) {
           reconnectAttemptsRef.current = 0; // Reset on successful connection
 
           // Fetch initial list of active moves via HTTP
-          // (WebSocket only sends updates, not initial state)
+          // (WebSocket only sends updates, not initial state).
           fetchInitialMoves();
         };
 
-        ws.onmessage = event => {
+        ws.onmessage = (event: MessageEvent<string>) => {
           if (!isMountedRef.current) return;
 
           try {
-            const data = JSON.parse(event.data);
+            const data = JSON.parse(event.data) as MoveUpdate;
 
-            // The WebSocket sends updates with the following structure:
-            // { "type": "move_started", "uuid": "...", "details": "" }
-            // { "type": "move_completed", "uuid": "...", "details": "" }
-            // { "type": "move_failed", "uuid": "...", "details": "..." }
-            // { "type": "move_cancelled", "uuid": "...", "details": "" }
+            // Expected WebSocket update shapes:
+            //   { "type": "move_started", "uuid": "...", "details": "" }
+            //   { "type": "move_completed", "uuid": "...", "details": "" }
+            //   { "type": "move_failed", "uuid": "...", "details": "..." }
+            //   { "type": "move_cancelled", "uuid": "...", "details": "" }
 
             if (data.type === 'move_started') {
-              // Add new move
               setActiveMoves(prev => {
-                const exists = prev.some(m => m.uuid === data.uuid);
-                if (exists) return prev;
-                return [...prev, { uuid: data.uuid }];
+                const moves = prev as ActiveMove[];
+                const exists = moves.some(m => m.uuid === data.uuid);
+                if (exists) return moves;
+                return [...moves, { uuid: data.uuid }];
               });
             } else if (
               data.type === 'move_completed' ||
               data.type === 'move_failed' ||
               data.type === 'move_cancelled'
             ) {
-              // Remove completed/failed/cancelled move
-              setActiveMoves(prev => prev.filter(m => m.uuid !== data.uuid));
+              setActiveMoves(prev => (prev as ActiveMove[]).filter(m => m.uuid !== data.uuid));
             }
-          } catch (err) {}
+          } catch {
+            // Malformed message - skip.
+          }
         };
 
-        ws.onerror = () => {};
+        ws.onerror = () => {
+          // Errors flow through onclose - nothing actionable here.
+        };
 
         ws.onclose = () => {
           if (!isMountedRef.current) return;
@@ -152,14 +171,14 @@ export function useActiveMoves(isActive) {
         };
 
         wsRef.current = ws;
-      } catch (err) {}
+      } catch {
+        // WebSocket constructor can throw on invalid URLs - skip.
+      }
     };
 
-    // Connect to WebSocket
     connectWebSocket();
 
     return () => {
-      // Cleanup on unmount or when isActive changes
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;

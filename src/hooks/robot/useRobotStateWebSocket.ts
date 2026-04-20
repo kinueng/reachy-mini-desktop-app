@@ -2,12 +2,48 @@ import { useEffect, useRef, useCallback } from 'react';
 import useAppStore from '../../store/useAppStore';
 import { getWsBaseUrl, isWiFiMode } from '../../config/daemon';
 import { useDaemonEventBus } from '../daemon/useDaemonEventBus';
+import type { RobotStateFull } from '../../types/robot';
 
 // WebSocket configuration
 const WS_FREQUENCY = 20; // 20Hz for smooth 3D visualization
 const WS_RECONNECT_DELAY_MS = 1000;
 const WS_MAX_RECONNECT_ATTEMPTS = 5;
 const WS_MAX_WIFI_RECONNECT_ATTEMPTS = 3;
+
+/**
+ * Raw shape of a message sent by /api/state/ws/full on the daemon.
+ * Fields may be absent depending on the query parameters set in `buildWsUrl`.
+ */
+interface DaemonStateMessage {
+  control_mode?: unknown;
+  head_pose?: { m?: unknown } | unknown;
+  head_joints?: unknown;
+  body_yaw?: unknown;
+  antennas_position?: unknown;
+  doa?: {
+    angle?: number;
+    speech_detected?: boolean;
+  } | null;
+  timestamp?: number;
+}
+
+interface ProcessedStateData {
+  control_mode: unknown;
+  head_pose: unknown;
+  head_joints: unknown;
+  body_yaw: unknown;
+  antennas_position: unknown;
+  passive_joints: unknown;
+  doa: { angle: number | undefined; speech_detected: boolean | undefined } | null;
+  timestamp: number | undefined;
+  dataVersion: number;
+}
+
+export interface UseRobotStateWebSocketResult {
+  isConnected: boolean;
+}
+
+type TimeoutId = ReturnType<typeof setTimeout>;
 
 /**
  * 🚀 Unified WebSocket hook for ALL robot state data
@@ -23,18 +59,18 @@ const WS_MAX_WIFI_RECONNECT_ATTEMPTS = 3;
  *
  * All data stored in robotStateFull (Zustand store) - single source of truth.
  */
-export function useRobotStateWebSocket(isActive) {
+export function useRobotStateWebSocket(isActive: boolean): UseRobotStateWebSocketResult {
   const isDaemonCrashed = useAppStore(state => state.isDaemonCrashed);
   const setRobotStateFull = useAppStore(state => state.setRobotStateFull);
   const eventBus = useDaemonEventBus();
 
   // Refs for WebSocket management (avoid re-render loops)
-  const wsRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
-  const reconnectAttemptsRef = useRef(0);
-  const isMountedRef = useRef(true);
-  const isWiFiRef = useRef(false);
-  const dataVersionRef = useRef(0);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<TimeoutId | null>(null);
+  const reconnectAttemptsRef = useRef<number>(0);
+  const isMountedRef = useRef<boolean>(true);
+  const isWiFiRef = useRef<boolean>(false);
+  const dataVersionRef = useRef<number>(0);
 
   // Store refs for stable callbacks
   const setRobotStateFullRef = useRef(setRobotStateFull);
@@ -50,11 +86,11 @@ export function useRobotStateWebSocket(isActive) {
   }, [eventBus]);
 
   /**
-   * Build WebSocket URL with all required parameters
-   * Note: control_mode is included by default in daemon's get_full_state()
-   * Note: passive_joints are NOT requested - they're calculated via WASM client-side
+   * Build WebSocket URL with all required parameters.
+   * Note: control_mode is included by default in daemon's get_full_state().
+   * Note: passive_joints are NOT requested - they're calculated via WASM client-side.
    */
-  const buildWsUrl = useCallback(() => {
+  const buildWsUrl = useCallback((): string => {
     const baseUrl = getWsBaseUrl();
     const params = new URLSearchParams({
       frequency: WS_FREQUENCY.toString(),
@@ -70,19 +106,27 @@ export function useRobotStateWebSocket(isActive) {
   }, []);
 
   /**
-   * Process incoming WebSocket data and update store
+   * Process incoming WebSocket data and update store.
    */
-  const processData = useCallback(data => {
+  const processData = useCallback((data: DaemonStateMessage): void => {
     dataVersionRef.current++;
 
-    // 🎯 Get current passive_joints from store (calculated via WASM)
-    // Daemon NEVER sends passive_joints - they're always calculated client-side
+    // 🎯 Get current passive_joints from store (calculated via WASM).
+    // Daemon NEVER sends passive_joints - they're always calculated client-side.
     const currentState = useAppStore.getState();
-    const existingPassiveJoints = currentState.robotStateFull?.data?.passive_joints;
+    const existingPassiveJoints = (
+      currentState.robotStateFull?.data as { passive_joints?: unknown } | null | undefined
+    )?.passive_joints;
 
-    const stateData = {
+    const headPoseRaw = data.head_pose as { m?: unknown } | unknown;
+    const headPose =
+      headPoseRaw && typeof headPoseRaw === 'object' && 'm' in (headPoseRaw as object)
+        ? (headPoseRaw as { m?: unknown }).m
+        : headPoseRaw;
+
+    const stateData: ProcessedStateData = {
       control_mode: data.control_mode,
-      head_pose: data.head_pose?.m || data.head_pose,
+      head_pose: headPose,
       head_joints: data.head_joints,
       body_yaw: data.body_yaw,
       antennas_position: data.antennas_position,
@@ -104,9 +148,8 @@ export function useRobotStateWebSocket(isActive) {
       data: stateData,
       lastUpdate: Date.now(),
       error: null,
-    });
+    } as RobotStateFull);
 
-    // Emit event
     eventBusRef.current.emit('robot:state:updated', { data: stateData });
   }, []); // No dependencies - uses refs
 
@@ -122,9 +165,8 @@ export function useRobotStateWebSocket(isActive) {
         data: null,
         lastUpdate: null,
         error: null,
-      });
+      } as RobotStateFull);
 
-      // Cleanup
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
@@ -144,8 +186,7 @@ export function useRobotStateWebSocket(isActive) {
       return;
     }
 
-    // Connect WebSocket
-    const connectWebSocket = () => {
+    const connectWebSocket = (): void => {
       const maxAttempts = isWiFiRef.current
         ? WS_MAX_WIFI_RECONNECT_ATTEMPTS
         : WS_MAX_RECONNECT_ATTEMPTS;
@@ -172,18 +213,22 @@ export function useRobotStateWebSocket(isActive) {
           reconnectAttemptsRef.current = 0;
         };
 
-        ws.onmessage = event => {
+        ws.onmessage = (event: MessageEvent<string>) => {
           if (!isMountedRef.current) return;
 
           try {
-            const data = JSON.parse(event.data);
+            const data = JSON.parse(event.data) as DaemonStateMessage;
             processData(data);
-          } catch (err) {}
+          } catch {
+            // Malformed JSON - skip this frame.
+          }
         };
 
-        ws.onerror = () => {};
+        ws.onerror = () => {
+          // Errors surface through onclose with a non-1000 code.
+        };
 
-        ws.onclose = event => {
+        ws.onclose = (event: CloseEvent) => {
           wsRef.current = null;
 
           if (!isMountedRef.current) return;
@@ -201,7 +246,9 @@ export function useRobotStateWebSocket(isActive) {
         };
 
         wsRef.current = ws;
-      } catch (err) {}
+      } catch {
+        // WebSocket constructor can throw on invalid URLs - skip.
+      }
     };
 
     connectWebSocket();

@@ -108,7 +108,7 @@ export interface RobotSliceActions {
   startConnection: (mode: ConnectionMode, options?: StartConnectionOptions) => void;
 
   setRobotStateFull: (value: RobotStateFull | ((prev: RobotStateFull) => RobotStateFull)) => void;
-  setActiveMoves: (value: unknown[]) => void;
+  setActiveMoves: (value: unknown[] | ((prev: unknown[]) => unknown[])) => void;
   setShouldStreamRobotState: (value: boolean) => void;
   setIsCommandRunning: (value: boolean) => void;
 

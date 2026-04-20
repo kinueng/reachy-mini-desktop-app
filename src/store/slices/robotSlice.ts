@@ -340,7 +340,13 @@ export const createRobotSlice: StateCreator<AppState, [], [], RobotSlice> = (set
         return { robotStateFull: value };
       }),
 
-    setActiveMoves: value => set({ activeMoves: value }),
+    setActiveMoves: value =>
+      set(state => {
+        if (typeof value === 'function') {
+          return { activeMoves: value(state.activeMoves) };
+        }
+        return { activeMoves: value };
+      }),
 
     setShouldStreamRobotState: value => set({ shouldStreamRobotState: value }),
 
