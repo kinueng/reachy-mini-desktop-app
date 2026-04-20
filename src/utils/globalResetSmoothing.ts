@@ -1,25 +1,33 @@
 /**
- * Global reset smoothing system
- * Handles smooth reset animation that continues even after component unmounts
+ * Global reset smoothing system. Handles smooth reset animation that continues
+ * even after the originating component unmounts.
  */
 
-import { TargetSmoothingManager } from './targetSmoothing';
-import { buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '@config/daemon';
-import { ROBOT_POSITION_RANGES } from '@utils/inputConstants';
-import { clamp } from '@utils/inputHelpers';
-import { mapRobotToAPI } from '@utils/inputMappings';
-
-// Global refs that persist across component mounts/unmounts
-let globalSmoothingManager = null;
-let globalResetRafRef = null;
-let globalSendCommandRef = null;
-const globalIsActiveRef = { current: false };
+import { TargetSmoothingManager, type HeadPose, type SmoothedValues } from './targetSmoothing';
+import { ROBOT_POSITION_RANGES } from './inputConstants';
+import { clamp } from './inputHelpers';
+import { mapRobotToAPI } from './inputMappings';
 
 /**
- * Initialize global reset smoothing system
- * Should be called when controller is mounted
+ * Function used to send a command to the robot. Kept structural to avoid a
+ * tight coupling with the daemon hook contract.
  */
-export function initGlobalResetSmoothing(sendCommandFn, isActive) {
+export type SendCommandFn = (
+  headPose: HeadPose,
+  antennas: [number, number],
+  bodyYaw: number
+) => void | Promise<void>;
+
+let globalSmoothingManager: TargetSmoothingManager | null = null;
+let globalResetRafRef: number | null = null;
+let globalSendCommandRef: SendCommandFn | null = null;
+const globalIsActiveRef: { current: boolean } = { current: false };
+
+/**
+ * Initialize global reset smoothing system. Should be called when the
+ * controller is mounted.
+ */
+export function initGlobalResetSmoothing(sendCommandFn: SendCommandFn, isActive: boolean): void {
   if (!globalSmoothingManager) {
     globalSmoothingManager = new TargetSmoothingManager();
   }
@@ -27,58 +35,49 @@ export function initGlobalResetSmoothing(sendCommandFn, isActive) {
   globalIsActiveRef.current = isActive;
 }
 
-/**
- * Update global state (called when isActive changes)
- */
-export function updateGlobalResetSmoothing(isActive) {
+/** Update global state (called when `isActive` changes). */
+export function updateGlobalResetSmoothing(isActive: boolean): void {
   globalIsActiveRef.current = isActive;
-  if (!isActive && globalResetRafRef) {
-    // Stop reset loop if robot becomes inactive
+  if (!isActive && globalResetRafRef !== null) {
     cancelAnimationFrame(globalResetRafRef);
     globalResetRafRef = null;
   }
 }
 
 /**
- * Start smooth reset animation
- * This will continue even if component unmounts
+ * Start smooth reset animation. The animation continues even if the
+ * originating component unmounts.
  */
-export function startSmoothReset(currentValues) {
+export function startSmoothReset(currentValues?: Partial<SmoothedValues> | null): void {
   if (!globalSmoothingManager || !globalSendCommandRef) {
     console.warn('Global reset smoothing not initialized');
     return;
   }
 
-  // Sync current values to smoothing manager
   if (currentValues) {
     globalSmoothingManager.sync(currentValues);
   }
 
-  // Set targets to zero
   const zeroTargets = {
     headPose: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 },
     bodyYaw: 0,
-    antennas: [0, 0],
+    antennas: [0, 0] as [number, number],
   };
   globalSmoothingManager.setTargets(zeroTargets);
 
-  // Stop any existing reset loop
-  if (globalResetRafRef) {
+  if (globalResetRafRef !== null) {
     cancelAnimationFrame(globalResetRafRef);
   }
 
-  // Start reset animation loop
-  const resetLoop = () => {
-    if (!globalIsActiveRef.current) {
+  const resetLoop = (): void => {
+    if (!globalIsActiveRef.current || !globalSmoothingManager) {
       globalResetRafRef = null;
       return;
     }
 
-    // Update smoothed values towards targets
     const currentSmoothed = globalSmoothingManager.update();
     const targetValues = globalSmoothingManager.getTargetValues();
 
-    // Check if we've reached zero
     const headPoseDiff =
       Math.abs(currentSmoothed.headPose.x - targetValues.headPose.x) +
       Math.abs(currentSmoothed.headPose.y - targetValues.headPose.y) +
@@ -95,10 +94,8 @@ export function startSmoothReset(currentValues) {
     const hasReachedTarget =
       headPoseDiff < TOLERANCE && bodyYawDiff < TOLERANCE && antennasDiff < TOLERANCE;
 
-    // Send smoothed values to robot
     if (!hasReachedTarget && globalSendCommandRef) {
-      // Clamp to actual robot limits before sending
-      const apiClampedHeadPose = {
+      const apiClampedHeadPose: HeadPose = {
         x: clamp(
           mapRobotToAPI(currentSmoothed.headPose.x, 'positionX'),
           ROBOT_POSITION_RANGES.POSITION.min,
@@ -131,14 +128,16 @@ export function startSmoothReset(currentValues) {
         ),
       };
 
-      globalSendCommandRef(apiClampedHeadPose, currentSmoothed.antennas, currentSmoothed.bodyYaw);
+      void globalSendCommandRef(
+        apiClampedHeadPose,
+        currentSmoothed.antennas,
+        currentSmoothed.bodyYaw
+      );
     }
 
-    // Continue loop if not reached target
     if (!hasReachedTarget) {
       globalResetRafRef = requestAnimationFrame(resetLoop);
     } else {
-      // Reset complete
       globalResetRafRef = null;
     }
   };
@@ -146,20 +145,15 @@ export function startSmoothReset(currentValues) {
   globalResetRafRef = requestAnimationFrame(resetLoop);
 }
 
-/**
- * Stop smooth reset animation
- */
-export function stopSmoothReset() {
-  if (globalResetRafRef) {
+export function stopSmoothReset(): void {
+  if (globalResetRafRef !== null) {
     cancelAnimationFrame(globalResetRafRef);
     globalResetRafRef = null;
   }
 }
 
-/**
- * Get current smoothed values (for sync)
- */
-export function getCurrentSmoothedValues() {
+/** Get current smoothed values (for sync). */
+export function getCurrentSmoothedValues(): SmoothedValues | null {
   if (!globalSmoothingManager) {
     return null;
   }

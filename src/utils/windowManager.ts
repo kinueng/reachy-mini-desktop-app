@@ -1,11 +1,11 @@
 /**
- * Window Manager — Dedicated Tauri windows for robot app web UIs.
+ * Window Manager - Dedicated Tauri windows for robot app web UIs.
  *
- * Manages the full lifecycle: create → focus → close → cleanup.
+ * Manages the full lifecycle: create -> focus -> close -> cleanup.
  * Each app gets at most one window; re-opening focuses the existing one.
  *
- * Cleanup is driven by Tauri events (destroyed / error) so the cache
- * stays in sync even when a window is closed via its native controls.
+ * Cleanup is driven by Tauri events (destroyed / error) so the cache stays in
+ * sync even when a window is closed via its native controls.
  */
 
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -17,58 +17,56 @@ import useAppStore from '../store/useAppStore';
 const APP_WINDOW_PREFIX = 'app-';
 const CASCADE_STEP = 20; // logical px offset per window
 
-// Module-level cache: label → WebviewWindow reference
-const windowRefs = new Map();
+const windowRefs: Map<string, WebviewWindow> = new Map();
 let cascadeIndex = 0;
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
+export interface OpenAppWindowOptions {
+  width?: number;
+  height?: number;
+}
 
 /**
- * Convert an app name to a valid Tauri window label.
- * Tauri labels must be alphanumeric / dashes / underscores only.
+ * Convert an app name to a valid Tauri window label. Tauri labels must be
+ * alphanumeric / dashes / underscores only.
  */
-function appNameToLabel(appName) {
+function appNameToLabel(appName: string): string {
   return APP_WINDOW_PREFIX + appName.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
 }
 
 /**
- * Resolve a window reference with layered fallbacks.
- * 1. Module cache  2. Tauri label lookup  3. Full enumeration
+ * Resolve a window reference with layered fallbacks:
+ * 1. Module cache 2. Tauri label lookup 3. Full enumeration.
  */
-async function resolveWindow(label) {
+async function resolveWindow(label: string): Promise<WebviewWindow | null> {
   const cached = windowRefs.get(label);
   if (cached) return cached;
 
   try {
-    const win = WebviewWindow.getByLabel(label);
+    const win = await WebviewWindow.getByLabel(label);
     if (win) {
       windowRefs.set(label, win);
       return win;
     }
   } catch {
-    // Label lookup unavailable — try enumeration
+    // Label lookup unavailable - try enumeration
   }
 
   try {
     const all = await getAllWindows();
     const win = all.find(w => w.label === label);
     if (win) {
-      windowRefs.set(label, win);
-      return win;
+      windowRefs.set(label, win as unknown as WebviewWindow);
+      return win as unknown as WebviewWindow;
     }
   } catch {
-    // Enumeration failed — give up
+    // Enumeration failed - give up
   }
 
   return null;
 }
 
-/**
- * Remove all traces of a window from caches and Zustand store.
- */
-function purge(label) {
+/** Remove all traces of a window from caches and Zustand store. */
+function purge(label: string): void {
   windowRefs.delete(label);
   try {
     useAppStore.getState().removeOpenWindow?.(label);
@@ -80,10 +78,8 @@ function purge(label) {
   if (!hasAppWindows) cascadeIndex = 0;
 }
 
-/**
- * Close a window with retry and dual-strategy fallback (JS → Rust).
- */
-async function closeByLabel(label, maxAttempts = 2) {
+/** Close a window with retry and dual-strategy fallback (JS -> Rust). */
+async function closeByLabel(label: string, maxAttempts = 2): Promise<void> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const win = await resolveWindow(label);
     if (!win) {
@@ -96,7 +92,7 @@ async function closeByLabel(label, maxAttempts = 2) {
       purge(label);
       return;
     } catch {
-      // JS close failed — fall through to Rust
+      // JS close failed - fall through to Rust
     }
 
     try {
@@ -104,7 +100,7 @@ async function closeByLabel(label, maxAttempts = 2) {
       purge(label);
       return;
     } catch {
-      // Both strategies failed — retry after short delay
+      // Both strategies failed - retry after short delay
     }
 
     if (attempt < maxAttempts) {
@@ -112,28 +108,21 @@ async function closeByLabel(label, maxAttempts = 2) {
     }
   }
 
-  // Exhausted retries — purge state regardless
   purge(label);
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 /**
- * Open an app's web interface in a dedicated Tauri window.
- * If the window already exists it is focused instead of re-created.
- * Falls back to `null` on failure so callers can open a browser tab.
- *
- * @param {string} appName  Display name of the app
- * @param {string} url      Full URL to load (e.g. http://localhost:8042/…)
- * @param {object} [options]  Optional `{ width, height }` overrides
- * @returns {Promise<WebviewWindow|null>}
+ * Open an app's web interface in a dedicated Tauri window. If the window
+ * already exists it is focused instead of re-created. Falls back to `null` on
+ * failure so callers can open a browser tab.
  */
-export async function openAppWindow(appName, url, options = {}) {
+export async function openAppWindow(
+  appName: string,
+  url: string,
+  options: OpenAppWindowOptions = {}
+): Promise<WebviewWindow | null> {
   const label = appNameToLabel(appName);
 
-  // Focus if already open
   const existing = await resolveWindow(label);
   if (existing) {
     try {
@@ -161,8 +150,7 @@ export async function openAppWindow(appName, url, options = {}) {
     windowRefs.set(label, win);
     cascadeIndex++;
 
-    win.once('tauri://created', async () => {
-      // Shift from center so stacked windows fan out visibly
+    void win.once('tauri://created', async () => {
       if (offset > 0) {
         try {
           const factor = await win.scaleFactor();
@@ -180,8 +168,8 @@ export async function openAppWindow(appName, url, options = {}) {
       }
     });
 
-    win.once('tauri://error', () => purge(label));
-    win.once('tauri://destroyed', () => purge(label));
+    void win.once('tauri://error', () => purge(label));
+    void win.once('tauri://destroyed', () => purge(label));
 
     return win;
   } catch {
@@ -190,17 +178,13 @@ export async function openAppWindow(appName, url, options = {}) {
   }
 }
 
-/**
- * Close a specific app's window by app name.
- */
-export async function closeAppWindow(appName) {
+/** Close a specific app's window by app name. */
+export async function closeAppWindow(appName: string): Promise<void> {
   await closeByLabel(appNameToLabel(appName));
 }
 
-/**
- * Close every open app window (e.g. on robot disconnect).
- */
-export async function closeAllAppWindows() {
+/** Close every open app window (e.g. on robot disconnect). */
+export async function closeAllAppWindows(): Promise<void> {
   const labels = [...windowRefs.keys()].filter(l => l.startsWith(APP_WINDOW_PREFIX));
   await Promise.allSettled(labels.map(l => closeByLabel(l)));
 }
