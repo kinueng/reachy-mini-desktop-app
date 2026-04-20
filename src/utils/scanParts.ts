@@ -1,10 +1,31 @@
 /**
- * Static list of robot parts to scan
- * Organized in families with sub-parts
- * Based on actual STL files and robot structure
+ * Static list of robot parts to scan, organized in families with sub-parts.
+ * Based on actual STL files and robot structure.
  */
 
-export const SCAN_PARTS = [
+export interface ScanFamily {
+  family: string;
+  parts: string[];
+}
+
+export interface ScanPartLocation {
+  family: string;
+  part: string;
+  index: number;
+}
+
+export interface ScanPartProgress {
+  family: string;
+  part: string;
+  progress: number;
+}
+
+export interface ScanPartMatch {
+  family: string;
+  part: string;
+}
+
+export const SCAN_PARTS: ScanFamily[] = [
   {
     family: 'Base Unit',
     parts: ['Body Base', 'Body Foot', 'Body Turning Mechanism', 'Yaw Body Joint'],
@@ -57,26 +78,16 @@ export const SCAN_PARTS = [
   },
 ];
 
-/**
- * Get total number of parts to scan
- */
-export function getTotalScanParts() {
+export function getTotalScanParts(): number {
   return SCAN_PARTS.reduce((total, family) => total + family.parts.length, 0);
 }
 
-/**
- * Get part by index (flattened list)
- */
-export function getPartByIndex(index) {
+export function getPartByIndex(index: number): ScanPartLocation | null {
   let currentIndex = 0;
   for (const family of SCAN_PARTS) {
     for (const part of family.parts) {
       if (currentIndex === index) {
-        return {
-          family: family.family,
-          part: part,
-          index: index,
-        };
+        return { family: family.family, part, index };
       }
       currentIndex++;
     }
@@ -84,10 +95,7 @@ export function getPartByIndex(index) {
   return null;
 }
 
-/**
- * Get current scanning part info
- */
-export function getCurrentScanPart(currentIndex, total) {
+export function getCurrentScanPart(currentIndex: number, total: number): ScanPartProgress | null {
   if (total === 0) return null;
   const part = getPartByIndex(currentIndex);
   if (!part) return null;
@@ -100,18 +108,31 @@ export function getCurrentScanPart(currentIndex, total) {
 }
 
 /**
- * Map a mesh component group to a scan part
- * Uses the component group detection to match with static parts list
+ * Loose mesh-like type to avoid pulling in `three` types directly.
  */
-export function mapMeshToScanPart(mesh) {
+export interface ScanMesh {
+  name?: string;
+  userData?: {
+    isAntenna?: boolean;
+    materialName?: string;
+    stlFileName?: string;
+    [key: string]: unknown;
+  } | null;
+  material?: { name?: string } | null;
+  parent?: ScanMesh | null;
+}
+
+/**
+ * Map a mesh component group to a scan part. Uses component group detection to
+ * match against the static parts list.
+ */
+export function mapMeshToScanPart(mesh: ScanMesh | null | undefined): ScanPartMatch | null {
   if (!mesh) return null;
 
   const meshName = (mesh.name || '').toLowerCase();
   const materialName = (mesh.userData?.materialName || mesh.material?.name || '').toLowerCase();
 
-  // Check userData first
   if (mesh.userData?.isAntenna) {
-    // Map to Antenna System parts
     if (meshName.includes('left') || meshName.includes('l_')) {
       return { family: 'Antenna System', part: 'Left Antenna' };
     }
@@ -127,7 +148,6 @@ export function mapMeshToScanPart(mesh) {
     return { family: 'Antenna System', part: 'Antenna Interface' };
   }
 
-  // Check lenses
   if (materialName.includes('big_lens') || materialName.includes('lens_d40')) {
     return { family: 'Camera Module', part: 'Main Optical Lens' };
   }
@@ -138,13 +158,11 @@ export function mapMeshToScanPart(mesh) {
     return { family: 'Camera Module', part: 'Lens Cap' };
   }
 
-  // Traverse hierarchy to find parent group
-  let currentParent = mesh.parent;
+  let currentParent: ScanMesh | null | undefined = mesh.parent;
   let depth = 0;
   while (currentParent && depth < 5) {
     const pName = (currentParent.name || '').toLowerCase();
 
-    // Camera Module
     if (
       pName.includes('xl_330') ||
       pName.includes('camera') ||
@@ -159,7 +177,6 @@ export function mapMeshToScanPart(mesh) {
       return { family: 'Camera Module', part: 'Arducam Housing' };
     }
 
-    // Head Assembly / Stewart Platform
     if (pName.includes('stewart') || meshName.includes('stewart')) {
       if (meshName.includes('plate') || meshName.includes('main')) {
         return { family: 'Stewart Platform', part: 'Stewart Main Plate' };
@@ -176,7 +193,6 @@ export function mapMeshToScanPart(mesh) {
       if (meshName.includes('arm') || meshName.includes('actuator')) {
         return { family: 'Stewart Platform', part: 'Stewart Actuators' };
       }
-      // Fallback to head assembly
       if (pName.includes('head') || meshName.includes('head')) {
         if (meshName.includes('front')) {
           return { family: 'Head Assembly', part: 'Head Front Panel' };
@@ -191,7 +207,6 @@ export function mapMeshToScanPart(mesh) {
       }
     }
 
-    // Head Assembly
     if (pName.includes('head') || meshName.includes('head')) {
       if (meshName.includes('front')) {
         return { family: 'Head Assembly', part: 'Head Front Panel' };
@@ -208,7 +223,6 @@ export function mapMeshToScanPart(mesh) {
       return { family: 'Head Assembly', part: 'Head Structure' };
     }
 
-    // Base Unit / Body
     if (
       pName.includes('base') ||
       pName.includes('body') ||
@@ -235,7 +249,6 @@ export function mapMeshToScanPart(mesh) {
       return { family: 'Base Unit', part: 'Body Base' };
     }
 
-    // Audio
     if (pName.includes('speaker') || meshName.includes('speaker') || meshName.includes('mic')) {
       if (meshName.includes('mic')) {
         return { family: 'Audio System', part: 'Microphone Array' };
@@ -247,7 +260,6 @@ export function mapMeshToScanPart(mesh) {
     depth++;
   }
 
-  // Fallback: try to match by STL filename if available
   const stlFileName = mesh.userData?.stlFileName || '';
   if (stlFileName) {
     const stlLower = stlFileName.toLowerCase();
@@ -271,6 +283,5 @@ export function mapMeshToScanPart(mesh) {
     }
   }
 
-  // Default fallback
   return { family: 'Mechanical Components', part: 'Support Structures' };
 }

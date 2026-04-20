@@ -19,18 +19,15 @@ import {
   validateControllerType,
   validateExpressionType,
 } from './events';
-import { generateDiagnosticSnapshot } from '../diagnosticExport';
+import {
+  generateDiagnosticSnapshot,
+  type DiagnosticSnapshot as ExternalDiagnosticSnapshot,
+} from '../diagnosticExport';
 
 export { EVENTS } from './events';
 export type { ConnectionMode, ControllerType, ExpressionType, EventName } from './events';
 
-interface DiagnosticSnapshot {
-  robot?: unknown;
-  logs?: unknown;
-  installed_apps?: unknown;
-  session?: unknown;
-  [key: string]: unknown;
-}
+type DiagnosticSnapshot = ExternalDiagnosticSnapshot;
 
 // ============================================================================
 // TELEMETRY CONSENT MANAGEMENT
@@ -321,7 +318,7 @@ export const telemetry = {
   connectionError: (props: ConnectionErrorProps = {}) => {
     let diagnostic: DiagnosticSnapshot | null = null;
     try {
-      diagnostic = generateDiagnosticSnapshot() as DiagnosticSnapshot;
+      diagnostic = generateDiagnosticSnapshot();
     } catch (error) {
       if (import.meta.env.DEV) {
         console.warn('[Telemetry] Failed to generate diagnostic snapshot:', error);
