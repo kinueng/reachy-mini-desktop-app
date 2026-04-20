@@ -1,22 +1,24 @@
 /**
  * UI Slice - Manages theme, windows, and UI state
  */
+import type { StateCreator } from 'zustand';
+import type { AppState, UiSlice, UiSliceState } from '../../types/store';
 
 // Detect system preference
-const getSystemPreference = () => {
+const getSystemPreference = (): boolean => {
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 };
 
 // Read stored preference
-const getStoredPreference = () => {
+const getStoredPreference = (): boolean | null => {
   if (typeof window === 'undefined') return null;
   const stored = localStorage.getItem('darkMode');
-  return stored ? JSON.parse(stored) : null;
+  return stored ? (JSON.parse(stored) as boolean) : null;
 };
 
 // Determine initial dark mode
-const getInitialDarkMode = () => {
+const getInitialDarkMode = (): boolean => {
   const storedPreference = getStoredPreference();
   if (storedPreference !== null) {
     return storedPreference;
@@ -27,41 +29,35 @@ const getInitialDarkMode = () => {
 /**
  * Initial state for UI slice
  */
-export const uiInitialState = {
+export const uiInitialState: UiSliceState = {
   darkMode: getInitialDarkMode(),
   openWindows: [],
-  rightPanelView: null, // null | 'controller' | 'expressions' | 'embedded-app'
-  embeddedAppUrl: null, // URL to display in the right panel iframe when rightPanelView === 'embedded-app'
-  embeddedAppDismissed: false, // true when user manually closed the embedded view (prevents auto-reopen)
-  showFirstTimeWifiSetup: false, // true when showing first time WiFi setup view
-  showBluetoothSupportView: false, // true when showing Bluetooth support/reset view
-  showSetupChoice: false, // true when showing setup choice overlay (WiFi vs Bluetooth)
-  // BLE state
-  bleStatus: 'disconnected', // 'disconnected' | 'scanning' | 'connecting' | 'connected'
+  rightPanelView: null,
+  embeddedAppUrl: null,
+  embeddedAppDismissed: false,
+  showFirstTimeWifiSetup: false,
+  showBluetoothSupportView: false,
+  showSetupChoice: false,
+  bleStatus: 'disconnected',
   bleDevices: [],
   bleDeviceAddress: null,
-  blePin: '', // per-device PIN, loaded when device connects via bleDeviceAddress
-  // 🔄 Update view state - user can skip proposed updates
-  updateSkipped: false, // true when user clicks "Skip" on update view
-  // 🍞 Global toast notification state
+  blePin: '',
+  updateSkipped: false,
   toast: {
     open: false,
     message: '',
-    severity: 'info', // 'success' | 'error' | 'warning' | 'info'
+    severity: 'info',
   },
 };
 
 /**
  * Create UI slice
- * @param {Function} set - Zustand set function
- * @param {Function} get - Zustand get function
- * @returns {Object} UI slice state and actions
  */
-export const createUISlice = (set, get) => ({
+export const createUISlice: StateCreator<AppState, [], [], UiSlice> = (set, get) => ({
   ...uiInitialState,
 
   // Window management
-  addOpenWindow: windowLabel =>
+  addOpenWindow: (windowLabel: string) =>
     set(state => {
       if (!state.openWindows.includes(windowLabel)) {
         return { openWindows: [...state.openWindows, windowLabel] };
@@ -69,12 +65,12 @@ export const createUISlice = (set, get) => ({
       return state;
     }),
 
-  removeOpenWindow: windowLabel =>
+  removeOpenWindow: (windowLabel: string) =>
     set(state => ({
       openWindows: state.openWindows.filter(label => label !== windowLabel),
     })),
 
-  isWindowOpen: windowLabel => {
+  isWindowOpen: (windowLabel: string): boolean => {
     const state = get();
     return state.openWindows.includes(windowLabel);
   },
@@ -84,32 +80,27 @@ export const createUISlice = (set, get) => ({
 
   // Embedded app management
   setEmbeddedAppUrl: url => set({ embeddedAppUrl: url }),
-  openEmbeddedApp: url =>
+  openEmbeddedApp: (url: string) =>
     set({ rightPanelView: 'embedded-app', embeddedAppUrl: url, embeddedAppDismissed: false }),
   closeEmbeddedApp: () => set({ rightPanelView: null, embeddedAppUrl: null }),
   dismissEmbeddedApp: () =>
     set({ rightPanelView: null, embeddedAppUrl: null, embeddedAppDismissed: true }),
   resetEmbeddedAppDismissed: () => set({ embeddedAppDismissed: false }),
 
-  // First time WiFi setup view management
   setShowFirstTimeWifiSetup: value => set({ showFirstTimeWifiSetup: value }),
-
-  // Bluetooth support view management
   setShowBluetoothSupportView: value => set({ showBluetoothSupportView: value }),
-
-  // Setup choice overlay management
   setShowSetupChoice: value => set({ showSetupChoice: value }),
 
   // BLE state management
   setBleStatus: value => set({ bleStatus: value }),
   setBleDevices: value => set({ bleDevices: value }),
   setBleDeviceAddress: value => set({ bleDeviceAddress: value }),
-  setBlePin: value => {
+  setBlePin: (value: string) => {
     // Store PIN keyed by connected device MAC address
     const addr = get().bleDeviceAddress;
     if (addr) {
       try {
-        const pins = JSON.parse(localStorage.getItem('blePins') || '{}');
+        const pins = JSON.parse(localStorage.getItem('blePins') || '{}') as Record<string, string>;
         pins[addr] = value;
         localStorage.setItem('blePins', JSON.stringify(pins));
       } catch {
@@ -119,9 +110,9 @@ export const createUISlice = (set, get) => ({
     set({ blePin: value });
   },
   // Load cached PIN for the given device address
-  loadBlePinForDevice: addr => {
+  loadBlePinForDevice: (addr: string) => {
     try {
-      const pins = JSON.parse(localStorage.getItem('blePins') || '{}');
+      const pins = JSON.parse(localStorage.getItem('blePins') || '{}') as Record<string, string>;
       const pin = pins[addr] || '';
       set({ blePin: pin });
     } catch {
@@ -134,7 +125,7 @@ export const createUISlice = (set, get) => ({
   resetUpdateSkipped: () => set({ updateSkipped: false }),
 
   // Dark mode management
-  setDarkMode: value => {
+  setDarkMode: (value: boolean) => {
     localStorage.setItem('darkMode', JSON.stringify(value));
     set({ darkMode: value });
   },
@@ -153,7 +144,7 @@ export const createUISlice = (set, get) => ({
   },
 
   // 🍞 Global toast actions
-  showToast: (message, severity = 'info') =>
+  showToast: (message: string, severity = 'info') =>
     set({
       toast: { open: true, message, severity },
     }),
@@ -168,12 +159,15 @@ export const createUISlice = (set, get) => ({
  * Setup system preference listener
  * Call this once when the store is created
  */
-export const setupSystemPreferenceListener = (getState, setState) => {
+export const setupSystemPreferenceListener = (
+  _getState: () => AppState,
+  setState: (partial: Partial<AppState>) => void
+): (() => void) => {
   if (typeof window === 'undefined') return () => {};
 
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
-  const handleSystemPreferenceChange = e => {
+  const handleSystemPreferenceChange = (e: MediaQueryListEvent): void => {
     const storedPreference = getStoredPreference();
     if (storedPreference === null) {
       setState({ darkMode: e.matches });
@@ -183,14 +177,14 @@ export const setupSystemPreferenceListener = (getState, setState) => {
   if (mediaQuery.addEventListener) {
     mediaQuery.addEventListener('change', handleSystemPreferenceChange);
   } else {
-    mediaQuery.addListener(handleSystemPreferenceChange);
+    (mediaQuery as MediaQueryList).addListener(handleSystemPreferenceChange);
   }
 
   return () => {
     if (mediaQuery.removeEventListener) {
       mediaQuery.removeEventListener('change', handleSystemPreferenceChange);
     } else {
-      mediaQuery.removeListener(handleSystemPreferenceChange);
+      (mediaQuery as MediaQueryList).removeListener(handleSystemPreferenceChange);
     }
   };
 };

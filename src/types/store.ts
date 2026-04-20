@@ -216,8 +216,33 @@ export interface UiSliceActions {
   addOpenWindow: (windowLabel: string) => void;
   removeOpenWindow: (windowLabel: string) => void;
   isWindowOpen: (windowLabel: string) => boolean;
-  // More actions added as UI slice gets migrated.
-  [key: string]: unknown;
+
+  setRightPanelView: (view: RightPanelView) => void;
+  setEmbeddedAppUrl: (url: string | null) => void;
+  openEmbeddedApp: (url: string) => void;
+  closeEmbeddedApp: () => void;
+  dismissEmbeddedApp: () => void;
+  resetEmbeddedAppDismissed: () => void;
+
+  setShowFirstTimeWifiSetup: (value: boolean) => void;
+  setShowBluetoothSupportView: (value: boolean) => void;
+  setShowSetupChoice: (value: boolean) => void;
+
+  setBleStatus: (value: BleStatus) => void;
+  setBleDevices: (value: unknown[]) => void;
+  setBleDeviceAddress: (value: string | null) => void;
+  setBlePin: (value: string) => void;
+  loadBlePinForDevice: (addr: string) => void;
+
+  skipUpdate: () => void;
+  resetUpdateSkipped: () => void;
+
+  setDarkMode: (value: boolean) => void;
+  toggleDarkMode: () => void;
+  resetDarkMode: () => void;
+
+  showToast: (message: string, severity?: ToastSeverity) => void;
+  hideToast: () => void;
 }
 
 export type UiSlice = UiSliceState & UiSliceActions;

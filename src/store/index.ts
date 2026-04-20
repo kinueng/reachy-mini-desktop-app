@@ -13,7 +13,7 @@
  * └──────────────────────────────────────────────────────────────┘
  *
  * Usage:
- * ```javascript
+ * ```ts
  * import { useStore } from '@store';
  *
  * // In component:

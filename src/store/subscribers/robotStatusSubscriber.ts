@@ -3,14 +3,16 @@
  * side effects (telemetry, structured logging). Keeps transitionTo
  * pure state mutations with no embedded I/O.
  */
+import type { StoreApi } from 'zustand';
 import { telemetry } from '../../utils/telemetry';
 import { logReady, logBusy, logCrash } from '../storeLogger';
 import { ROBOT_STATUS } from '../../constants/robotStatus';
+import type { AppState } from '../../types/store';
 
-function classifyHealthFailures(reasons) {
+function classifyHealthFailures(reasons: string[]): string {
   if (!reasons.length) return 'crash_health_unknown';
 
-  const counts = {};
+  const counts: Record<string, number> = {};
   for (const r of reasons) {
     counts[r] = (counts[r] || 0) + 1;
   }
@@ -25,7 +27,7 @@ function classifyHealthFailures(reasons) {
   return 'crash_health_mixed';
 }
 
-export function subscribeRobotStatus(store) {
+export function subscribeRobotStatus(store: StoreApi<AppState>): () => void {
   let previousStatus = store.getState().robotStatus;
 
   return store.subscribe(state => {
@@ -38,12 +40,12 @@ export function subscribeRobotStatus(store) {
     // Telemetry: first successful connection (starting -> sleeping|ready)
     if (
       from === ROBOT_STATUS.STARTING &&
-      (current === ROBOT_STATUS.SLEEPING || current === ROBOT_STATUS.READY)
+      (current === ROBOT_STATUS.SLEEPING || current === ROBOT_STATUS.READY) &&
+      state.connectionMode
     ) {
       telemetry.robotConnected({ mode: state.connectionMode });
     }
 
-    // Logging per status
     if (current === ROBOT_STATUS.READY) {
       logReady();
     }
@@ -56,7 +58,7 @@ export function subscribeRobotStatus(store) {
       logCrash();
       const errorType = classifyHealthFailures(state.healthFailureReasons);
       telemetry.connectionError({
-        mode: state.connectionMode,
+        mode: state.connectionMode ?? undefined,
         error_type: errorType,
         error_message: `Daemon unresponsive after ${state.consecutiveTimeouts} consecutive health check failures (${state.healthFailureReasons.join(', ')})`,
       });

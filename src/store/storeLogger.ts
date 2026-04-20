@@ -10,19 +10,18 @@
  *
  * Also sends telemetry events for key actions.
  */
-
 import { telemetry } from '../utils/telemetry';
+import type { ConnectionMode, StartConnectionOptions } from '../types/robot';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-// Log levels
 const LOG_LEVELS = {
-  LIFECYCLE: true, // Connection/disconnection - always log
-  TRANSITION: true, // State transitions - always log
-  DEBUG: isDev, // Debug info - dev only
+  LIFECYCLE: true,
+  TRANSITION: true,
+  DEBUG: isDev,
 };
 
-const log = (emoji, action, details = '') => {
+const log = (emoji: string, action: string, details: string = ''): void => {
   const detailStr = details ? ` → ${details}` : '';
   console.log(`[Store] ${emoji} ${action}${detailStr}`);
 };
@@ -30,26 +29,28 @@ const log = (emoji, action, details = '') => {
 /**
  * Lifecycle logs - Connection events
  */
-export const logConnect = (mode, options = {}) => {
+export const logConnect = (
+  mode: ConnectionMode | string,
+  options: StartConnectionOptions = {}
+): void => {
   if (!LOG_LEVELS.LIFECYCLE) return;
   const { remoteHost, portName } = options;
   const target = mode === 'wifi' ? remoteHost : portName || 'local';
   log('🔌', 'CONNECT', `mode=${mode} target=${target}`);
 
   // 📊 Telemetry - NOTE: robot_connected is now emitted when connection is ESTABLISHED
-  // (in robotSlice.js transitionTo.sleeping/ready), not at connection ATTEMPT
+  // (in robotSlice.ts transitionTo.sleeping/ready), not at connection ATTEMPT
 };
 
-export const logDisconnect = (prevMode, reason = '') => {
+export const logDisconnect = (prevMode: ConnectionMode | string | null, reason = ''): void => {
   if (!LOG_LEVELS.LIFECYCLE) return;
   const reasonStr = reason ? ` (${reason})` : '';
   log('🔌', 'DISCONNECT', `from=${prevMode || 'none'}${reasonStr}`);
 
-  // 📊 Telemetry
-  telemetry.robotDisconnected({ mode: prevMode, reason });
+  telemetry.robotDisconnected({ mode: prevMode ?? undefined, reason });
 };
 
-export const logReset = (scope = 'all') => {
+export const logReset = (scope = 'all'): void => {
   if (!LOG_LEVELS.LIFECYCLE) return;
   log('🔄', 'RESET', scope);
 };
@@ -57,17 +58,17 @@ export const logReset = (scope = 'all') => {
 /**
  * State transition logs
  */
-export const logReady = () => {
+export const logReady = (): void => {
   if (!LOG_LEVELS.TRANSITION) return;
   log('✅', 'READY', 'robot active');
 };
 
-export const logBusy = reason => {
+export const logBusy = (reason: string | null): void => {
   if (!LOG_LEVELS.TRANSITION) return;
-  log('⏳', 'BUSY', reason);
+  log('⏳', 'BUSY', reason ?? '');
 };
 
-export const logCrash = error => {
+export const logCrash = (error?: string | null): void => {
   if (!LOG_LEVELS.LIFECYCLE) return;
   log('💥', 'CRASH', error || 'daemon crashed');
 };
@@ -75,41 +76,44 @@ export const logCrash = error => {
 /**
  * App lifecycle logs
  */
-export const logAppStart = appName => {
+export const logAppStart = (appName: string): void => {
   if (!LOG_LEVELS.LIFECYCLE) return;
   log('▶️', 'APP START', appName);
 
-  // 📊 Telemetry
   telemetry.hfAppStarted({ app_id: appName });
 };
 
-export const logAppStop = appName => {
+export const logAppStop = (appName: string | null): void => {
   if (!LOG_LEVELS.LIFECYCLE) return;
   log('⏹️', 'APP STOP', appName || 'none');
 
-  // 📊 Telemetry
   if (appName) {
     telemetry.hfAppStopped({ app_id: appName });
   }
 };
 
-export const logInstallStart = (appName, jobType) => {
+export const logInstallStart = (appName: string, jobType?: string): void => {
   if (!LOG_LEVELS.LIFECYCLE) return;
   log('📦', `${jobType?.toUpperCase() || 'INSTALL'} START`, appName);
-  // Note: Installation telemetry is sent at logInstallEnd (with success/failure)
 };
 
-export const logInstallEnd = (appName, success, durationSec, jobType = 'install') => {
+export const logInstallEnd = (
+  appName: string,
+  success: boolean,
+  durationSec: number | null,
+  jobType: string = 'install'
+): void => {
   if (!LOG_LEVELS.LIFECYCLE) return;
   const emoji = success ? '✅' : '❌';
   log(emoji, `${jobType?.toUpperCase() || 'INSTALL'} END`, appName);
 
-  // 📊 Telemetry
   if (jobType === 'remove') {
-    // Uninstall event
     telemetry.hfAppUninstalled({ app_id: appName });
   } else {
-    // Install event
-    telemetry.hfAppInstalled({ app_id: appName, success, duration_sec: durationSec });
+    telemetry.hfAppInstalled({
+      app_id: appName,
+      success,
+      duration_sec: durationSec ?? undefined,
+    });
   }
 };

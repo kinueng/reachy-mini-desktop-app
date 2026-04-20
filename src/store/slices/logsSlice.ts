@@ -10,13 +10,16 @@
  * We also avoid importing from utils/logging/constants for the same reason;
  * the canonical category list lives there, but we inline the values here.
  */
+import type { StateCreator } from 'zustand';
+import type { LogLevel } from '../../types/api';
+import type { AppState, LogCategory, LogEntry, LogsSlice, LogsSliceState } from '../../types/store';
 
 const MAX_FRONTEND_LOGS = 500;
 const MAX_APP_LOGS = 1000;
 
-const ALL_CATEGORIES = ['daemon', 'app', 'frontend'];
+const ALL_CATEGORIES: LogCategory[] = ['daemon', 'app', 'frontend'];
 
-export const logsInitialState = {
+export const logsInitialState: LogsSliceState = {
   logs: [],
   frontendLogs: [],
   appLogs: [],
@@ -26,13 +29,26 @@ export const logsInitialState = {
   logCategoryFilters: [...ALL_CATEGORIES],
 };
 
+const VALID_FRONTEND_LEVELS: LogLevel[] = ['info', 'success', 'warning', 'error'];
+const VALID_APP_LEVELS: LogLevel[] = ['info', 'warning', 'error'];
+
+const formatTimestamp = (now: number): string => {
+  try {
+    return new Date(now).toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return new Date(now).toISOString().substring(11, 19);
+  }
+};
+
 /**
  * Create logs slice
- * @param {Function} set - Zustand set function
- * @param {Function} get - Zustand get function
- * @returns {Object} Logs slice state and actions
  */
-export const createLogsSlice = (set, get) => ({
+export const createLogsSlice: StateCreator<AppState, [], [], LogsSlice> = set => ({
   ...logsInitialState,
 
   // Set daemon logs - store raw, filtering happens at display time
@@ -51,8 +67,11 @@ export const createLogsSlice = (set, get) => ({
       return { logs: newLogs };
     }),
 
-  // Add frontend log with optional category
-  addFrontendLog: (message, level = 'info', category = 'frontend') => {
+  addFrontendLog: (
+    message: string,
+    level: LogLevel = 'info',
+    category: LogCategory = 'frontend'
+  ) => {
     if (message == null) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('[addFrontendLog] Received null/undefined message, skipping');
@@ -60,26 +79,15 @@ export const createLogsSlice = (set, get) => ({
       return;
     }
 
-    const validLevels = ['info', 'success', 'warning', 'error'];
-    const normalizedLevel = validLevels.includes(level) ? level : 'info';
+    const normalizedLevel: LogLevel = VALID_FRONTEND_LEVELS.includes(level) ? level : 'info';
     const sanitizedMessage = String(message).slice(0, 10000);
 
     try {
       const now = Date.now();
-      let formattedTimestamp;
-      try {
-        formattedTimestamp = new Date(now).toLocaleTimeString('en-GB', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        });
-      } catch (e) {
-        formattedTimestamp = new Date(now).toISOString().substring(11, 19);
-      }
+      const formattedTimestamp = formatTimestamp(now);
 
       set(state => {
-        const newLog = {
+        const newLog: LogEntry = {
           timestamp: formattedTimestamp,
           timestampNumeric: now,
           message: sanitizedMessage,
@@ -99,8 +107,7 @@ export const createLogsSlice = (set, get) => ({
     }
   },
 
-  // Add app log
-  addAppLog: (message, appName, level = 'info') => {
+  addAppLog: (message: string, appName?: string, level: LogLevel = 'info') => {
     if (message == null) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('[addAppLog] Received null/undefined message, skipping');
@@ -110,23 +117,13 @@ export const createLogsSlice = (set, get) => ({
 
     const sanitizedMessage = String(message).slice(0, 10000);
     const sanitizedAppName = appName ? String(appName).slice(0, 100) : undefined;
-    const sanitizedLevel = ['info', 'warning', 'error'].includes(level) ? level : 'info';
+    const sanitizedLevel: LogLevel = VALID_APP_LEVELS.includes(level) ? level : 'info';
 
     try {
       const now = Date.now();
-      let formattedTimestamp;
-      try {
-        formattedTimestamp = new Date(now).toLocaleTimeString('en-GB', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        });
-      } catch (e) {
-        formattedTimestamp = new Date(now).toISOString().substring(11, 19);
-      }
+      const formattedTimestamp = formatTimestamp(now);
 
-      const newLog = {
+      const newLog: LogEntry = {
         timestamp: formattedTimestamp,
         timestampNumeric: now,
         message: sanitizedMessage,
@@ -160,13 +157,11 @@ export const createLogsSlice = (set, get) => ({
     }
   },
 
-  // Clear app logs
-  clearAppLogs: appName =>
+  clearAppLogs: (appName?: string) =>
     set(state => ({
       appLogs: appName ? state.appLogs.filter(log => log.appName !== appName) : [],
     })),
 
-  // Clear all logs (for reset)
   clearAllLogs: () =>
     set({
       logs: [],
@@ -174,10 +169,9 @@ export const createLogsSlice = (set, get) => ({
       appLogs: [],
     }),
 
-  // Log mode & filters
   setLogMode: mode => set({ logMode: mode }),
   setLogSearch: search => set({ logSearch: search }),
-  toggleLogCategory: category =>
+  toggleLogCategory: (category: LogCategory) =>
     set(state => {
       const current = state.logCategoryFilters;
       return {
