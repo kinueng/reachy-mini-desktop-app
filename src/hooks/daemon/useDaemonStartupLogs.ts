@@ -1,6 +1,19 @@
 import { useEffect, useState, useRef } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { shouldFilterLog } from '../../utils/logging/logFilters';
+
+type LogLevel = 'info' | 'warn' | 'error';
+
+export interface StartupLogEntry {
+  message: string;
+  level: LogLevel;
+  timestamp: number;
+}
+
+export interface UseDaemonStartupLogsResult {
+  logs: StartupLogEntry[];
+  lastMessage: string;
+}
 
 /**
  * Hook to listen to sidecar logs during daemon startup.
@@ -11,20 +24,17 @@ import { shouldFilterLog } from '../../utils/logging/logFilters';
  * - Process termination: Tauri "daemon-status-changed" event (Crashed)
  * - Daemon-level errors: polling /api/daemon/status (state === "error")
  * - Hardware errors: specific patterns in hardwareErrors.js
- *
- * @param {boolean} isStarting - Whether daemon is currently starting
- * @returns {object} { logs, lastMessage }
  */
-export function useDaemonStartupLogs(isStarting) {
-  const [startupLogs, setStartupLogs] = useState([]);
-  const [lastMessage, setLastMessage] = useState('');
+export function useDaemonStartupLogs(isStarting: boolean): UseDaemonStartupLogsResult {
+  const [startupLogs, setStartupLogs] = useState<StartupLogEntry[]>([]);
+  const [lastMessage, setLastMessage] = useState<string>('');
 
   // Use ref to accumulate logs during startup
-  const logsRef = useRef([]);
+  const logsRef = useRef<StartupLogEntry[]>([]);
 
   // Track listeners
-  const unlistenStdoutRef = useRef(null);
-  const unlistenStderrRef = useRef(null);
+  const unlistenStdoutRef = useRef<UnlistenFn | null>(null);
+  const unlistenStderrRef = useRef<UnlistenFn | null>(null);
 
   useEffect(() => {
     if (!isStarting) {
@@ -46,8 +56,8 @@ export function useDaemonStartupLogs(isStarting) {
 
     let isMounted = true;
 
-    const addLog = (cleanLine, level) => {
-      const newLog = {
+    const addLog = (cleanLine: string, level: LogLevel): void => {
+      const newLog: StartupLogEntry = {
         message: cleanLine,
         level,
         timestamp: Date.now(),
@@ -57,15 +67,24 @@ export function useDaemonStartupLogs(isStarting) {
       setLastMessage(cleanLine);
     };
 
-    const setupListeners = async () => {
+    const extractLine = (payload: unknown): string => {
+      if (typeof payload === 'string') return payload;
+      if (
+        payload != null &&
+        typeof (payload as { toString?: () => string }).toString === 'function'
+      ) {
+        return (payload as { toString: () => string }).toString();
+      }
+      return '';
+    };
+
+    const setupListeners = async (): Promise<void> => {
       try {
         // Listen to stdout (info messages)
-        const unlistenStdout = await listen('sidecar-stdout', event => {
+        const unlistenStdout = await listen<unknown>('sidecar-stdout', event => {
           if (!isMounted) return;
 
-          const logLine =
-            typeof event.payload === 'string' ? event.payload : event.payload?.toString() || '';
-
+          const logLine = extractLine(event.payload);
           const cleanLine = logLine.replace(/^Sidecar stdout:\s*/, '').trim();
 
           if (!cleanLine || shouldFilterLog(cleanLine)) {
@@ -83,12 +102,10 @@ export function useDaemonStartupLogs(isStarting) {
         }
 
         // Listen to stderr (daemon logs go to stderr via Python logging)
-        const unlistenStderr = await listen('sidecar-stderr', event => {
+        const unlistenStderr = await listen<unknown>('sidecar-stderr', event => {
           if (!isMounted) return;
 
-          const logLine =
-            typeof event.payload === 'string' ? event.payload : event.payload?.toString() || '';
-
+          const logLine = extractLine(event.payload);
           const cleanLine = logLine.replace(/^Sidecar stderr:\s*/, '').trim();
 
           if (!cleanLine || shouldFilterLog(cleanLine)) {
@@ -103,7 +120,10 @@ export function useDaemonStartupLogs(isStarting) {
         } else {
           unlistenStderr();
         }
-      } catch {}
+      } catch {
+        // Listener setup can fail outside of a Tauri environment
+        // (e.g. browser-only tests). Nothing actionable from here.
+      }
     };
 
     setupListeners();

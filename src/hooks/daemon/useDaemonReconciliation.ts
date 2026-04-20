@@ -3,6 +3,16 @@ import { invoke } from '@tauri-apps/api/core';
 import useAppStore from '../../store/useAppStore';
 import { ROBOT_STATUS, buildDerivedState } from '../../constants/robotStatus';
 import { enableSimulationMode } from '../../utils/simulationMode';
+import type { ConnectionMode } from '../../types/robot';
+
+/**
+ * Shape of the Rust-side `get_daemon_status` command response.
+ * Status values mirror the Rust enum (`Running | Stopped | Error | ...`).
+ */
+interface DaemonStatusResult {
+  status: string;
+  connectionMode?: ConnectionMode | null;
+}
 
 /**
  * Reconciles JS store state with the Rust daemon on mount.
@@ -25,14 +35,14 @@ import { enableSimulationMode } from '../../utils/simulationMode';
  *   directly to HardwareScanView (which will sync WebSocket data
  *   and then transition to the active view).
  */
-export function useDaemonReconciliation() {
-  const hasRun = useRef(false);
+export function useDaemonReconciliation(): void {
+  const hasRun = useRef<boolean>(false);
 
   useEffect(() => {
     if (hasRun.current) return;
     hasRun.current = true;
 
-    const reconcile = async () => {
+    const reconcile = async (): Promise<void> => {
       const { robotStatus, connectionMode } = useAppStore.getState();
 
       // Only reconcile when the JS store thinks we're disconnected
@@ -41,7 +51,7 @@ export function useDaemonReconciliation() {
       }
 
       try {
-        const result = await invoke('get_daemon_status');
+        const result = (await invoke('get_daemon_status')) as DaemonStatusResult;
         const { status, connectionMode: rustMode } = result;
 
         if (status !== 'Running' || !rustMode) {
@@ -68,7 +78,7 @@ export function useDaemonReconciliation() {
           consecutiveTimeouts: 0,
         });
       } catch {
-        // Not in Tauri environment or command failed — nothing to do
+        // Not in Tauri environment or command failed - nothing to do.
       }
     };
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import useAppStore from '../../store/useAppStore';
 import {
   DAEMON_CONFIG,
@@ -8,6 +8,25 @@ import {
 } from '../../config/daemon';
 import { useDaemonEventBus } from './useDaemonEventBus';
 import { useWindowVisible } from '../system/useWindowVisible';
+
+/**
+ * Failure reason categories reported alongside incrementTimeouts() and
+ * emitted through the daemon event bus.
+ */
+type HealthFailureType = 'timeout' | 'network' | 'http_error' | 'backend_error' | 'unknown';
+
+/**
+ * Minimal shape we care about from GET /api/daemon/status.
+ * The daemon returns more fields (version, etc.) but only `backend_status.error`
+ * drives our decision here.
+ */
+interface DaemonStatusPayload {
+  backend_status?: {
+    error?: string | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
 
 /**
  * 🎯 Centralized hook for daemon health checking
@@ -42,7 +61,7 @@ import { useWindowVisible } from '../system/useWindowVisible';
  * - All platforms: Pause polling when window hidden (JS fallback)
  * - All platforms: Pause during wake/sleep transitions
  */
-export function useDaemonHealthCheck(isActive) {
+export function useDaemonHealthCheck(isActive: boolean): void {
   const { isDaemonCrashed, isWakeSleepTransitioning, incrementTimeouts, resetTimeouts } =
     useAppStore();
 
@@ -74,8 +93,8 @@ export function useDaemonHealthCheck(isActive) {
       return;
     }
 
-    // ⚠️ Sanity check: if isActive but no connectionMode, force crash state
-    // This can happen if state gets corrupted during rapid mode switching
+    // ⚠️ Sanity check: if isActive but no connectionMode, force crash state.
+    // This can happen if state gets corrupted during rapid mode switching.
     const { connectionMode } = useAppStore.getState();
     if (isActive && !connectionMode) {
       useAppStore.getState().transitionTo.crashed();
@@ -84,23 +103,27 @@ export function useDaemonHealthCheck(isActive) {
 
     // 🌐 WiFi-aware timeouts: higher latency on wireless connections
     const wifi = isWiFiMode();
-    const healthTimeout = wifi
+    const healthTimeout: number = wifi
       ? DAEMON_CONFIG.TIMEOUTS.HEALTHCHECK_WIFI
       : DAEMON_CONFIG.TIMEOUTS.HEALTHCHECK;
-    const pollingInterval = wifi
+    const pollingInterval: number = wifi
       ? DAEMON_CONFIG.INTERVALS.HEALTHCHECK_POLLING_WIFI
       : DAEMON_CONFIG.INTERVALS.HEALTHCHECK_POLLING;
 
-    // 🎯 Dedicated AbortController for cleanup (unmount / dependency change)
-    // This lets us distinguish cleanup aborts from timeout aborts in fetchWithTimeout
+    // 🎯 Dedicated AbortController for cleanup (unmount / dependency change).
+    // This lets us distinguish cleanup aborts from timeout aborts in fetchWithTimeout.
     const cleanupController = new AbortController();
 
-    const performHealthCheck = async () => {
+    const emitFailure = (error: string, type: HealthFailureType): void => {
+      eventBus.emit('daemon:health:failure', { error, type });
+    };
+
+    const performHealthCheck = async (): Promise<void> => {
       // Don't run if cleanup has been triggered
       if (cleanupController.signal.aborted) return;
 
       try {
-        const response = await fetchWithTimeoutSkipInstall(
+        const response: Response = await fetchWithTimeoutSkipInstall(
           buildApiUrl('/api/daemon/status'),
           { signal: cleanupController.signal },
           healthTimeout,
@@ -109,37 +132,32 @@ export function useDaemonHealthCheck(isActive) {
 
         if (response.ok) {
           // ✅ Parse response to check backend_status
-          const data = await response.json();
+          const data = (await response.json()) as DaemonStatusPayload;
 
           // Check if backend has an error (USB disconnected, serial port error, etc.)
           if (data.backend_status?.error) {
             incrementTimeouts('backend_error');
-            eventBus.emit('daemon:health:failure', {
-              error: data.backend_status.error,
-              type: 'backend_error',
-            });
+            emitFailure(data.backend_status.error, 'backend_error');
           } else {
             // ✅ Success → reset timeout counter for crash detection
             resetTimeouts();
-
-            // ✅ Emit health success event to bus
             eventBus.emit('daemon:health:success', { timestamp: Date.now() });
           }
         } else {
           // Response but not OK → not a timeout, but still increment
           incrementTimeouts('http_error');
-          eventBus.emit('daemon:health:failure', {
-            error: `HTTP ${response.status}`,
-            type: 'http_error',
-          });
+          emitFailure(`HTTP ${response.status}`, 'http_error');
         }
-      } catch (error) {
+      } catch (error: unknown) {
+        const name = (error as { name?: string } | null)?.name;
+        const message = (error as { message?: string } | null)?.message ?? '';
+
         // Skip during installation (expected)
-        if (error.name === 'SkippedError') {
+        if (name === 'SkippedError') {
           return;
         }
 
-        // ✅ Only ignore AbortError caused by cleanup (unmount / dependency change)
+        // ✅ Only ignore AbortError caused by cleanup (unmount / dependency change).
         // Timeout-caused AbortErrors must still increment the counter!
         if (cleanupController.signal.aborted) {
           return;
@@ -147,30 +165,24 @@ export function useDaemonHealthCheck(isActive) {
 
         // ❌ Timeout or network error → increment counter for crash detection
         // AbortError from fetchWithTimeout = fetch timed out (daemon too slow)
-        // TimeoutError, "Load failed", "Could not connect" = network failure
+        // TimeoutError / "Load failed" / "Could not connect" = network failure
         const isTimeoutOrNetworkError =
-          error.name === 'AbortError' ||
-          error.name === 'TimeoutError' ||
-          error.message?.includes('timed out') ||
-          error.message?.includes('Load failed') ||
-          error.message?.includes('Could not connect') ||
-          error.message?.includes('NetworkError') ||
-          error.message?.includes('Failed to fetch');
+          name === 'AbortError' ||
+          name === 'TimeoutError' ||
+          message.includes('timed out') ||
+          message.includes('Load failed') ||
+          message.includes('Could not connect') ||
+          message.includes('NetworkError') ||
+          message.includes('Failed to fetch');
 
         if (isTimeoutOrNetworkError) {
-          const failureType = error.name === 'AbortError' ? 'timeout' : 'network';
+          const failureType: HealthFailureType = name === 'AbortError' ? 'timeout' : 'network';
           incrementTimeouts(failureType);
-          eventBus.emit('daemon:health:failure', {
-            error: error.message || error.name || 'Network error',
-            type: failureType,
-          });
+          emitFailure(message || name || 'Network error', failureType);
         } else {
           // Other error (not network related) - still increment for safety
           incrementTimeouts('unknown');
-          eventBus.emit('daemon:health:failure', {
-            error: error.message,
-            type: 'error',
-          });
+          emitFailure(message, 'unknown');
         }
       }
     };
@@ -186,5 +198,7 @@ export function useDaemonHealthCheck(isActive) {
       cleanupController.abort();
       clearInterval(interval);
     };
-  }, [isActive, isDaemonCrashed, isWakeSleepTransitioning, isWindowVisible]); // Removed setters from deps - Zustand setters are stable
+    // Zustand setters are stable - intentionally omitted from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, isDaemonCrashed, isWakeSleepTransitioning, isWindowVisible]);
 }

@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { isSimulationMode } from '../../utils/simulationMode';
 import {
   STARTUP_STAGES,
@@ -19,14 +19,55 @@ import {
 } from '../../config/startupStages';
 
 /**
- * Hook to manage startup stages with automatic detection
- * @param {object} options - Hook options
- * @param {boolean} options.isStarting - Whether startup is in progress
- * @param {boolean} options.scanComplete - Whether hardware scan is complete
- * @param {number} options.scanProgress - Current scan progress (0-100)
- * @param {string} options.currentScanPart - Current part being scanned
- * @param {boolean} options.hasError - Whether there's an error
- * @returns {object} Stage state and helpers
+ * Shape of a startup stage as defined in `config/startupStages.js`.
+ * The source module is still JS; we define the contract here to type the
+ * hook surface precisely until the config is migrated.
+ */
+export interface StartupStage {
+  id: string;
+  label: string;
+  description: string;
+  progressMin: number;
+  progressMax: number;
+  isSimOnly: boolean;
+  logPatterns?: string[];
+}
+
+export interface UseStartupStagesOptions {
+  isStarting?: boolean;
+  scanComplete?: boolean;
+  scanProgress?: number;
+  currentScanPart?: string | null;
+  hasError?: boolean;
+}
+
+export interface StageDisplayText {
+  title: string;
+  subtitle: string;
+  boldText: string;
+}
+
+export interface UseStartupStagesResult {
+  currentStage: StartupStage;
+  stageAttempts: number;
+  progress: number;
+  displayText: StageDisplayText;
+  isSimMode: boolean;
+  detectedFromLog: boolean;
+  stages: StartupStage[];
+  advanceToStage: (stageId: string) => void;
+  incrementAttempts: () => void;
+  isScanning: boolean;
+  isStartingSimulation: boolean;
+  isConnecting: boolean;
+  isInitializing: boolean;
+  isDetectingMovements: boolean;
+  isComplete: boolean;
+  isError: boolean;
+}
+
+/**
+ * Hook to manage startup stages with automatic detection.
  */
 export function useStartupStages({
   isStarting = false,
@@ -34,23 +75,25 @@ export function useStartupStages({
   scanProgress = 0,
   currentScanPart = null,
   hasError = false,
-} = {}) {
-  const isSimMode = isSimulationMode();
-  const stages = getStagesForMode(isSimMode);
+}: UseStartupStagesOptions = {}): UseStartupStagesResult {
+  const isSimMode: boolean = isSimulationMode();
+  const stages: StartupStage[] = getStagesForMode(isSimMode);
 
   // Current stage state
-  const [currentStage, setCurrentStage] = useState(STARTUP_STAGES.SCANNING);
-  const [stageAttempts, setStageAttempts] = useState(0);
-  const [detectedFromLog, setDetectedFromLog] = useState(false);
+  const [currentStage, setCurrentStage] = useState<StartupStage>(
+    STARTUP_STAGES.SCANNING as StartupStage
+  );
+  const [stageAttempts, setStageAttempts] = useState<number>(0);
+  const [detectedFromLog, setDetectedFromLog] = useState<boolean>(false);
 
   // Track stage progression
-  const stageIndexRef = useRef(0);
-  const lastDetectedStageRef = useRef(null);
+  const stageIndexRef = useRef<number>(0);
+  const lastDetectedStageRef = useRef<StartupStage | null>(null);
 
   // Reset when starting changes
   useEffect(() => {
     if (isStarting) {
-      setCurrentStage(STARTUP_STAGES.SCANNING);
+      setCurrentStage(STARTUP_STAGES.SCANNING as StartupStage);
       setStageAttempts(0);
       setDetectedFromLog(false);
       stageIndexRef.current = 0;
@@ -61,7 +104,7 @@ export function useStartupStages({
   // Handle error state
   useEffect(() => {
     if (hasError) {
-      setCurrentStage(STARTUP_STAGES.ERROR);
+      setCurrentStage(STARTUP_STAGES.ERROR as StartupStage);
     }
   }, [hasError]);
 
@@ -71,21 +114,23 @@ export function useStartupStages({
 
     // If scan is complete and we're still in scanning stage, move to next
     if (scanComplete && currentStage.id === 'scanning') {
-      const nextStage = isSimMode ? STARTUP_STAGES.STARTING_SIMULATION : STARTUP_STAGES.CONNECTING;
+      const nextStage = (
+        isSimMode ? STARTUP_STAGES.STARTING_SIMULATION : STARTUP_STAGES.CONNECTING
+      ) as StartupStage;
       setCurrentStage(nextStage);
       setStageAttempts(0);
     }
   }, [scanComplete, currentStage.id, isStarting, hasError, isSimMode]);
 
   // Listen to sidecar logs for automatic stage detection
-  const unlistenStdoutRef = useRef(null);
+  const unlistenStdoutRef = useRef<UnlistenFn | null>(null);
 
   useEffect(() => {
     if (!isStarting) return;
 
     let isMounted = true;
 
-    const setupListener = async () => {
+    const setupListener = async (): Promise<void> => {
       // Cleanup previous listener first
       if (unlistenStdoutRef.current) {
         unlistenStdoutRef.current();
@@ -93,14 +138,15 @@ export function useStartupStages({
       }
 
       try {
-        const unlisten = await listen('sidecar-stdout', event => {
+        const unlisten = await listen<unknown>('sidecar-stdout', event => {
           if (!isMounted) return;
 
+          const payload = event.payload;
           const logMessage =
-            typeof event.payload === 'string' ? event.payload : event.payload?.toString() || '';
+            typeof payload === 'string' ? payload : payload != null ? String(payload) : '';
 
           // Try to detect stage from log
-          const detected = detectStageFromLog(logMessage, isSimMode);
+          const detected = detectStageFromLog(logMessage, isSimMode) as StartupStage | null;
 
           if (detected && detected.id !== lastDetectedStageRef.current?.id) {
             // Only advance forward, never go back
@@ -122,7 +168,9 @@ export function useStartupStages({
         } else {
           unlisten();
         }
-      } catch {}
+      } catch {
+        // Listener setup can fail outside of Tauri; nothing to do.
+      }
     };
 
     setupListener();
@@ -137,8 +185,8 @@ export function useStartupStages({
   }, [isStarting, currentStage, stages, isSimMode]);
 
   // Advance to a specific stage manually
-  const advanceToStage = useCallback(stageId => {
-    const stage = Object.values(STARTUP_STAGES).find(s => s.id === stageId);
+  const advanceToStage = useCallback((stageId: string): void => {
+    const stage = (Object.values(STARTUP_STAGES) as StartupStage[]).find(s => s.id === stageId);
     if (stage) {
       setCurrentStage(stage);
       setStageAttempts(0);
@@ -146,12 +194,12 @@ export function useStartupStages({
   }, []);
 
   // Increment attempts for current stage (for progress calculation)
-  const incrementAttempts = useCallback(() => {
+  const incrementAttempts = useCallback((): void => {
     setStageAttempts(prev => prev + 1);
   }, []);
 
   // Calculate overall progress
-  const progress = (() => {
+  const progress: number = (() => {
     if (hasError) return 0;
 
     // During scanning phase, use scan progress for first 50%
@@ -163,10 +211,11 @@ export function useStartupStages({
     return calculateStageProgress(currentStage, stageAttempts);
   })();
 
-  // Get display text for current stage
+  // Get display text for current stage.
+  // `config/startupStages.js` is still loose JS, so we assert the return shape here.
   const displayText = getStageDisplayText(currentStage, {
-    currentPart: currentScanPart,
-  });
+    currentPart: currentScanPart ?? '',
+  }) as StageDisplayText;
 
   return {
     // Current state
