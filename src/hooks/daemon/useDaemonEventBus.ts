@@ -15,22 +15,32 @@
  * - daemon:health:failure - Daemon not responding (timeout)
  * - daemon:stop - Daemon stop initiated
  */
-class DaemonEventBus {
-  constructor() {
-    this.listeners = new Map();
-    this.eventLog = [];
-    this.maxLogSize = 100;
-  }
+
+export interface DaemonLogEntry {
+  event: string;
+  data: unknown;
+  timestamp: number;
+}
+
+export type DaemonEventHandler = (data: unknown, logEntry: DaemonLogEntry) => void;
+
+export interface DaemonEventBusInstance {
+  emit: (event: string, data?: unknown) => void;
+  on: (event: string, handler: DaemonEventHandler) => () => void;
+}
+
+class DaemonEventBus implements DaemonEventBusInstance {
+  private listeners: Map<string, DaemonEventHandler[]> = new Map();
+  private eventLog: DaemonLogEntry[] = [];
+  private readonly maxLogSize: number = 100;
 
   /**
    * Emit an event to all registered listeners
-   * @param {string} event - Event name
-   * @param {*} data - Event data
    */
-  emit(event, data = null) {
+  emit(event: string, data: unknown = null): void {
     const timestamp = Date.now();
 
-    const logEntry = { event, data, timestamp };
+    const logEntry: DaemonLogEntry = { event, data, timestamp };
     this.eventLog.push(logEntry);
 
     if (this.eventLog.length > this.maxLogSize) {
@@ -41,21 +51,22 @@ class DaemonEventBus {
     handlers.forEach(handler => {
       try {
         handler(data, logEntry);
-      } catch {}
+      } catch {
+        // Silently swallow handler errors to avoid one broken listener
+        // tearing down the entire daemon lifecycle.
+      }
     });
   }
 
   /**
    * Register an event listener
-   * @param {string} event - Event name
-   * @param {Function} handler - Event handler function
-   * @returns {Function} Unsubscribe function
+   * Returns an unsubscribe function.
    */
-  on(event, handler) {
+  on(event: string, handler: DaemonEventHandler): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
-    this.listeners.get(event).push(handler);
+    this.listeners.get(event)!.push(handler);
 
     return () => {
       const handlers = this.listeners.get(event);
@@ -73,10 +84,10 @@ class DaemonEventBus {
 }
 
 // Module-level singleton — every call to useDaemonEventBus() returns the same instance.
-const daemonEventBus = new DaemonEventBus();
+const daemonEventBus: DaemonEventBusInstance = new DaemonEventBus();
 
 /**
  * Hook to access the daemon event bus (true singleton).
  * The returned object is referentially stable across renders and components.
  */
-export const useDaemonEventBus = () => daemonEventBus;
+export const useDaemonEventBus = (): DaemonEventBusInstance => daemonEventBus;

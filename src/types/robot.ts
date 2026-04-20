@@ -33,7 +33,7 @@ export type BusyReason = 'moving' | 'command' | 'app-running' | 'installing';
 // CONNECTION
 // ============================================================================
 
-export type ConnectionMode = 'usb' | 'wifi' | 'simulation';
+export type ConnectionMode = 'usb' | 'wifi' | 'simulation' | 'external';
 
 export interface StartConnectionOptions {
   portName?: string | null;

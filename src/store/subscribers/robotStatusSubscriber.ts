@@ -38,10 +38,13 @@ export function subscribeRobotStatus(store: StoreApi<AppState>): () => void {
     previousStatus = current;
 
     // Telemetry: first successful connection (starting -> sleeping|ready)
+    // Note: 'external' mode is excluded - it represents an externally-managed
+    // daemon and shouldn't count as a normal robot session for metrics.
     if (
       from === ROBOT_STATUS.STARTING &&
       (current === ROBOT_STATUS.SLEEPING || current === ROBOT_STATUS.READY) &&
-      state.connectionMode
+      state.connectionMode &&
+      state.connectionMode !== 'external'
     ) {
       telemetry.robotConnected({ mode: state.connectionMode });
     }
