@@ -16,22 +16,10 @@ import {
   detectStageFromLog,
   calculateStageProgress,
   getStageDisplayText,
+  type StartupStage,
 } from '../../config/startupStages';
 
-/**
- * Shape of a startup stage as defined in `config/startupStages.js`.
- * The source module is still JS; we define the contract here to type the
- * hook surface precisely until the config is migrated.
- */
-export interface StartupStage {
-  id: string;
-  label: string;
-  description: string;
-  progressMin: number;
-  progressMax: number;
-  isSimOnly: boolean;
-  logPatterns?: string[];
-}
+export type { StartupStage };
 
 export interface UseStartupStagesOptions {
   isStarting?: boolean;
@@ -80,9 +68,7 @@ export function useStartupStages({
   const stages: StartupStage[] = getStagesForMode(isSimMode);
 
   // Current stage state
-  const [currentStage, setCurrentStage] = useState<StartupStage>(
-    STARTUP_STAGES.SCANNING as StartupStage
-  );
+  const [currentStage, setCurrentStage] = useState<StartupStage>(STARTUP_STAGES.SCANNING);
   const [stageAttempts, setStageAttempts] = useState<number>(0);
   const [detectedFromLog, setDetectedFromLog] = useState<boolean>(false);
 
@@ -93,7 +79,7 @@ export function useStartupStages({
   // Reset when starting changes
   useEffect(() => {
     if (isStarting) {
-      setCurrentStage(STARTUP_STAGES.SCANNING as StartupStage);
+      setCurrentStage(STARTUP_STAGES.SCANNING);
       setStageAttempts(0);
       setDetectedFromLog(false);
       stageIndexRef.current = 0;
@@ -104,7 +90,7 @@ export function useStartupStages({
   // Handle error state
   useEffect(() => {
     if (hasError) {
-      setCurrentStage(STARTUP_STAGES.ERROR as StartupStage);
+      setCurrentStage(STARTUP_STAGES.ERROR);
     }
   }, [hasError]);
 
@@ -114,9 +100,9 @@ export function useStartupStages({
 
     // If scan is complete and we're still in scanning stage, move to next
     if (scanComplete && currentStage.id === 'scanning') {
-      const nextStage = (
-        isSimMode ? STARTUP_STAGES.STARTING_SIMULATION : STARTUP_STAGES.CONNECTING
-      ) as StartupStage;
+      const nextStage: StartupStage = isSimMode
+        ? STARTUP_STAGES.STARTING_SIMULATION
+        : STARTUP_STAGES.CONNECTING;
       setCurrentStage(nextStage);
       setStageAttempts(0);
     }
@@ -145,8 +131,7 @@ export function useStartupStages({
           const logMessage =
             typeof payload === 'string' ? payload : payload != null ? String(payload) : '';
 
-          // Try to detect stage from log
-          const detected = detectStageFromLog(logMessage, isSimMode) as StartupStage | null;
+          const detected = detectStageFromLog(logMessage, isSimMode);
 
           if (detected && detected.id !== lastDetectedStageRef.current?.id) {
             // Only advance forward, never go back
@@ -184,9 +169,10 @@ export function useStartupStages({
     };
   }, [isStarting, currentStage, stages, isSimMode]);
 
-  // Advance to a specific stage manually
   const advanceToStage = useCallback((stageId: string): void => {
-    const stage = (Object.values(STARTUP_STAGES) as StartupStage[]).find(s => s.id === stageId);
+    const stage = (Object.values(STARTUP_STAGES) as ReadonlyArray<StartupStage>).find(
+      s => s.id === stageId
+    );
     if (stage) {
       setCurrentStage(stage);
       setStageAttempts(0);
@@ -211,11 +197,9 @@ export function useStartupStages({
     return calculateStageProgress(currentStage, stageAttempts);
   })();
 
-  // Get display text for current stage.
-  // `config/startupStages.js` is still loose JS, so we assert the return shape here.
   const displayText = getStageDisplayText(currentStage, {
     currentPart: currentScanPart ?? '',
-  }) as StageDisplayText;
+  });
 
   return {
     // Current state

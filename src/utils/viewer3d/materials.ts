@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 
 /**
- * Utilities for creating and managing robot materials
- * Focused on X-ray rendering for the 3D viewer
+ * Utilities for creating and managing robot materials. Focused on X-ray
+ * rendering for the 3D viewer.
  */
 
 /**
- * Simple and efficient X-ray shader using Fresnel rim lighting
- * Based on proven techniques: rim lighting for edges, transparency for X-ray effect
+ * Simple and efficient X-ray shader using Fresnel rim lighting. Based on
+ * proven techniques: rim lighting for edges, transparency for X-ray effect.
  */
 export const xrayShader = {
   uniforms: {
@@ -42,11 +42,9 @@ export const xrayShader = {
       vec3 normal = normalize(vNormal);
       vec3 viewDir = normalize(vViewPosition);
       
-      // Fresnel effect: edges are brighter (rim lighting)
       float fresnel = 1.0 - max(dot(viewDir, normal), 0.0);
       fresnel = pow(fresnel, 2.0);
       
-      // Mix base color with rim color based on fresnel
       vec3 finalColor = mix(baseColor, rimColor, fresnel * rimIntensity);
       
       gl_FragColor = vec4(finalColor, opacity);
@@ -54,17 +52,25 @@ export const xrayShader = {
   `,
 };
 
+export interface XrayMaterialOptions {
+  opacity?: number;
+  rimColor?: number;
+  rimIntensity?: number;
+  /** When `true`, uses green color tones for scan effect. */
+  scanMode?: boolean;
+}
+
 /**
- * Creates a simple X-ray material
- * @param {number} baseColorHex - Base color in hex (default: gray-blue)
- * @param {object} options - Options: { opacity, rimColor, rimIntensity, scanMode }
- * @param {boolean} options.scanMode - If true, uses green color for scan effect
- * @returns {THREE.ShaderMaterial}
+ * Creates a simple X-ray material.
+ *
+ * @param baseColorHex - Base color in hex (default: gray-blue)
  */
-export function createXrayMaterial(baseColorHex = 0x5a6570, options = {}) {
+export function createXrayMaterial(
+  baseColorHex: number = 0x5a6570,
+  options: XrayMaterialOptions = {}
+): THREE.ShaderMaterial {
   const isScanMode = options.scanMode === true;
 
-  // Scan mode: green colors
   const baseColor = isScanMode ? 0x2d5a3d : baseColorHex;
   const rimColor = isScanMode ? 0x4ade80 : options.rimColor || 0x8a9aac;
 
@@ -76,7 +82,7 @@ export function createXrayMaterial(baseColorHex = 0x5a6570, options = {}) {
   };
 
   const material = new THREE.ShaderMaterial({
-    uniforms: uniforms,
+    uniforms,
     vertexShader: xrayShader.vertexShader,
     fragmentShader: xrayShader.fragmentShader,
     transparent: true,

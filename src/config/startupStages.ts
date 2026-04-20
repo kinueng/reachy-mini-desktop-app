@@ -1,20 +1,23 @@
 /**
- * 🚀 Startup Stages Configuration
+ * Startup Stages Configuration.
  *
- * Centralized definition of all startup stages with:
- * - Labels and descriptions
- * - Progress percentages
- * - Log patterns to detect each stage automatically
+ * Centralized definition of all startup stages with labels, progress
+ * percentages and log patterns used to detect each stage automatically.
  */
 
-/**
- * Startup stage definitions
- * Order matters: stages are checked in order and first match wins
- */
+export interface StartupStage {
+  id: string;
+  label: string;
+  description: string;
+  progressMin: number;
+  progressMax: number;
+  isSimOnly: boolean;
+  logPatterns?: ReadonlyArray<string>;
+}
+
+/** Order matters: stages are checked in order and first match wins. */
 export const STARTUP_STAGES = {
-  // ============================================
   // HARDWARE SCAN (0-50%)
-  // ============================================
   SCANNING: {
     id: 'scanning',
     label: 'Scanning Hardware',
@@ -24,9 +27,7 @@ export const STARTUP_STAGES = {
     isSimOnly: false,
   },
 
-  // ============================================
   // SIMULATION MODE STAGES (50-70%)
-  // ============================================
   STARTING_SIMULATION: {
     id: 'starting_simulation',
     label: 'Starting Simulation',
@@ -37,14 +38,12 @@ export const STARTUP_STAGES = {
     logPatterns: ['simulation mode', 'mockup-sim', '--mockup-sim'],
   },
 
-  // ============================================
   // DAEMON STARTUP (50/70 - 100%)
-  // ============================================
   CONNECTING: {
     id: 'connecting',
     label: 'Connecting to Daemon',
     description: 'Establishing connection',
-    progressMin: 50, // 70 in sim mode
+    progressMin: 50,
     progressMax: 66,
     isSimOnly: false,
     logPatterns: ['Starting daemon', 'daemon.app.main', 'Uvicorn running', 'Application startup'],
@@ -70,9 +69,6 @@ export const STARTUP_STAGES = {
     logPatterns: ['head_joints', 'antennas', 'body_yaw'],
   },
 
-  // ============================================
-  // COMPLETION
-  // ============================================
   COMPLETE: {
     id: 'complete',
     label: 'Hardware Scan Complete',
@@ -82,9 +78,6 @@ export const STARTUP_STAGES = {
     isSimOnly: false,
   },
 
-  // ============================================
-  // ERROR STATE
-  // ============================================
   ERROR: {
     id: 'error',
     label: 'Hardware Error',
@@ -93,15 +86,13 @@ export const STARTUP_STAGES = {
     progressMax: 0,
     isSimOnly: false,
   },
-};
+} as const satisfies Record<string, StartupStage>;
 
-/**
- * Get the ordered list of stages for a given mode
- * @param {boolean} isSimMode - Whether simulation mode is active
- * @returns {Array} Ordered array of stage objects
- */
-export function getStagesForMode(isSimMode) {
-  const stages = [STARTUP_STAGES.SCANNING];
+export type StartupStageKey = keyof typeof STARTUP_STAGES;
+
+/** Get the ordered list of stages for a given mode. */
+export function getStagesForMode(isSimMode: boolean): StartupStage[] {
+  const stages: StartupStage[] = [STARTUP_STAGES.SCANNING];
 
   if (isSimMode) {
     stages.push(STARTUP_STAGES.STARTING_SIMULATION);
@@ -117,13 +108,11 @@ export function getStagesForMode(isSimMode) {
   return stages;
 }
 
-/**
- * Detect the current stage based on a log message
- * @param {string} logMessage - The log message to analyze
- * @param {boolean} isSimMode - Whether simulation mode is active
- * @returns {object|null} The detected stage or null
- */
-export function detectStageFromLog(logMessage, isSimMode) {
+/** Detect the current stage based on a log message. */
+export function detectStageFromLog(
+  logMessage: string | null | undefined,
+  isSimMode: boolean
+): StartupStage | null {
   if (!logMessage || typeof logMessage !== 'string') {
     return null;
   }
@@ -131,7 +120,6 @@ export function detectStageFromLog(logMessage, isSimMode) {
   const lowerMessage = logMessage.toLowerCase();
   const stages = getStagesForMode(isSimMode);
 
-  // Check each stage's patterns
   for (const stage of stages) {
     if (!stage.logPatterns) continue;
 
@@ -145,14 +133,12 @@ export function detectStageFromLog(logMessage, isSimMode) {
   return null;
 }
 
-/**
- * Calculate progress percentage for a stage
- * @param {object} stage - The current stage
- * @param {number} attemptCount - Current attempt count within the stage
- * @param {number} maxAttempts - Maximum attempts for this stage
- * @returns {number} Progress percentage (0-100)
- */
-export function calculateStageProgress(stage, attemptCount = 0, maxAttempts = 60) {
+/** Calculate progress percentage for a stage. */
+export function calculateStageProgress(
+  stage: StartupStage | null | undefined,
+  attemptCount = 0,
+  maxAttempts = 60
+): number {
   if (!stage) return 0;
 
   const range = stage.progressMax - stage.progressMin;
@@ -161,14 +147,22 @@ export function calculateStageProgress(stage, attemptCount = 0, maxAttempts = 60
   return stage.progressMin + range * progress;
 }
 
-/**
- * Get display text for a stage
- * @param {object} stage - The stage object
- * @param {object} options - Display options
- * @param {string} options.currentPart - Current scanning part name
- * @returns {object} { title, subtitle, boldText }
- */
-export function getStageDisplayText(stage, options = {}) {
+export interface StageDisplayOptions {
+  currentPart?: string | null;
+  errorMessage?: string | null;
+}
+
+export interface StageDisplayText {
+  title: string;
+  subtitle: string;
+  boldText: string;
+}
+
+/** Get display text for a stage. */
+export function getStageDisplayText(
+  stage: StartupStage | null | undefined,
+  options: StageDisplayOptions = {}
+): StageDisplayText {
   if (!stage) {
     return {
       title: 'Initializing',

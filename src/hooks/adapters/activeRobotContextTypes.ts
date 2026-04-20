@@ -129,8 +129,8 @@ export interface AdapterApiConfig {
   buildApiUrl: (endpoint: string) => string;
   fetchWithTimeout: (
     url: string,
-    options?: RequestInit,
-    timeoutMs?: number,
+    options: RequestInit | undefined,
+    timeoutMs: number,
     logOptions?: Record<string, unknown>
   ) => Promise<Response>;
   config: Record<string, unknown>;
