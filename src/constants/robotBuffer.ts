@@ -1,18 +1,17 @@
 /**
- * 🤖 Robot SharedArrayBuffer Layout Constants
+ * Robot SharedArrayBuffer Layout Constants.
  *
  * Single source of truth for buffer memory layout.
  * Used by both Worker and main thread.
  *
  * ## Memory Layout (Float64Array, 48 elements = 384 bytes)
- * [0]: dataVersion (increments on each update)
- * [1-7]: headJoints [yaw_body, stewart_1..6]
- * [8-28]: passiveJoints [passive_1_x..passive_7_z] (21 values)
- * [29-30]: antennas [left, right]
- * [31-46]: headPose (4x4 matrix, 16 floats)
- * [47]: yawBody (duplicate of headJoints[0] for convenience)
+ * - [0]: dataVersion (increments on each update)
+ * - [1-7]: headJoints [yaw_body, stewart_1..6]
+ * - [8-28]: passiveJoints [passive_1_x..passive_7_z] (21 values)
+ * - [29-30]: antennas [left, right]
+ * - [31-46]: headPose (4x4 matrix, 16 floats)
+ * - [47]: yawBody (duplicate of headJoints[0] for convenience)
  */
-
 export const BUFFER_LAYOUT = {
   SIZE: 48,
   IDX_VERSION: 0,
@@ -21,16 +20,15 @@ export const BUFFER_LAYOUT = {
   IDX_ANTENNAS_START: 29,
   IDX_HEAD_POSE_START: 31,
   IDX_YAW_BODY: 47,
-  // Lengths for iteration
   HEAD_JOINTS_LENGTH: 7,
   PASSIVE_JOINTS_LENGTH: 21,
   ANTENNAS_LENGTH: 2,
   HEAD_POSE_LENGTH: 16,
-};
+} as const;
 
 /**
- * Joint name constants
- * Used by URDFRobot components
+ * Joint name constants.
+ * Used by URDFRobot components.
  */
 export const STEWART_JOINT_NAMES = [
   'stewart_1',
@@ -39,7 +37,9 @@ export const STEWART_JOINT_NAMES = [
   'stewart_4',
   'stewart_5',
   'stewart_6',
-];
+] as const;
+
+export type StewartJointName = (typeof STEWART_JOINT_NAMES)[number];
 
 export const PASSIVE_JOINT_NAMES = [
   'passive_1_x',
@@ -63,7 +63,9 @@ export const PASSIVE_JOINT_NAMES = [
   'passive_7_x',
   'passive_7_y',
   'passive_7_z',
-];
+] as const;
 
-/** Tolerance for float comparison (~0.3 degrees) */
-export const JOINT_TOLERANCE = 0.005;
+export type PassiveJointName = (typeof PASSIVE_JOINT_NAMES)[number];
+
+/** Tolerance for float comparison (~0.3 degrees). */
+export const JOINT_TOLERANCE = 0.005 as const;

@@ -89,9 +89,9 @@ export const windowSyncMiddleware =
     const processStateUpdate = (prevState: T): void => {
       const newState = get();
       const changedUpdates = extractChangedUpdates(
-        prevState as unknown as object,
-        newState as unknown as object,
-        relevantKeys
+        prevState as unknown as Record<string, unknown>,
+        newState as unknown as Record<string, unknown>,
+        relevantKeys as ReadonlyArray<string>
       ) as Updates;
 
       if (Object.keys(changedUpdates).length === 0) return;

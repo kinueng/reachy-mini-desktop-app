@@ -10,7 +10,10 @@
 export const CHOREOGRAPHY_DATASETS = {
   DANCES: 'pollen-robotics/reachy-mini-dances-library',
   EMOTIONS: 'pollen-robotics/reachy-mini-emotions-library',
-};
+} as const;
+
+export type ChoreographyDataset =
+  (typeof CHOREOGRAPHY_DATASETS)[keyof typeof CHOREOGRAPHY_DATASETS];
 
 export const DANCES = [
   'stumble_and_recover',
@@ -33,7 +36,9 @@ export const DANCES = [
   'neck_recoil',
   'groovy_sway_and_roll',
   'sharp_side_tilt',
-];
+] as const;
+
+export type DanceName = (typeof DANCES)[number];
 
 // Complete list of all available emotions in the library
 export const EMOTIONS = [
@@ -118,10 +123,18 @@ export const EMOTIONS = [
   'electric1',
   'relief2',
   'no_sad1',
-];
+] as const;
+
+export type EmotionName = (typeof EMOTIONS)[number];
+
+export interface QuickEmotion {
+  name: EmotionName;
+  emoji: string;
+  label: string;
+}
 
 // Selection of 15 main emotions with characteristic emojis
-export const QUICK_EMOTIONS = [
+export const QUICK_EMOTIONS: QuickEmotion[] = [
   { name: 'loving1', emoji: '🥰', label: 'Love' },
   { name: 'sad1', emoji: '😢', label: 'Sad' },
   { name: 'surprised1', emoji: '😲', label: 'Surprised' },
@@ -141,7 +154,7 @@ export const QUICK_EMOTIONS = [
 
 // Complete emoji mapping for all emotions
 // Carefully curated for maximum expressiveness and distinction
-export const EMOTION_EMOJIS = {
+export const EMOTION_EMOJIS: Partial<Record<EmotionName, string>> = {
   // Fear & Anxiety
   fear1: '😨', // Fearful face
   scared1: '😱', // Screaming in fear
@@ -260,7 +273,7 @@ export const EMOTION_EMOJIS = {
 
 // Complete emoji mapping for all dances
 // Each dance has a unique, evocative emoji
-export const DANCE_EMOJIS = {
+export const DANCE_EMOJIS: Record<DanceName, string> = {
   stumble_and_recover: '🫨', // Shaking, stumbling effect
   chin_lead: '🎭', // Theatrical, leading with chin
   head_tilt_roll: '🔃', // Rotating arrows
@@ -283,9 +296,18 @@ export const DANCE_EMOJIS = {
   sharp_side_tilt: '📐', // Sharp angle
 };
 
+export type QuickActionType = 'emotion' | 'dance' | 'action';
+
+export interface QuickAction {
+  name: string;
+  emoji: string;
+  label: string;
+  type: QuickActionType;
+}
+
 // Curated selection of emotions and dances for Quick Actions
 // Avoids redundancy and provides a representative mix
-export const QUICK_ACTIONS = [
+export const QUICK_ACTIONS: QuickAction[] = [
   // Core emotions - diverse emotional range
   { name: 'loving1', emoji: '🥰', label: 'Love', type: 'emotion' },
   { name: 'cheerful1', emoji: '😊', label: 'Cheerful', type: 'emotion' },
@@ -320,4 +342,4 @@ export const QUICK_ACTIONS = [
 export const BASIC_MOVES = {
   WAKE_UP: '/api/move/play/wake_up',
   GOTO_SLEEP: '/api/move/play/goto_sleep',
-};
+} as const;

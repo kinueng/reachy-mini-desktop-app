@@ -11,7 +11,11 @@ import {
   buildApiUrl,
 } from '../../config/daemon';
 import { isSimulationMode, disableSimulationMode } from '../../utils/simulationMode';
-import { findErrorConfig, createErrorFromConfig } from '../../utils/hardwareErrors';
+import {
+  findErrorConfig,
+  createErrorFromConfig,
+  type HardwareErrorConfig,
+} from '../../utils/hardwareErrors';
 import { useDaemonEventBus } from './useDaemonEventBus';
 import { handleDaemonError } from '../../utils/daemonErrorHandler';
 import { closeAllAppWindows } from '../../utils/windowManager';
@@ -38,20 +42,6 @@ interface DaemonStatusResponse {
   error?: string;
   version?: string;
   [key: string]: unknown;
-}
-
-/**
- * Hardware error configuration (see `utils/hardwareErrors.js`).
- * We mirror the runtime shape here to preserve typing until the source is migrated.
- */
-interface HardwareErrorConfig {
-  type: string;
-  patterns: string[];
-  message: { text: string; bold: string; suffix: string };
-  meshPatterns: string[] | null;
-  linkName: string | null;
-  cameraPreset: string | null;
-  code: string | null;
 }
 
 /** Event bus payloads emitted and consumed by this hook. */
@@ -290,7 +280,7 @@ export const useDaemon = (): UseDaemonResult => {
           const errorLine =
             typeof payload === 'string' ? payload : payload != null ? String(payload) : '';
 
-          const errorConfig = findErrorConfig(errorLine) as HardwareErrorConfig | null;
+          const errorConfig = findErrorConfig(errorLine);
 
           if (errorConfig) {
             eventBus.emit('daemon:hardware:error', { errorConfig, errorLine });
@@ -362,7 +352,7 @@ export const useDaemon = (): UseDaemonResult => {
 
           if (data.state === 'error' && data.error) {
             // Check if the structured error matches a known hardware error first
-            const errorConfig = findErrorConfig(data.error) as HardwareErrorConfig | null;
+            const errorConfig = findErrorConfig(data.error);
             if (errorConfig) {
               eventBus.emit('daemon:hardware:error', {
                 errorConfig,

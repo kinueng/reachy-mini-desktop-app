@@ -1,15 +1,25 @@
 /**
- * Fast comparison functions for Zustand state updates
+ * Fast comparison functions for Zustand state updates.
  *
  * These functions are optimized to replace JSON.stringify for frequent comparisons.
  * They provide much better performance for state synchronization.
  */
 
+import type { RobotStateFull } from '@/types/robot';
+
+interface FrontendLogEntry {
+  timestamp: string;
+  message: string;
+  source: string;
+}
+
 /**
  * Compare two numeric arrays (Float64Array or regular arrays) by value.
- * Returns true if all elements are identical.
  */
-function arraysEqual(a, b) {
+function arraysEqual(
+  a: ArrayLike<number> | null | undefined,
+  b: ArrayLike<number> | null | undefined
+): boolean {
   if (a === b) return true;
   if (!a || !b) return a === b;
   if (a.length !== b.length) return false;
@@ -20,18 +30,14 @@ function arraysEqual(a, b) {
 }
 
 /**
- * Compare robotStateFull objects efficiently.
+ * Compare `robotStateFull` objects efficiently.
  * Ignores metadata fields (lastUpdate, dataVersion, timestamp) that change on every
  * WebSocket message; only compares actual robot data by value.
- *
- * Structure: { data: { control_mode, head_pose, head_joints, body_yaw,
- *              antennas_position, passive_joints, doa, timestamp, dataVersion }, ... }
- *
- * @param {object} prev - Previous state
- * @param {object} next - Next state
- * @returns {boolean} True if semantically equal
  */
-export function compareRobotStateFull(prev, next) {
+export function compareRobotStateFull(
+  prev: RobotStateFull | null | undefined,
+  next: RobotStateFull | null | undefined
+): boolean {
   if (prev === next) return true;
   if (!prev || !next) return prev === next;
 
@@ -63,14 +69,12 @@ export function compareRobotStateFull(prev, next) {
 }
 
 /**
- * Compare arrays of strings (activeMoves: string[])
- * Much faster than JSON.stringify for simple string arrays
- *
- * @param {Array<string>} prev - Previous array
- * @param {Array<string>} next - Next array
- * @returns {boolean} True if equal
+ * Compare arrays of strings (e.g. activeMoves).
  */
-export function compareStringArray(prev, next) {
+export function compareStringArray(
+  prev: ReadonlyArray<string> | null | undefined,
+  next: ReadonlyArray<string> | null | undefined
+): boolean {
   if (prev === next) return true;
   if (!prev || !next) return prev === next;
   if (prev.length !== next.length) return false;
@@ -82,14 +86,13 @@ export function compareStringArray(prev, next) {
 }
 
 /**
- * Compare frontendLogs arrays
- * Structure: Array<{ timestamp: string, message: string, source: string }>
- *
- * @param {Array} prev - Previous logs array
- * @param {Array} next - Next logs array
- * @returns {boolean} True if equal
+ * Compare frontendLogs arrays.
+ * Optimization: only compare the last entry (logs are append-only).
  */
-export function compareFrontendLogs(prev, next) {
+export function compareFrontendLogs(
+  prev: ReadonlyArray<FrontendLogEntry> | null | undefined,
+  next: ReadonlyArray<FrontendLogEntry> | null | undefined
+): boolean {
   if (prev === next) return true;
   if (!prev || !next) return prev === next;
   if (prev.length !== next.length) return false;
@@ -110,14 +113,9 @@ export function compareFrontendLogs(prev, next) {
 }
 
 /**
- * Deep equality comparison for objects
- * Used for other object types that need deep comparison
- *
- * @param {any} a - First value
- * @param {any} b - Second value
- * @returns {boolean} True if equal
+ * Deep equality comparison for objects.
  */
-export function deepEqual(a, b) {
+export function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a == null || b == null) return false;
   if (typeof a !== 'object' || typeof b !== 'object') return false;
@@ -129,24 +127,25 @@ export function deepEqual(a, b) {
 
   if (Array.isArray(a) || Array.isArray(b)) return false;
 
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
+  const keysA = Object.keys(a as Record<string, unknown>);
+  const keysB = Object.keys(b as Record<string, unknown>);
   if (keysA.length !== keysB.length) return false;
 
-  return keysA.every(key => deepEqual(a[key], b[key]));
+  return keysA.every(key =>
+    deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
+  );
 }
 
 /**
- * Compare state values and extract changed keys
- * Uses fast comparison functions instead of JSON.stringify
- *
- * @param {object} prevState - Previous state
- * @param {object} newState - New state
- * @param {Array<string>} relevantKeys - Keys to compare
- * @returns {object} Object with only changed keys
+ * Compare state values and extract changed keys.
+ * Uses fast comparison functions instead of JSON.stringify.
  */
-export function extractChangedUpdates(prevState, newState, relevantKeys) {
-  const changedUpdates = {};
+export function extractChangedUpdates<S extends Record<string, unknown>>(
+  prevState: S | null | undefined,
+  newState: S | null | undefined,
+  relevantKeys: ReadonlyArray<keyof S>
+): Partial<S> {
+  const changedUpdates: Partial<S> = {};
 
   if (!prevState || !newState) {
     return changedUpdates;
@@ -159,15 +158,25 @@ export function extractChangedUpdates(prevState, newState, relevantKeys) {
     if (prevValue === newValue) return;
 
     if (key === 'robotStateFull') {
-      if (!compareRobotStateFull(prevValue, newValue)) {
+      if (
+        !compareRobotStateFull(
+          prevValue as RobotStateFull | null,
+          newValue as RobotStateFull | null
+        )
+      ) {
         changedUpdates[key] = newValue;
       }
     } else if (key === 'activeMoves') {
-      if (!compareStringArray(prevValue, newValue)) {
+      if (!compareStringArray(prevValue as string[] | null, newValue as string[] | null)) {
         changedUpdates[key] = newValue;
       }
     } else if (key === 'frontendLogs') {
-      if (!compareFrontendLogs(prevValue, newValue)) {
+      if (
+        !compareFrontendLogs(
+          prevValue as FrontendLogEntry[] | null,
+          newValue as FrontendLogEntry[] | null
+        )
+      ) {
         changedUpdates[key] = newValue;
       }
     } else if (
