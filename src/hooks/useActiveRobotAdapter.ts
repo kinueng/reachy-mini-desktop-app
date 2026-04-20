@@ -1,65 +1,63 @@
 /**
- * @fileoverview Adapter hook that reads from Zustand stores and builds the context config
- * This is the bridge between the global app state and the ActiveRobot module
- */
-
-import { useMemo, useCallback } from 'react';
-import useAppStore from '../store/useAppStore';
-import { buildApiUrl, fetchWithTimeout, getBaseUrl, DAEMON_CONFIG } from '../config/daemon';
-import { getAppWindow } from '../utils/windowUtils';
-
-// Import openUrl from tauriCompat for cross-platform URL opening
-import { openUrl } from '../utils/tauriCompat';
-
-/**
- * Adapter hook that creates the context configuration for ActiveRobotModule
- * Reads from Zustand stores and provides a unified interface
+ * Adapter hook that reads from the Zustand store and builds the context
+ * config consumed by the ActiveRobotModule.
  *
- * @returns {import('../views/active-robot/context/types').ActiveRobotContextConfig}
+ * Bridges the global app state and the ActiveRobot context, exposing a
+ * stable, bundled interface.
  */
-export function useActiveRobotAdapter() {
+
+import { useMemo } from 'react';
+import useAppStore from '../store/useAppStore';
+import { buildApiUrl, fetchWithTimeout, getBaseUrl, DAEMON_CONFIG } from '@config/daemon';
+import { getAppWindow } from '../utils/windowUtils';
+import { openUrl } from '@utils/tauriCompat';
+import type { AppState } from '../types/store';
+import type { FullAppState } from '../store/useStore';
+import type { ActiveRobotContextConfig } from './adapters/activeRobotContextTypes';
+
+export function useActiveRobotAdapter(): ActiveRobotContextConfig {
   // ============================================
   // ROBOT STATE - Read from useAppStore
   // ============================================
+  // Use individual selectors so Zustand can skip renders on unrelated updates.
 
-  // Use individual selectors for better performance (Zustand optimizes these)
-  const isActive = useAppStore(state => state.isActive);
-  const darkMode = useAppStore(state => state.darkMode);
-  const robotStatus = useAppStore(state => state.robotStatus);
-  const busyReason = useAppStore(state => state.busyReason);
-  const safeToShutdown = useAppStore(state => state.safeToShutdown);
-  const isWakeSleepTransitioning = useAppStore(state => state.isWakeSleepTransitioning);
-  const isAppRunning = useAppStore(state => state.isAppRunning);
-  const isInstalling = useAppStore(state => state.isInstalling);
-  const isCommandRunning = useAppStore(state => state.isCommandRunning);
-  const currentAppName = useAppStore(state => state.currentAppName);
-  const robotStateFull = useAppStore(state => state.robotStateFull);
-  const activeMoves = useAppStore(state => state.activeMoves);
-  const isDaemonCrashed = useAppStore(state => state.isDaemonCrashed);
-  const rightPanelView = useAppStore(state => state.rightPanelView);
-  const embeddedAppUrl = useAppStore(state => state.embeddedAppUrl);
-  const activeEffect = useAppStore(state => state.activeEffect);
-  const effectTimestamp = useAppStore(state => state.effectTimestamp);
+  const isActive = useAppStore((state: AppState) => state.isActive);
+  const darkMode = useAppStore((state: AppState) => state.darkMode);
+  const robotStatus = useAppStore((state: AppState) => state.robotStatus);
+  const busyReason = useAppStore((state: AppState) => state.busyReason);
+  const safeToShutdown = useAppStore((state: AppState) => state.safeToShutdown);
+  const isWakeSleepTransitioning = useAppStore((state: AppState) => state.isWakeSleepTransitioning);
+  const isAppRunning = useAppStore((state: AppState) => state.isAppRunning);
+  const isInstalling = useAppStore((state: AppState) => state.isInstalling);
+  const isCommandRunning = useAppStore((state: AppState) => state.isCommandRunning);
+  const currentAppName = useAppStore((state: AppState) => state.currentAppName);
+  const robotStateFull = useAppStore((state: AppState) => state.robotStateFull);
+  const activeMoves = useAppStore((state: AppState) => state.activeMoves);
+  const isDaemonCrashed = useAppStore((state: AppState) => state.isDaemonCrashed);
+  const rightPanelView = useAppStore((state: AppState) => state.rightPanelView);
+  const embeddedAppUrl = useAppStore((state: AppState) => state.embeddedAppUrl);
+  const activeEffect = useAppStore((state: AppState) => state.activeEffect);
+  const effectTimestamp = useAppStore((state: AppState) => state.effectTimestamp);
 
   // Apps state
-  const availableApps = useAppStore(state => state.availableApps);
-  const installedApps = useAppStore(state => state.installedApps);
-  const currentApp = useAppStore(state => state.currentApp);
-  const activeJobs = useAppStore(state => state.activeJobs);
-  const appsLoading = useAppStore(state => state.appsLoading);
-  const appsError = useAppStore(state => state.appsError);
-  const appsOfficialMode = useAppStore(state => state.appsOfficialMode);
-  const appsCacheValid = useAppStore(state => state.appsCacheValid);
-  const installingAppName = useAppStore(state => state.installingAppName);
-  const installJobType = useAppStore(state => state.installJobType);
-  const installResult = useAppStore(state => state.installResult);
-  const installStartTime = useAppStore(state => state.installStartTime);
-  const processedJobs = useAppStore(state => state.processedJobs);
-  const jobSeenOnce = useAppStore(state => state.jobSeenOnce);
+  const availableApps = useAppStore((state: AppState) => state.availableApps);
+  const installedApps = useAppStore((state: AppState) => state.installedApps);
+  const currentApp = useAppStore((state: AppState) => state.currentApp);
+  const activeJobs = useAppStore((state: AppState) => state.activeJobs);
+  const appsLoading = useAppStore((state: AppState) => state.appsLoading);
+  const appsError = useAppStore((state: AppState) => state.appsError);
+  const appsOfficialMode = useAppStore((state: AppState) => state.appsOfficialMode);
+  const appsCacheValid = useAppStore((state: AppState) => state.appsCacheValid);
+  const installingAppName = useAppStore((state: AppState) => state.installingAppName);
+  const installJobType = useAppStore((state: AppState) => state.installJobType);
+  const installResult = useAppStore((state: AppState) => state.installResult);
+  const installStartTime = useAppStore((state: AppState) => state.installStartTime);
+  const processedJobs = useAppStore((state: AppState) => state.processedJobs);
+  const jobSeenOnce = useAppStore((state: AppState) => state.jobSeenOnce);
 
   // Logs state
-  const logs = useAppStore(state => state.logs);
-  const appLogs = useAppStore(state => state.appLogs);
+  const logs = useAppStore((state: AppState) => state.logs);
+  const appLogs = useAppStore((state: AppState) => state.appLogs);
 
   // ============================================
   // MEMOIZED ROBOT STATE OBJECT
@@ -84,7 +82,6 @@ export function useActiveRobotAdapter() {
       activeEffect,
       effectTimestamp,
 
-      // Apps state
       availableApps,
       installedApps,
       currentApp,
@@ -100,7 +97,6 @@ export function useActiveRobotAdapter() {
       processedJobs,
       jobSeenOnce,
 
-      // Logs
       logs,
       appLogs,
     }),
@@ -142,51 +138,42 @@ export function useActiveRobotAdapter() {
   );
 
   // ============================================
-  // ACTIONS - Wrapped store actions
+  // ACTIONS - Wrapped store actions (stable references from Zustand)
   // ============================================
   const actions = useMemo(() => {
-    // Get actions from store (these are stable references)
-    const store = useAppStore.getState();
+    const store = useAppStore.getState() as FullAppState;
 
     return {
-      // Generic update
       update: store.update,
 
-      // State transitions
       transitionTo: store.transitionTo,
 
-      // Status helpers
       isBusy: store.isBusy,
       isReady: store.isReady,
       getRobotStatusLabel: store.getRobotStatusLabel,
 
-      // App locking
       lockForApp: store.lockForApp,
       unlockApp: store.unlockApp,
       lockForInstall: store.lockForInstallWithRobot,
       unlockInstall: store.unlockInstallWithRobot,
 
-      // Robot state setters (use transitionTo instead of setIsActive/setIsStarting/setIsStopping)
+      // Legacy setters (use transitionTo instead of setIsActive / setIsStarting / setIsStopping).
       setRobotStateFull: store.setRobotStateFull,
       setActiveMoves: store.setActiveMoves,
       setIsCommandRunning: store.setIsCommandRunning,
 
-      // Effects
       triggerEffect: store.triggerEffect,
       stopEffect: store.stopEffect,
 
-      // Timeout management
       resetTimeouts: store.resetTimeouts,
       incrementTimeouts: store.incrementTimeouts,
 
-      // UI
       setRightPanelView: store.setRightPanelView,
       openEmbeddedApp: store.openEmbeddedApp,
       closeEmbeddedApp: store.closeEmbeddedApp,
       setDarkMode: store.setDarkMode,
       toggleDarkMode: store.toggleDarkMode,
 
-      // Apps management
       setAvailableApps: store.setAvailableApps,
       setInstalledApps: store.setInstalledApps,
       setCurrentApp: store.setCurrentApp,
@@ -200,12 +187,11 @@ export function useActiveRobotAdapter() {
       markJobAsSeen: store.markJobAsSeen,
       markJobAsProcessed: store.markJobAsProcessed,
 
-      // Logs
       setLogs: store.setLogs,
       addAppLog: store.addAppLog,
       clearAppLogs: store.clearAppLogs,
     };
-  }, []); // Actions are stable, no deps needed
+  }, []);
 
   // ============================================
   // API CONFIGURATION
@@ -224,7 +210,7 @@ export function useActiveRobotAdapter() {
   );
 
   // ============================================
-  // SHELL API (Uses tauriCompat for cross-platform support)
+  // SHELL API (cross-platform URL opening via tauriCompat)
   // ============================================
   const shellApi = useMemo(
     () => ({
@@ -234,7 +220,7 @@ export function useActiveRobotAdapter() {
   );
 
   // ============================================
-  // WINDOW MANAGER (Abstracted from Tauri)
+  // WINDOW MANAGER (Tauri)
   // ============================================
   const windowManager = useMemo(() => {
     const store = useAppStore.getState();
@@ -247,9 +233,6 @@ export function useActiveRobotAdapter() {
     };
   }, []);
 
-  // ============================================
-  // COMPLETE CONTEXT CONFIG
-  // ============================================
   const contextConfig = useMemo(
     () => ({
       robotState,

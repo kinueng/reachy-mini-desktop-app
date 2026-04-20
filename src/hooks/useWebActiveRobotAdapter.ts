@@ -1,61 +1,64 @@
 /**
- * @fileoverview Web-only adapter for ActiveRobotModule
+ * Web-only adapter for ActiveRobotModule.
  *
- * Simplified version of useActiveRobotAdapter that uses fetch() instead of Tauri APIs.
- * Used when the app is running in web-only mode (dashboard-v2).
+ * Simplified version of `useActiveRobotAdapter` that uses `fetch()` and
+ * browser APIs instead of Tauri IPC. Used when the app runs in web-only
+ * mode (dashboard-v2).
  */
 
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import useAppStore from '../store/useAppStore';
-import { DAEMON_CONFIG, buildApiUrl, fetchWithTimeout, getBaseUrl } from '../config/daemon';
-import { openUrl } from '../utils/tauriCompat';
+import { DAEMON_CONFIG, buildApiUrl, fetchWithTimeout, getBaseUrl } from '@config/daemon';
+import { openUrl } from '@utils/tauriCompat';
+import type { AppState } from '../types/store';
+import type { FullAppState } from '../store/useStore';
+import type {
+  WebActiveRobotContextConfig,
+  WebAppWindowStub,
+} from './adapters/activeRobotContextTypes';
 
-/**
- * Web-only adapter hook for ActiveRobotModule
- * Uses REST API instead of Tauri IPC
- */
-export function useWebActiveRobotAdapter() {
+export function useWebActiveRobotAdapter(): WebActiveRobotContextConfig {
   // ============================================
   // ROBOT STATE - Read from useAppStore
   // ============================================
 
-  const isActive = useAppStore(state => state.isActive);
-  const darkMode = useAppStore(state => state.darkMode);
-  const robotStatus = useAppStore(state => state.robotStatus);
-  const busyReason = useAppStore(state => state.busyReason);
-  const safeToShutdown = useAppStore(state => state.safeToShutdown);
-  const isWakeSleepTransitioning = useAppStore(state => state.isWakeSleepTransitioning);
-  const isAppRunning = useAppStore(state => state.isAppRunning);
-  const isInstalling = useAppStore(state => state.isInstalling);
-  const isCommandRunning = useAppStore(state => state.isCommandRunning);
-  const currentAppName = useAppStore(state => state.currentAppName);
-  const robotStateFull = useAppStore(state => state.robotStateFull);
-  const activeMoves = useAppStore(state => state.activeMoves);
-  const isDaemonCrashed = useAppStore(state => state.isDaemonCrashed);
-  const rightPanelView = useAppStore(state => state.rightPanelView);
-  const embeddedAppUrl = useAppStore(state => state.embeddedAppUrl);
-  const activeEffect = useAppStore(state => state.activeEffect);
-  const effectTimestamp = useAppStore(state => state.effectTimestamp);
+  const isActive = useAppStore((state: AppState) => state.isActive);
+  const darkMode = useAppStore((state: AppState) => state.darkMode);
+  const robotStatus = useAppStore((state: AppState) => state.robotStatus);
+  const busyReason = useAppStore((state: AppState) => state.busyReason);
+  const safeToShutdown = useAppStore((state: AppState) => state.safeToShutdown);
+  const isWakeSleepTransitioning = useAppStore((state: AppState) => state.isWakeSleepTransitioning);
+  const isAppRunning = useAppStore((state: AppState) => state.isAppRunning);
+  const isInstalling = useAppStore((state: AppState) => state.isInstalling);
+  const isCommandRunning = useAppStore((state: AppState) => state.isCommandRunning);
+  const currentAppName = useAppStore((state: AppState) => state.currentAppName);
+  const robotStateFull = useAppStore((state: AppState) => state.robotStateFull);
+  const activeMoves = useAppStore((state: AppState) => state.activeMoves);
+  const isDaemonCrashed = useAppStore((state: AppState) => state.isDaemonCrashed);
+  const rightPanelView = useAppStore((state: AppState) => state.rightPanelView);
+  const embeddedAppUrl = useAppStore((state: AppState) => state.embeddedAppUrl);
+  const activeEffect = useAppStore((state: AppState) => state.activeEffect);
+  const effectTimestamp = useAppStore((state: AppState) => state.effectTimestamp);
 
   // Apps state
-  const availableApps = useAppStore(state => state.availableApps);
-  const installedApps = useAppStore(state => state.installedApps);
-  const currentApp = useAppStore(state => state.currentApp);
-  const activeJobs = useAppStore(state => state.activeJobs);
-  const appsLoading = useAppStore(state => state.appsLoading);
-  const appsError = useAppStore(state => state.appsError);
-  const appsOfficialMode = useAppStore(state => state.appsOfficialMode);
-  const appsCacheValid = useAppStore(state => state.appsCacheValid);
-  const installingAppName = useAppStore(state => state.installingAppName);
-  const installJobType = useAppStore(state => state.installJobType);
-  const installResult = useAppStore(state => state.installResult);
-  const installStartTime = useAppStore(state => state.installStartTime);
-  const processedJobs = useAppStore(state => state.processedJobs);
-  const jobSeenOnce = useAppStore(state => state.jobSeenOnce);
+  const availableApps = useAppStore((state: AppState) => state.availableApps);
+  const installedApps = useAppStore((state: AppState) => state.installedApps);
+  const currentApp = useAppStore((state: AppState) => state.currentApp);
+  const activeJobs = useAppStore((state: AppState) => state.activeJobs);
+  const appsLoading = useAppStore((state: AppState) => state.appsLoading);
+  const appsError = useAppStore((state: AppState) => state.appsError);
+  const appsOfficialMode = useAppStore((state: AppState) => state.appsOfficialMode);
+  const appsCacheValid = useAppStore((state: AppState) => state.appsCacheValid);
+  const installingAppName = useAppStore((state: AppState) => state.installingAppName);
+  const installJobType = useAppStore((state: AppState) => state.installJobType);
+  const installResult = useAppStore((state: AppState) => state.installResult);
+  const installStartTime = useAppStore((state: AppState) => state.installStartTime);
+  const processedJobs = useAppStore((state: AppState) => state.processedJobs);
+  const jobSeenOnce = useAppStore((state: AppState) => state.jobSeenOnce);
 
   // Logs
-  const logs = useAppStore(state => state.logs);
-  const appLogs = useAppStore(state => state.appLogs);
+  const logs = useAppStore((state: AppState) => state.logs);
+  const appLogs = useAppStore((state: AppState) => state.appLogs);
 
   // ============================================
   // MEMOIZED ROBOT STATE
@@ -139,7 +142,7 @@ export function useWebActiveRobotAdapter() {
   // ============================================
 
   const actions = useMemo(() => {
-    const store = useAppStore.getState();
+    const store = useAppStore.getState() as FullAppState;
 
     return {
       update: store.update,
@@ -151,7 +154,6 @@ export function useWebActiveRobotAdapter() {
       unlockApp: store.unlockApp,
       lockForInstall: store.lockForInstallWithRobot,
       unlockInstall: store.unlockInstallWithRobot,
-      // Use transitionTo instead of legacy setters
       setRobotStateFull: store.setRobotStateFull,
       setActiveMoves: store.setActiveMoves,
       setIsCommandRunning: store.setIsCommandRunning,
@@ -200,7 +202,7 @@ export function useWebActiveRobotAdapter() {
   );
 
   // ============================================
-  // SHELL API (Web mode - uses window.open)
+  // SHELL API (web mode - uses openUrl shim which falls back to window.open)
   // ============================================
 
   const shellApi = useMemo(
@@ -211,37 +213,34 @@ export function useWebActiveRobotAdapter() {
   );
 
   // ============================================
-  // WINDOW MANAGER (Mock for web mode)
+  // WINDOW MANAGER (mock for web mode - multi-window ops not supported)
   // ============================================
 
-  const windowManager = useMemo(
-    () => ({
-      openExpressionsWindow: () => {
+  const windowManager = useMemo(() => {
+    const appWindowStub: WebAppWindowStub = {
+      label: 'web',
+      setTitle: async () => {},
+      close: async () => {},
+    };
+
+    return {
+      openExpressionsWindow: (): void => {
         console.log('[WebMode] openExpressionsWindow - not available in web mode');
       },
-      closeExpressionsWindow: () => {
+      closeExpressionsWindow: (): void => {
         console.log('[WebMode] closeExpressionsWindow - not available in web mode');
       },
-      isExpressionsWindowOpen: () => false,
-      openDevWindow: () => {
+      isExpressionsWindowOpen: (): boolean => false,
+      openDevWindow: (): void => {
         console.log('[WebMode] openDevWindow - not available in web mode');
       },
-      closeDevWindow: () => {
+      closeDevWindow: (): void => {
         console.log('[WebMode] closeDevWindow - not available in web mode');
       },
-      isDevWindowOpen: () => false,
-      getAppWindow: () => ({
-        label: 'web',
-        setTitle: async () => {},
-        close: async () => {},
-      }),
-    }),
-    []
-  );
-
-  // ============================================
-  // RETURN CONFIG
-  // ============================================
+      isDevWindowOpen: (): boolean => false,
+      getAppWindow: (): WebAppWindowStub => appWindowStub,
+    };
+  }, []);
 
   return useMemo(
     () => ({
@@ -254,3 +253,5 @@ export function useWebActiveRobotAdapter() {
     [robotState, actions, api, shellApi, windowManager]
   );
 }
+
+export default useWebActiveRobotAdapter;
