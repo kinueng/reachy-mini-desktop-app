@@ -9,33 +9,65 @@ import {
   sendString,
   listServices,
 } from '@mnlphlp/plugin-blec';
+import type { BleDevice, AdapterState } from '@mnlphlp/plugin-blec';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emit, listen } from '../../utils/tauriCompat';
 import useAppStore from '../../store/useAppStore';
+import type { AppState } from '../../types/store';
 
-// BLE UUIDs for Reachy Mini (from bluetooth_service.py)
-// Command service
+// ============================================================================
+// BLE UUIDs for Reachy Mini (mirrors bluetooth_service.py).
+// ============================================================================
+
+// Command service.
 const CMD_SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
 const COMMAND_CHAR_UUID = '12345678-1234-5678-1234-56789abcdef1';
 const RESPONSE_CHAR_UUID = '12345678-1234-5678-1234-56789abcdef2';
-// Status service
+
+// Status service.
 const STATUS_SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef3';
 const NETWORK_STATUS_CHAR_UUID = '12345678-1234-5678-1234-56789abcdef4';
 
-// Timing
-const RESPONSE_READ_DELAY = 500; // ms to wait after write before reading response
-const SCAN_TIMEOUT = 10000; // ms scan duration
+const RESPONSE_READ_DELAY = 500; // ms between write and read.
+const SCAN_TIMEOUT = 10000; // ms scan duration.
+
+type TimeoutId = ReturnType<typeof setTimeout>;
+type UnlistenFn = () => void;
+
+export interface UseBluetoothResult {
+  // State
+  bleStatus: AppState['bleStatus'];
+  bleDevices: AppState['bleDevices'];
+  bleDeviceAddress: AppState['bleDeviceAddress'];
+
+  // Actions
+  scan: () => Promise<void>;
+  stopScanning: () => Promise<void>;
+  connectToDevice: (address: string) => Promise<void>;
+  disconnectDevice: () => Promise<void>;
+  sendCommand: (pin: string, commandName: string) => Promise<string>;
+  sendPing: () => Promise<string>;
+  sendStatus: () => Promise<string>;
+  readNetworkStatus: () => Promise<string>;
+  startJournal: () => Promise<void>;
+  stopJournal: () => Promise<void>;
+  openJournalWindow: () => Promise<void>;
+  checkAdapterState: () => Promise<AdapterState | null>;
+
+  // Store actions (for PIN input).
+  setBlePin: AppState['setBlePin'];
+}
 
 /**
- * useBluetooth — wraps @mnlphlp/plugin-blec for Reachy Mini BLE interactions.
+ * Wraps `@mnlphlp/plugin-blec` for Reachy Mini BLE interactions.
  *
- * Protocol (from bluetooth_service.py):
- *  - "PING"         → "PONG"
- *  - "STATUS"        → "OK: System running"
- *  - "PIN_xxxxx"     → validates PIN (last 5 digits of serial)
- *  - "CMD_scriptname" → runs commands/scriptname.sh (requires prior PIN auth)
+ * Protocol (see bluetooth_service.py):
+ *  - "PING"              → "PONG"
+ *  - "STATUS"            → "OK: System running"
+ *  - "PIN_xxxxx"         → validates PIN (last 5 digits of serial)
+ *  - "CMD_scriptname"    → runs commands/scriptname.sh (requires prior PIN auth)
  */
-export default function useBluetooth() {
+export default function useBluetooth(): UseBluetoothResult {
   const {
     bleStatus,
     setBleStatus,
@@ -47,8 +79,11 @@ export default function useBluetooth() {
     loadBlePinForDevice,
   } = useAppStore();
 
+  // ==========================================================================
   // Adapter state
-  const checkAdapterState = useCallback(async () => {
+  // ==========================================================================
+
+  const checkAdapterState = useCallback(async (): Promise<AdapterState | null> => {
     try {
       return await getAdapterState();
     } catch (e) {
@@ -57,15 +92,19 @@ export default function useBluetooth() {
     }
   }, []);
 
-  // Scan for ReachyMini devices
-  // startScan(handler, timeout) — handler receives an array of devices per callback
-  const scan = useCallback(async () => {
+  // ==========================================================================
+  // Scan
+  //
+  // startScan(handler, timeout) - the handler receives devices per callback.
+  // ==========================================================================
+
+  const scan = useCallback(async (): Promise<void> => {
     setBleStatus('scanning');
     setBleDevices([]);
 
     try {
-      // Start the scan (on Windows, the promise may resolve before the timeout)
-      startScan(devices => {
+      // Start the scan (on Windows the promise may resolve before the timeout).
+      startScan((devices: BleDevice[]) => {
         const named = devices.filter(d => d.name);
         if (named.length > 0) {
           console.log(
@@ -77,8 +116,8 @@ export default function useBluetooth() {
           d => d.name && d.name.toLowerCase().replace(/-/g, '').includes('reachymini')
         );
         if (reachyDevices.length > 0) {
-          const prev = useAppStore.getState().bleDevices;
-          const merged = [...prev];
+          const prev = useAppStore.getState().bleDevices as BleDevice[];
+          const merged: BleDevice[] = [...prev];
           for (const device of reachyDevices) {
             const idx = merged.findIndex(d => d.address === device.address);
             if (idx >= 0) {
@@ -89,14 +128,14 @@ export default function useBluetooth() {
           }
           setBleDevices(merged);
         }
-      }, SCAN_TIMEOUT).catch(e => {
+      }, SCAN_TIMEOUT).catch((e: unknown) => {
         console.error('[BLE] Scan error:', e);
       });
 
-      // Wait for the full scan duration regardless of when the promise resolves
-      await new Promise(r => setTimeout(r, SCAN_TIMEOUT));
+      // Wait the full scan duration regardless of when the promise resolves.
+      await new Promise<void>(r => setTimeout(r, SCAN_TIMEOUT));
     } finally {
-      // Only reset to disconnected if still scanning (not if connect was triggered)
+      // Only reset to disconnected if still scanning (don't clobber connect).
       const currentStatus = useAppStore.getState().bleStatus;
       if (currentStatus === 'scanning') {
         setBleStatus('disconnected');
@@ -104,23 +143,26 @@ export default function useBluetooth() {
     }
   }, [setBleStatus, setBleDevices]);
 
-  const stopScanning = useCallback(async () => {
+  const stopScanning = useCallback(async (): Promise<void> => {
     try {
       await stopScan();
-    } catch (e) {
-      // Ignore — scan may already be stopped
+    } catch {
+      // Scan may already be stopped.
     }
     setBleStatus('disconnected');
   }, [setBleStatus]);
 
-  // Connect to a specific device
+  // ==========================================================================
+  // Connect / disconnect
+  // ==========================================================================
+
   const connectToDevice = useCallback(
-    async address => {
-      // CoreBluetooth requires scanning to be stopped before connecting
+    async (address: string): Promise<void> => {
+      // CoreBluetooth requires scanning to be stopped before connecting.
       try {
         await stopScan();
-      } catch (e) {
-        // Ignore — scan may already be stopped
+      } catch {
+        // Scan may already be stopped.
       }
 
       setBleStatus('connecting');
@@ -135,7 +177,7 @@ export default function useBluetooth() {
         loadBlePinForDevice(address);
         setBleStatus('connected');
 
-        // Debug: log discovered services and characteristics
+        // Debug: log discovered services and characteristics.
         try {
           const services = await listServices(address);
           console.log('[BLE] Discovered services:', JSON.stringify(services, null, 2));
@@ -148,21 +190,21 @@ export default function useBluetooth() {
         throw e;
       }
     },
-    [setBleStatus, setBleDeviceAddress]
+    [setBleStatus, setBleDeviceAddress, loadBlePinForDevice]
   );
 
-  // Disconnect — also stops journal and closes its window
-  const disconnectDevice = useCallback(async () => {
-    // Stop journal polling first (before BLE disconnect)
+  // Disconnect - also stops the journal and closes its window.
+  const disconnectDevice = useCallback(async (): Promise<void> => {
+    // Stop journal polling first (before BLE disconnect).
     journalActiveRef.current = false;
-    if (journalPollRef.current) {
+    if (journalPollRef.current !== null) {
       clearTimeout(journalPollRef.current);
       journalPollRef.current = null;
     }
     try {
       await sendString(COMMAND_CHAR_UUID, 'JOURNAL_STOP', 'withoutResponse', CMD_SERVICE_UUID);
     } catch {
-      // May fail if already disconnected
+      // May fail if already disconnected.
     }
     try {
       await blecDisconnect();
@@ -171,63 +213,63 @@ export default function useBluetooth() {
     }
     emit('journal:status', 'stopped');
     try {
-      const win = WebviewWindow.getByLabel('journal-viewer');
+      const win = await WebviewWindow.getByLabel('journal-viewer');
       if (win) await win.close();
     } catch {
-      // Window may not exist
+      // Window may not exist.
     }
     setBleStatus('disconnected');
     setBleDeviceAddress(null);
     setBleDevices([]);
   }, [setBleStatus, setBleDeviceAddress, setBleDevices]);
 
-  // Send a raw string to the command characteristic, then read the response.
-  // The Reachy BLE service updates the response characteristic value but does
-  // not send a BLE notification, so we poll-read after a short delay.
+  // ==========================================================================
+  // Raw command I/O
+  //
+  // Send a string to the command characteristic then read the response.
+  // The Reachy BLE service updates the response characteristic value but
+  // does NOT send a BLE notification, so we poll-read after a short delay.
+  // ==========================================================================
+
   const sendRaw = useCallback(
-    async message => {
+    async (message: string): Promise<string> => {
       if (bleStatus !== 'connected') {
         throw new Error('Not connected');
       }
 
       await sendString(COMMAND_CHAR_UUID, message, 'withoutResponse', CMD_SERVICE_UUID);
 
-      // Give the device time to process and write the response
-      await new Promise(r => setTimeout(r, RESPONSE_READ_DELAY));
+      // Give the device time to process and write the response.
+      await new Promise<void>(r => setTimeout(r, RESPONSE_READ_DELAY));
 
-      // Read the response characteristic directly
       return await readString(RESPONSE_CHAR_UUID, CMD_SERVICE_UUID);
     },
     [bleStatus]
   );
 
-  // Authenticate with PIN, then send a CMD_ command
+  // Authenticate with PIN then send a CMD_ command.
   const sendCommand = useCallback(
-    async (pin, commandName) => {
-      // Authenticate first
+    async (pin: string, commandName: string): Promise<string> => {
       const pinResponse = await sendRaw(`PIN_${pin}`);
       if (pinResponse && pinResponse.toLowerCase().includes('error')) {
         throw new Error(pinResponse);
       }
 
-      // Send the command
       return await sendRaw(`CMD_${commandName}`);
     },
     [sendRaw]
   );
 
-  // Send PING (no auth required)
-  const sendPing = useCallback(async () => {
+  const sendPing = useCallback(async (): Promise<string> => {
     return await sendRaw('PING');
   }, [sendRaw]);
 
-  // Send STATUS (no auth required)
-  const sendStatus = useCallback(async () => {
+  const sendStatus = useCallback(async (): Promise<string> => {
     return await sendRaw('STATUS');
   }, [sendRaw]);
 
-  // Read network status from the status service
-  const readNetworkStatus = useCallback(async () => {
+  // Read network status from the status service.
+  const readNetworkStatus = useCallback(async (): Promise<string> => {
     if (bleStatus !== 'connected') {
       throw new Error('Not connected');
     }
@@ -242,15 +284,19 @@ export default function useBluetooth() {
     return result;
   }, [bleStatus]);
 
-  const journalActiveRef = useRef(false);
-  const journalPollRef = useRef(null);
+  // ==========================================================================
+  // Journal streaming
+  // ==========================================================================
 
-  // Poll the server for buffered journal data
-  const _pollJournal = useCallback(async () => {
+  const journalActiveRef = useRef<boolean>(false);
+  const journalPollRef = useRef<TimeoutId | null>(null);
+
+  // Poll the server for buffered journal data.
+  const _pollJournal = useCallback(async (): Promise<void> => {
     if (!journalActiveRef.current) return;
     try {
       await sendString(COMMAND_CHAR_UUID, 'JOURNAL_READ', 'withoutResponse', CMD_SERVICE_UUID);
-      await new Promise(r => setTimeout(r, RESPONSE_READ_DELAY));
+      await new Promise<void>(r => setTimeout(r, RESPONSE_READ_DELAY));
       const chunk = await readString(RESPONSE_CHAR_UUID, CMD_SERVICE_UUID);
       console.log('[BLE] Journal poll result:', chunk?.length, 'bytes', chunk?.substring(0, 80));
       if (chunk && chunk.length > 0) {
@@ -259,40 +305,38 @@ export default function useBluetooth() {
     } catch (e) {
       console.warn('[BLE] Journal poll error:', e);
     }
-    // Schedule next poll if still active
     if (journalActiveRef.current) {
-      journalPollRef.current = setTimeout(() => _pollJournal(), 300);
+      journalPollRef.current = setTimeout(() => {
+        void _pollJournal();
+      }, 300);
     }
   }, []);
 
-  // Start journal streaming — tells server to start, begins polling
-  const startJournal = useCallback(async () => {
+  // Start journal streaming - tells the server to start, then begins polling.
+  const startJournal = useCallback(async (): Promise<void> => {
     if (bleStatus !== 'connected') {
       throw new Error('Not connected');
     }
     await sendString(COMMAND_CHAR_UUID, 'JOURNAL_START', 'withoutResponse', CMD_SERVICE_UUID);
-    await new Promise(r => setTimeout(r, RESPONSE_READ_DELAY));
-    await readString(RESPONSE_CHAR_UUID, CMD_SERVICE_UUID); // consume the "OK" response
+    await new Promise<void>(r => setTimeout(r, RESPONSE_READ_DELAY));
+    await readString(RESPONSE_CHAR_UUID, CMD_SERVICE_UUID); // Consume the "OK" response.
     journalActiveRef.current = true;
     emit('journal:status', 'started');
-    // Start polling loop
-    _pollJournal();
+    void _pollJournal();
   }, [bleStatus, _pollJournal]);
 
-  // Close the journal window if open
-  const _closeJournalWindow = useCallback(async () => {
+  const _closeJournalWindow = useCallback(async (): Promise<void> => {
     try {
-      const win = WebviewWindow.getByLabel('journal-viewer');
+      const win = await WebviewWindow.getByLabel('journal-viewer');
       if (win) await win.close();
     } catch {
-      // Window may already be gone
+      // Window may already be gone.
     }
   }, []);
 
-  // Stop journal streaming and close the window
-  const stopJournal = useCallback(async () => {
+  const stopJournal = useCallback(async (): Promise<void> => {
     journalActiveRef.current = false;
-    if (journalPollRef.current) {
+    if (journalPollRef.current !== null) {
       clearTimeout(journalPollRef.current);
       journalPollRef.current = null;
     }
@@ -305,17 +349,17 @@ export default function useBluetooth() {
     await _closeJournalWindow();
   }, [_closeJournalWindow]);
 
-  // Open the journal in a separate window
-  const openJournalWindow = useCallback(async () => {
+  // Open the journal in a separate window.
+  const openJournalWindow = useCallback(async (): Promise<void> => {
     const label = 'journal-viewer';
-    // Focus if already open
-    const existing = WebviewWindow.getByLabel(label);
+    // Focus if already open.
+    const existing = await WebviewWindow.getByLabel(label);
     if (existing) {
       try {
         await existing.setFocus();
         return;
       } catch {
-        // Window gone, recreate
+        // Window gone, recreate.
       }
     }
     new WebviewWindow(label, {
@@ -330,59 +374,58 @@ export default function useBluetooth() {
     });
   }, []);
 
-  // Listen for stop requests from the journal window
+  // Listen for stop requests from the journal window.
   useEffect(() => {
-    let unlistenStop;
-    let unlistenStatus;
-    const setup = async () => {
-      unlistenStop = await listen('journal:stop', () => {
-        stopJournal();
-      });
-      // Respond to status requests from newly opened journal windows
-      unlistenStatus = await listen('journal:request-status', () => {
+    let unlistenStop: UnlistenFn | undefined;
+    let unlistenStatus: UnlistenFn | undefined;
+    const setup = async (): Promise<void> => {
+      unlistenStop = (await listen('journal:stop', () => {
+        void stopJournal();
+      })) as UnlistenFn;
+      // Respond to status requests from newly opened journal windows.
+      unlistenStatus = (await listen('journal:request-status', () => {
         emit('journal:status', journalActiveRef.current ? 'started' : 'stopped');
-      });
+      })) as UnlistenFn;
     };
-    setup();
+    void setup();
     return () => {
       if (unlistenStop) unlistenStop();
       if (unlistenStatus) unlistenStatus();
     };
   }, [stopJournal]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount.
   useEffect(() => {
     return () => {
-      // Stop journal polling
       journalActiveRef.current = false;
-      if (journalPollRef.current) {
+      if (journalPollRef.current !== null) {
         clearTimeout(journalPollRef.current);
         journalPollRef.current = null;
       }
-      // Close journal window
-      try {
-        const win = WebviewWindow.getByLabel('journal-viewer');
-        if (win) win.close();
-      } catch {
-        // ignore
-      }
+      void (async () => {
+        try {
+          const win = await WebviewWindow.getByLabel('journal-viewer');
+          if (win) await win.close();
+        } catch {
+          // Ignore.
+        }
+      })();
       if (bleStatus === 'connected') {
-        // Send JOURNAL_STOP before disconnecting
+        // Best-effort JOURNAL_STOP before disconnecting.
         sendString(COMMAND_CHAR_UUID, 'JOURNAL_STOP', 'withoutResponse', CMD_SERVICE_UUID).catch(
           () => {}
         );
         blecDisconnect().catch(() => {});
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
-    // State
     bleStatus,
     bleDevices,
     bleDeviceAddress,
 
-    // Actions
     scan,
     stopScanning,
     connectToDevice,
@@ -396,7 +439,6 @@ export default function useBluetooth() {
     openJournalWindow,
     checkAdapterState,
 
-    // Store actions (for PIN)
     setBlePin,
   };
 }

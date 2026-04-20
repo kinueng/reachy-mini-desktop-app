@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { check } from '@tauri-apps/plugin-updater';
+import type { Update, DownloadEvent } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import {
   extractErrorMessage,
@@ -10,78 +11,91 @@ import {
 import { isDevMode } from '../../utils/devMode';
 import { DAEMON_CONFIG } from '../../config/daemon';
 
+export interface UseUpdaterOptions {
+  /** Automatically check on startup (default: true). */
+  autoCheck?: boolean;
+  /** Check interval in ms (default: 3_600_000, 1h). */
+  checkInterval?: number;
+  /** Maximum number of retries on recoverable errors (default: 3). */
+  maxRetries?: number;
+  /** Initial delay between retries in ms, used as base for exponential backoff (default: 1000). */
+  retryDelay?: number;
+}
+
+export interface UseUpdaterResult {
+  updateAvailable: Update | null;
+  isChecking: boolean;
+  isDownloading: boolean;
+  downloadProgress: number;
+  error: string | null;
+  checkForUpdates: (retryCount?: number) => Promise<Update | null>;
+  installUpdate: () => Promise<void>;
+}
+
+type TimeoutId = ReturnType<typeof setTimeout>;
+
 /**
- * Hook to manage automatic application updates
- * Enhanced version with retry logic and robust error handling
- *
- * @param {object} options - Configuration options
- * @param {boolean} options.autoCheck - Automatically check on startup (default: true)
- * @param {number} options.checkInterval - Check interval in ms (default: 3600000 = 1h)
- * @param {number} options.maxRetries - Maximum number of retries on error (default: 3)
- * @param {number} options.retryDelay - Initial delay between retries in ms (default: 1000)
- * @returns {object} State and update functions
+ * Hook that manages automatic application updates with retry logic and
+ * robust error handling.
  */
 export const useUpdater = ({
   autoCheck = true,
-  checkInterval = 3600000, // 1 hour by default
+  checkInterval = 3600000,
   maxRetries = 3,
   retryDelay = 1000,
-} = {}) => {
-  // 🧪 DEBUG: Force update available for testing
-  const [updateAvailable, setUpdateAvailable] = useState(null);
-  const [isChecking, setIsChecking] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [error, setError] = useState(null);
-  const retryCountRef = useRef(0);
-  const lastCheckTimeRef = useRef(null);
-  const isCheckingRef = useRef(false); // Prevent multiple simultaneous checks
+}: UseUpdaterOptions = {}): UseUpdaterResult => {
+  const [updateAvailable, setUpdateAvailable] = useState<Update | null>(null);
+  const [isChecking, setIsChecking] = useState<boolean>(false);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
 
-  // Use centralized error utility (DRY)
-  const isRecoverableError = useCallback(err => {
+  const retryCountRef = useRef<number>(0);
+  const lastCheckTimeRef = useRef<number | null>(null);
+  const isCheckingRef = useRef<boolean>(false); // Prevents overlapping checks.
+
+  const isRecoverableError = useCallback((err: unknown): boolean => {
     return checkRecoverableError(err);
   }, []);
 
-  /**
-   * Retry with exponential backoff
-   */
-  const sleep = useCallback(ms => {
+  const sleep = useCallback((ms: number): Promise<void> => {
     return new Promise(resolve => setTimeout(resolve, ms));
   }, []);
 
   /**
-   * Checks if an update is available with automatic retry
+   * Checks if an update is available, with automatic retry on recoverable
+   * errors (network, timeouts). The outer call passes `retryCount = 0`;
+   * recursive retries increment it up to `maxRetries`.
    */
   const checkForUpdates = useCallback(
-    async (retryCount = 0) => {
-      // Prevent retry if already at max
+    async (retryCount: number = 0): Promise<Update | null> => {
       if (retryCount > maxRetries) {
         setIsChecking(false);
         isCheckingRef.current = false;
         return null;
       }
 
-      // Prevent multiple simultaneous checks
+      // Prevent overlapping checks - only enforced on the initial call so that
+      // recursive retries from a single invocation still go through.
       if (isCheckingRef.current && retryCount === 0) {
         return null;
       }
 
-      // ✅ Try to fetch latest.json directly - if it works, we have internet + we know if there's an update
-      // No need for separate healthcheck - the update check itself tells us about connectivity
+      // ✅ Try fetching latest.json directly - if it works we have internet
+      // AND we know if an update is available, no separate healthcheck needed.
 
       isCheckingRef.current = true;
       setIsChecking(true);
       setError(null);
 
-      // ✅ CRITICAL FIX: Add timeout to prevent infinite blocking
-      // If check() hangs (network issue, GitHub down, etc.), we timeout after 30s
-      const CHECK_TIMEOUT = DAEMON_CONFIG.UPDATE_CHECK.CHECK_TIMEOUT || 30000;
-      let timeoutId = null;
+      // ✅ Add a timeout to prevent indefinitely blocking on a hanging check()
+      // (network issue, GitHub down, etc.) - default 30s.
+      const CHECK_TIMEOUT: number = DAEMON_CONFIG.UPDATE_CHECK.CHECK_TIMEOUT || 30000;
+      let timeoutId: TimeoutId | null = null;
 
       try {
-        // Wrapper check() with timeout using Promise.race
         const checkPromise = check();
-        const timeoutPromise = new Promise((_, reject) => {
+        const timeoutPromise = new Promise<never>((_, reject) => {
           timeoutId = setTimeout(() => {
             reject(
               new Error('Update check timeout: The update server did not respond within 30 seconds')
@@ -91,48 +105,43 @@ export const useUpdater = ({
 
         const update = await Promise.race([checkPromise, timeoutPromise]);
 
-        // ✅ Clear timeout if check succeeded (guaranteed cleanup)
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
 
-        // Reset retry count on success
         retryCountRef.current = 0;
         lastCheckTimeRef.current = Date.now();
         isCheckingRef.current = false;
-        setIsChecking(false); // ✅ Ensure isChecking is always set to false on success
+        setIsChecking(false);
 
         if (update) {
           setUpdateAvailable(update);
           return update;
-        } else {
-          setUpdateAvailable(null);
-          return null;
         }
+        setUpdateAvailable(null);
+        return null;
       } catch (err) {
-        // ✅ CRITICAL: Always clear timeout in case of error (guaranteed cleanup)
+        // ✅ Always clean up the timeout on error.
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
 
-        // Extract error message using centralized utility (DRY)
-        const errorMessage = extractErrorMessage(err);
+        const errorMessage: string = extractErrorMessage(err);
         const errorString = errorMessage.toLowerCase();
 
-        // ✅ Detect timeout errors as recoverable
         const isTimeout =
           errorString.includes('timeout') || errorString.includes('did not respond');
 
-        // Check if this is a missing update server error (common in dev mode)
+        // Missing update server is the common dev-mode failure mode.
         const isMissingUpdateServer =
           errorString.includes('release json') ||
           errorString.includes('could not fetch') ||
           errorString.includes('404');
-        const isDev = isDevMode();
+        const isDev: boolean = isDevMode();
 
-        // In dev mode, immediately stop checking if update server is missing (no retries needed)
+        // In dev mode with no update server, stop immediately without retries.
         if (isDev && isMissingUpdateServer) {
           isCheckingRef.current = false;
           setIsChecking(false);
@@ -141,22 +150,23 @@ export const useUpdater = ({
           return null;
         }
 
-        // ✅ Use detailed error message function for better user feedback
-        const detailedError = getDetailedUpdateErrorMessage(err, retryCount, maxRetries, isTimeout);
+        const detailedError: string = getDetailedUpdateErrorMessage(
+          err,
+          retryCount,
+          maxRetries,
+          isTimeout
+        );
 
-        // ✅ Treat timeout as recoverable error (retry if under max retries)
+        // Treat timeouts as recoverable.
         const shouldRetry = (isRecoverableError(err) || isTimeout) && retryCount < maxRetries;
 
-        // Automatic retry for recoverable errors or timeouts (only if under max retries)
         if (shouldRetry) {
-          const delay = retryDelay * Math.pow(2, retryCount); // Exponential backoff
+          const delay = retryDelay * Math.pow(2, retryCount);
 
-          // ✅ Synchronize retryCountRef with retryCount
           retryCountRef.current = retryCount + 1;
 
-          // ✅ Show retry message to user (non-blocking, will be replaced by final error if all retries fail)
+          // Show a retry hint only on the first retry to avoid spamming the UI.
           if (retryCount === 0) {
-            // Only show on first retry to avoid spam
             setError(detailedError);
           }
 
@@ -164,21 +174,18 @@ export const useUpdater = ({
           return checkForUpdates(retryCount + 1);
         }
 
-        // Non-recoverable error or max retries reached
-        // ✅ Use detailed error message with full context
-        const userErrorMessage = getDetailedUpdateErrorMessage(
+        // Non-recoverable or retries exhausted.
+        const userErrorMessage: string = getDetailedUpdateErrorMessage(
           err,
           retryCount,
           maxRetries,
           isTimeout
         );
 
-        // Only set error if we've exhausted retries and have a message (don't show error during retries)
         if (retryCount >= maxRetries && userErrorMessage) {
           setError(userErrorMessage);
         }
 
-        // ✅ CRITICAL: Always reset isChecking to false, even on error
         isCheckingRef.current = false;
         setIsChecking(false);
         return null;
@@ -188,10 +195,11 @@ export const useUpdater = ({
   );
 
   /**
-   * Downloads and installs the update with robust error handling
+   * Downloads and installs the update with robust error handling (smooth
+   * progress interpolation, 60s inactivity timeout, retries).
    */
   const downloadAndInstall = useCallback(
-    async (update, retryCount = 0) => {
+    async (update: Update | null, retryCount: number = 0): Promise<void> => {
       if (!update) {
         return;
       }
@@ -202,34 +210,31 @@ export const useUpdater = ({
 
       let lastProgress = 0;
       let lastUpdateTime = Date.now();
-      let progressTimeout = null;
-      let animationFrameId = null;
+      let progressTimeout: TimeoutId | null = null;
+      let animationFrameId: number | null = null;
       let targetProgress = 0;
       let currentDisplayProgress = 0;
       let downloadAborted = false;
 
-      // Cleanup helper (production-grade)
-      const cleanup = () => {
-        if (animationFrameId) {
+      const cleanup = (): void => {
+        if (animationFrameId !== null) {
           cancelAnimationFrame(animationFrameId);
           animationFrameId = null;
         }
-        if (progressTimeout) {
+        if (progressTimeout !== null) {
           clearTimeout(progressTimeout);
           progressTimeout = null;
         }
       };
 
       try {
-        // Check if download was aborted before starting
         if (downloadAborted) {
           return;
         }
 
-        // Animation function for smooth interpolation
-        const animateProgress = () => {
+        const animateProgress = (): void => {
           if (currentDisplayProgress < targetProgress) {
-            // Linear interpolation for smooth animation
+            // Linear interpolation for smooth animation.
             const increment = Math.max(0.5, (targetProgress - currentDisplayProgress) * 0.1);
             currentDisplayProgress = Math.min(targetProgress, currentDisplayProgress + increment);
             setDownloadProgress(Math.round(currentDisplayProgress));
@@ -239,39 +244,42 @@ export const useUpdater = ({
           }
         };
 
-        await update.downloadAndInstall(event => {
+        await update.downloadAndInstall((event: DownloadEvent) => {
           switch (event.event) {
             case 'Started':
               setDownloadProgress(0);
               lastProgress = 0;
               targetProgress = 0;
-              // Safety timeout: if no progress for 60s, abort download
+              // Abort if no progress for 60s.
               progressTimeout = setTimeout(() => {
                 downloadAborted = true;
                 cleanup();
                 setIsDownloading(false);
                 setDownloadProgress(0);
                 setError('Download timeout. Please check your internet connection and try again.');
-              }, 60000); // 60 seconds timeout
+              }, 60000);
               break;
 
             case 'Progress': {
-              const { chunkLength, contentLength } = event.data;
+              // Older Tauri updater versions included `contentLength` on Progress
+              // events; newer ones only type `chunkLength`. Read both through a
+              // relaxed cast so we remain compatible at runtime.
+              const progressData = event.data as { chunkLength?: number; contentLength?: number };
+              const chunkLength = progressData.chunkLength ?? 0;
+              const contentLength = progressData.contentLength ?? 0;
               const progress =
                 contentLength > 0 ? Math.round((chunkLength / contentLength) * 100) : 0;
 
-              // Always update target, even for small changes
               targetProgress = progress;
 
-              // Update immediately if significant change or if it's the first time
+              // Flush immediately on significant change, on throttle, or at 100%.
               const timeSinceLastUpdate = Date.now() - lastUpdateTime;
               if (
                 Math.abs(progress - lastProgress) >= 0.5 ||
                 timeSinceLastUpdate > 100 ||
                 progress === 100
               ) {
-                // Stop animation if target reached
-                if (animationFrameId) {
+                if (animationFrameId !== null) {
                   cancelAnimationFrame(animationFrameId);
                   animationFrameId = null;
                 }
@@ -280,14 +288,14 @@ export const useUpdater = ({
                 lastProgress = progress;
                 lastUpdateTime = Date.now();
               } else {
-                // Start animation for smooth interpolation
-                if (!animationFrameId) {
+                // Otherwise animate towards the target.
+                if (animationFrameId === null) {
                   animationFrameId = requestAnimationFrame(animateProgress);
                 }
               }
 
-              // Reset timeout if progress detected
-              if (progressTimeout && !downloadAborted) {
+              // Bump the inactivity watchdog when we see real progress.
+              if (progressTimeout !== null && !downloadAborted) {
                 clearTimeout(progressTimeout);
                 progressTimeout = setTimeout(() => {
                   downloadAborted = true;
@@ -297,14 +305,13 @@ export const useUpdater = ({
                   setError(
                     'Download timeout. Please check your internet connection and try again.'
                   );
-                }, 60000); // 60 seconds timeout
+                }, 60000);
               }
 
               break;
             }
 
             case 'Finished':
-              // Stop animation and cleanup
               cleanup();
               setDownloadProgress(100);
               targetProgress = 100;
@@ -315,10 +322,12 @@ export const useUpdater = ({
           }
         });
 
-        // Explicitly relaunch after install; Tauri's updater doesn't always
+        // Explicitly relaunch after install - Tauri's updater doesn't always
         // auto-restart (especially on consecutive updates in the same session).
         try {
-          await new Promise(resolve => setTimeout(resolve, DAEMON_CONFIG.UPDATE_CHECK.RETRY_DELAY));
+          await new Promise<void>(resolve =>
+            setTimeout(resolve, DAEMON_CONFIG.UPDATE_CHECK.RETRY_DELAY)
+          );
           await relaunch();
         } catch {
           // relaunch() can fail on the second consecutive update (stale process
@@ -328,18 +337,15 @@ export const useUpdater = ({
           setError('Update installed successfully. Please restart the app manually to apply it.');
         }
       } catch (err) {
-        // Extract and format error message using centralized utilities (DRY)
-        const rawErrorMessage = extractErrorMessage(err);
-        let errorMessage = formatUserErrorMessage(rawErrorMessage);
+        const rawErrorMessage: string = extractErrorMessage(err);
+        let errorMessage: string = formatUserErrorMessage(rawErrorMessage);
 
-        // Automatic retry for recoverable errors during download
         if (isRecoverableError(err) && retryCount < maxRetries) {
           const delay = retryDelay * Math.pow(2, retryCount);
           await sleep(delay);
           return downloadAndInstall(update, retryCount + 1);
         }
 
-        // Non-recoverable error or max retries reached
         if (isRecoverableError(err)) {
           errorMessage = `Network error while downloading update (${retryCount + 1}/${maxRetries} attempts). Please try again later.`;
         }
@@ -347,36 +353,28 @@ export const useUpdater = ({
         setError(errorMessage);
         setIsDownloading(false);
         setDownloadProgress(0);
-
-        // Clean up on error (production-grade)
         cleanup();
       }
     },
     [maxRetries, retryDelay, isRecoverableError, sleep]
   );
 
-  /**
-   * Installs the available update
-   */
-  const installUpdate = useCallback(async () => {
+  const installUpdate = useCallback(async (): Promise<void> => {
     if (updateAvailable) {
       await downloadAndInstall(updateAvailable);
     }
   }, [updateAvailable, downloadAndInstall]);
 
-  // Listen for online/offline events to retry when connection is restored
+  // Online/offline listener - retry when connectivity is restored.
   useEffect(() => {
-    const handleOnline = () => {
-      // Clear error if we were offline
+    const handleOnline = (): void => {
       setError(prevError => {
         if (prevError && prevError.includes('No internet connection')) {
           return null;
         }
         return prevError;
       });
-      // Retry update check if autoCheck is enabled and not already checking
       if (autoCheck && !isCheckingRef.current) {
-        // Use a small delay to ensure state is updated
         setTimeout(() => {
           if (!isCheckingRef.current && navigator.onLine) {
             checkForUpdates();
@@ -385,8 +383,7 @@ export const useUpdater = ({
       }
     };
 
-    const handleOffline = () => {
-      // If we're checking, stop and show error
+    const handleOffline = (): void => {
       if (isCheckingRef.current) {
         isCheckingRef.current = false;
         setIsChecking(false);
@@ -403,30 +400,28 @@ export const useUpdater = ({
     };
   }, [autoCheck, checkForUpdates]);
 
-  // Automatic check on startup (with delay to avoid blocking startup)
+  // Initial check on startup (delayed to avoid blocking the app load).
   useEffect(() => {
     if (autoCheck && !isCheckingRef.current) {
-      // Wait for app to be fully loaded before checking
       const timeout = setTimeout(() => {
         checkForUpdates();
       }, DAEMON_CONFIG.UPDATE_CHECK.STARTUP_DELAY);
 
       return () => clearTimeout(timeout);
     }
+    return undefined;
   }, [autoCheck, checkForUpdates]);
 
-  // Periodic check (only if no recent check)
+  // Periodic check (skipped if we checked recently).
   useEffect(() => {
-    if (!autoCheck || checkInterval <= 0) return;
+    if (!autoCheck || checkInterval <= 0) return undefined;
 
     const interval = setInterval(() => {
-      // Don't check if a check was done recently (< 5 min)
-      const timeSinceLastCheck = lastCheckTimeRef.current
-        ? Date.now() - lastCheckTimeRef.current
-        : Infinity;
+      const timeSinceLastCheck =
+        lastCheckTimeRef.current !== null ? Date.now() - lastCheckTimeRef.current : Infinity;
 
+      // Skip if we already checked within the last 5 minutes.
       if (timeSinceLastCheck > 5 * 60 * 1000) {
-        // 5 minutes
         checkForUpdates();
       }
     }, checkInterval);
@@ -444,3 +439,5 @@ export const useUpdater = ({
     installUpdate,
   };
 };
+
+export default useUpdater;
