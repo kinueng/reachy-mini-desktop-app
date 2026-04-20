@@ -77,6 +77,14 @@ export function useConnection() {
         return false;
       }
 
+      // 🧹 Defensive cleanup: clear any stale local_proxy from a previous attempt
+      // (e.g. a failed WiFi try that didn't reach the normal disconnect flow).
+      // Without this, a leftover proxy on 127.0.0.1:8000 routes all subsequent
+      // traffic (incl. a local sim daemon launch) to the stale WiFi target.
+      try {
+        await invoke('clear_local_proxy_target');
+      } catch {}
+
       switch (mode) {
         case ConnectionMode.USB:
           if (!options.portName) {

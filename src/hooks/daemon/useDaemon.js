@@ -484,6 +484,14 @@ export const useDaemon = () => {
       } catch (e) {
         // ⚠️ IMPORTANT: Emit error BEFORE resetAll() so telemetry captures the connectionMode
         eventBus.emit('daemon:start:error', new Error(`WiFi daemon error: ${e.message}`));
+
+        // 🧹 Clean up the local proxy; otherwise it keeps routing 127.0.0.1:8000
+        // to the (unreachable/stale) WiFi host and poisons any subsequent
+        // connection attempt (including local sim daemon launches).
+        try {
+          await invoke('clear_local_proxy_target');
+        } catch {}
+
         resetAll();
       }
       return;
