@@ -8,56 +8,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 // Import the GStreamer WebRTC API (loaded as a side-effect, exposes
 // `window.GstWebRTCAPI`).
 import '../../lib/gstwebrtc-api';
-
-// ============================================================================
-// GstWebRTC - minimal ambient typings
-// ----------------------------------------------------------------------------
-// The vendored lib has no .d.ts; we declare here only what this hook touches.
-// Additional methods exist on the real API but are out of scope for now.
-// ============================================================================
-
-interface GstWebRTCProducer {
-  id: string;
-}
-
-interface GstWebRTCConsumerSession extends EventTarget {
-  streams: readonly MediaStream[];
-  connect: () => void;
-  close: () => void;
-}
-
-interface GstWebRTCProducersListener {
-  producerAdded: (producer: GstWebRTCProducer) => void;
-  producerRemoved: (producer: GstWebRTCProducer) => void;
-}
-
-interface GstWebRTCConnectionListener {
-  connected: (clientId: string) => void;
-  disconnected: () => void;
-}
-
-interface GstWebRTCAPIInstance {
-  createConsumerSession: (producerId: string) => GstWebRTCConsumerSession | null;
-  registerProducersListener: (listener: GstWebRTCProducersListener) => void;
-  unregisterProducersListener: (listener: GstWebRTCProducersListener) => void;
-  registerConnectionListener: (listener: GstWebRTCConnectionListener) => void;
-  unregisterConnectionListener: (listener: GstWebRTCConnectionListener) => void;
-}
-
-interface GstWebRTCAPIOptions {
-  signalingServerUrl: string;
-  reconnectionTimeout?: number;
-  meta?: Record<string, unknown>;
-  webrtcConfig?: RTCConfiguration;
-}
-
-type GstWebRTCAPIConstructor = new (options: GstWebRTCAPIOptions) => GstWebRTCAPIInstance;
-
-declare global {
-  interface Window {
-    GstWebRTCAPI?: GstWebRTCAPIConstructor;
-  }
-}
+// Side-effect import: registers the `Window.GstWebRTCAPI` global type.
+import type {} from '../../types/gstwebrtc';
+import type {
+  GstWebRTCProducer,
+  GstWebRTCConsumerSession,
+  GstWebRTCProducersListener,
+  GstWebRTCConnectionListener,
+  GstWebRTCAPIInstance,
+} from '../../types/gstwebrtc';
 
 // ============================================================================
 

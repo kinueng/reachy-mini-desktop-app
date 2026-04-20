@@ -1,71 +1,105 @@
 /**
  * WebRTCStreamContext
- * Provides a shared WebRTC stream connection across multiple components.
- * This avoids multiple CameraFeed instances creating duplicate connections.
+ *
+ * Provides a shared WebRTC stream connection across multiple components. This
+ * avoids multiple `CameraFeed` instances creating duplicate connections.
  */
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from 'react';
 import useAppStore from '../store/useAppStore';
 import { fetchWithTimeout, buildApiUrl } from '../config/daemon';
 import { ROBOT_STATUS } from '../constants/robotStatus';
 import { isLinux } from '../utils/platform';
 
-// Import the GStreamer WebRTC API
+// Import the GStreamer WebRTC API for its side effect (registers `window.GstWebRTCAPI`).
 import '../lib/gstwebrtc-api';
+// Side-effect import: registers the `Window.GstWebRTCAPI` global type.
+import type {} from '../types/gstwebrtc';
+import type {
+  GstWebRTCAPIInstance,
+  GstWebRTCConsumerSession,
+  GstWebRTCConnectionListener,
+  GstWebRTCProducersListener,
+  GstWebRTCProducer,
+} from '../types/gstwebrtc';
 
 const SIGNALING_PORT = 8443;
 const RECONNECT_DELAY = 2000;
 const INITIAL_RECONNECT_DELAY = 500;
 
-/**
- * Connection states for the WebRTC stream
- */
+/** Connection states for the WebRTC stream. */
 export const StreamState = {
   DISCONNECTED: 'disconnected',
   CONNECTING: 'connecting',
   CONNECTED: 'connected',
   ERROR: 'error',
-};
+} as const;
 
-// Context
-const WebRTCStreamContext = createContext(null);
+export type StreamStateValue = (typeof StreamState)[keyof typeof StreamState];
 
-/**
- * Provider component that manages the shared WebRTC connection
- */
-export function WebRTCStreamProvider({ children }) {
+// ---------------------------------------------------------------------------
+// Public context value
+// ---------------------------------------------------------------------------
+
+export interface WebRTCStreamContextValue {
+  state: StreamStateValue;
+  stream: MediaStream | null;
+  audioTrack: MediaStreamTrack | null;
+  error: string | null;
+  isConnected: boolean;
+  isConnecting: boolean;
+  isWifiMode: boolean;
+  isWebRTCAvailable: boolean | null;
+  checkFailed: boolean;
+  isRobotAwake: boolean;
+  shouldConnect: boolean;
+  connect: () => void;
+  disconnect: () => void;
+}
+
+const WebRTCStreamContext = createContext<WebRTCStreamContextValue | null>(null);
+
+export interface WebRTCStreamProviderProps {
+  children: ReactNode;
+}
+
+/** Provider component that manages the shared WebRTC connection. */
+export function WebRTCStreamProvider({ children }: WebRTCStreamProviderProps): React.ReactElement {
   const { connectionMode, remoteHost, robotStatus } = useAppStore();
   const isWifiMode = connectionMode === 'wifi';
   const isRobotAwake = robotStatus === ROBOT_STATUS.READY || robotStatus === ROBOT_STATUS.BUSY;
 
-  // Stream state
-  const [state, setState] = useState(StreamState.DISCONNECTED);
-  const [stream, setStream] = useState(null);
-  const [audioTrack, setAudioTrack] = useState(null);
-  const [error, setError] = useState(null);
+  const [state, setState] = useState<StreamStateValue>(StreamState.DISCONNECTED);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [audioTrack, setAudioTrack] = useState<MediaStreamTrack | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // WebRTC availability: true if the daemon exposes a WebRTC signaling server
+  // WebRTC availability: `true` if the daemon exposes a WebRTC signaling server.
   // - WiFi + wireless_version: true (Wireless robot over WiFi)
   // - USB (Lite): true (Lite daemon now supports WebRTC locally)
   // - Simulation: true (mockup-sim daemon runs locally with WebRTC signaling)
-  const [isWebRTCAvailable, setIsWebRTCAvailable] = useState(null);
-  const [checkFailed, setCheckFailed] = useState(false);
+  const [isWebRTCAvailable, setIsWebRTCAvailable] = useState<boolean | null>(null);
+  const [checkFailed, setCheckFailed] = useState<boolean>(false);
 
-  // Refs for cleanup
-  const apiRef = useRef(null);
-  const sessionRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
-  const mountedRef = useRef(true);
-  const producersListenerRef = useRef(null);
-  const connectionListenerRef = useRef(null);
-  const hasConnectedRef = useRef(false);
+  const apiRef = useRef<GstWebRTCAPIInstance | null>(null);
+  const sessionRef = useRef<GstWebRTCConsumerSession | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef<boolean>(true);
+  const producersListenerRef = useRef<GstWebRTCProducersListener | null>(null);
+  const connectionListenerRef = useRef<GstWebRTCConnectionListener | null>(null);
+  const hasConnectedRef = useRef<boolean>(false);
 
-  // Check WebRTC availability on mount
-  // - WiFi mode: check if daemon reports wireless_version (remote WebRTC on RPi)
-  // - USB / external mode (Lite): WebRTC is always available (daemon runs locally with signaling on :8443)
   useEffect(() => {
-    // WebKit on Linux is not built with WebRTC support, so streaming is unavailable
     if (isLinux()) {
+      // WebKit on Linux is not built with WebRTC support, so streaming is unavailable.
       setIsWebRTCAvailable(false);
       return;
     }
@@ -75,7 +109,6 @@ export function WebRTCStreamProvider({ children }) {
       connectionMode === 'external' ||
       connectionMode === 'simulation'
     ) {
-      // Local daemon always exposes WebRTC signaling server on localhost
       setIsWebRTCAvailable(true);
       return;
     }
@@ -85,32 +118,29 @@ export function WebRTCStreamProvider({ children }) {
       return;
     }
 
-    const checkWirelessVersion = async () => {
+    const checkWirelessVersion = async (): Promise<void> => {
       try {
         const response = await fetchWithTimeout(buildApiUrl('/api/daemon/status'), {}, 5000, {
           silent: true,
         });
         if (response.ok) {
-          const data = await response.json();
+          const data = (await response.json()) as { wireless_version?: boolean };
           setIsWebRTCAvailable(data.wireless_version === true);
         } else {
           setCheckFailed(true);
         }
-      } catch (e) {
+      } catch {
         setCheckFailed(true);
       }
     };
 
-    checkWirelessVersion();
+    void checkWirelessVersion();
   }, [isWifiMode, connectionMode]);
 
-  // Should we connect?
   const shouldConnect = isWebRTCAvailable === true && isRobotAwake;
 
-  /**
-   * Clean up session and API
-   */
-  const cleanup = useCallback(() => {
+  /** Clean up session and API. */
+  const cleanup = useCallback((): void => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -119,7 +149,7 @@ export function WebRTCStreamProvider({ children }) {
     if (sessionRef.current) {
       try {
         sessionRef.current.close();
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
       sessionRef.current = null;
@@ -135,12 +165,12 @@ export function WebRTCStreamProvider({ children }) {
           apiRef.current.unregisterConnectionListener(connectionListenerRef.current);
           connectionListenerRef.current = null;
         }
-        // GstWebRTCAPI has no public close() - close the underlying signaling channel
-        // directly to prevent orphaned WebSocket connections
+        // GstWebRTCAPI has no public `close()`; close the underlying signaling
+        // channel directly to prevent orphaned WebSocket connections.
         if (apiRef.current._channel) {
           apiRef.current._channel.close();
         }
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
       apiRef.current = null;
@@ -150,10 +180,8 @@ export function WebRTCStreamProvider({ children }) {
     setAudioTrack(null);
   }, []);
 
-  /**
-   * Connect to the WebRTC stream
-   */
-  const connect = useCallback(() => {
+  /** Connect to the WebRTC stream. */
+  const connect = useCallback((): void => {
     if (!mountedRef.current) {
       return;
     }
@@ -162,7 +190,7 @@ export function WebRTCStreamProvider({ children }) {
     setState(StreamState.CONNECTING);
     setError(null);
 
-    // Use remoteHost for WiFi, localhost for USB/Lite (daemon runs locally)
+    // Use `remoteHost` for WiFi, localhost for USB/Lite (daemon runs locally).
     const host = remoteHost || 'localhost';
     const signalingUrl = `ws://${host}:${SIGNALING_PORT}`;
 
@@ -186,9 +214,8 @@ export function WebRTCStreamProvider({ children }) {
 
       apiRef.current = api;
 
-      // Connection listener
       connectionListenerRef.current = {
-        connected: clientId => {
+        connected: () => {
           if (!mountedRef.current) return;
           hasConnectedRef.current = true;
         },
@@ -198,7 +225,6 @@ export function WebRTCStreamProvider({ children }) {
           setStream(null);
           setAudioTrack(null);
 
-          // Schedule reconnect if still should connect
           if (mountedRef.current && !reconnectTimeoutRef.current) {
             reconnectTimeoutRef.current = setTimeout(
               () => {
@@ -209,7 +235,6 @@ export function WebRTCStreamProvider({ children }) {
               },
               hasConnectedRef.current ? RECONNECT_DELAY : INITIAL_RECONNECT_DELAY
             );
-            // Keep showing "Connecting..." while retrying
             setState(StreamState.CONNECTING);
           } else {
             setState(StreamState.DISCONNECTED);
@@ -219,9 +244,8 @@ export function WebRTCStreamProvider({ children }) {
 
       api.registerConnectionListener(connectionListenerRef.current);
 
-      // Producers listener
       producersListenerRef.current = {
-        producerAdded: producer => {
+        producerAdded: (producer: GstWebRTCProducer) => {
           if (!mountedRef.current) return;
 
           if (sessionRef.current) {
@@ -236,12 +260,12 @@ export function WebRTCStreamProvider({ children }) {
 
           sessionRef.current = session;
 
-          session.addEventListener('error', e => {
+          session.addEventListener('error', (event: Event) => {
             if (!mountedRef.current) return;
-            console.error('[WebRTC] Session error:', e.message);
-            setError(e.message || 'Stream error');
+            const message = (event as Event & { message?: string }).message || 'Stream error';
+            console.error('[WebRTC] Session error:', message);
+            setError(message);
 
-            // Schedule reconnect on error (e.g. signaling server not ready yet)
             if (mountedRef.current && !reconnectTimeoutRef.current) {
               reconnectTimeoutRef.current = setTimeout(
                 () => {
@@ -252,7 +276,6 @@ export function WebRTCStreamProvider({ children }) {
                 },
                 hasConnectedRef.current ? RECONNECT_DELAY : INITIAL_RECONNECT_DELAY
               );
-              // Keep showing "Connecting..." while retrying
               setState(StreamState.CONNECTING);
             } else {
               setState(StreamState.ERROR);
@@ -276,7 +299,6 @@ export function WebRTCStreamProvider({ children }) {
               setStream(mediaStream);
               setState(StreamState.CONNECTED);
 
-              // Extract audio track from stream (robot microphone)
               const audioTracks = mediaStream.getAudioTracks();
               if (audioTracks.length > 0) {
                 setAudioTrack(audioTracks[0]);
@@ -289,7 +311,7 @@ export function WebRTCStreamProvider({ children }) {
           session.connect();
         },
 
-        producerRemoved: producer => {
+        producerRemoved: () => {
           if (!mountedRef.current) return;
 
           if (sessionRef.current) {
@@ -304,21 +326,19 @@ export function WebRTCStreamProvider({ children }) {
 
       api.registerProducersListener(producersListenerRef.current);
     } catch (e) {
-      console.error('[WebRTC] Connection error:', e.message);
-      setError(e.message);
+      const message = e instanceof Error ? e.message : String(e);
+      console.error('[WebRTC] Connection error:', message);
+      setError(message);
       setState(StreamState.ERROR);
     }
   }, [remoteHost, cleanup]);
 
-  /**
-   * Disconnect from the stream
-   */
-  const disconnect = useCallback(() => {
+  /** Disconnect from the stream. */
+  const disconnect = useCallback((): void => {
     cleanup();
     setState(StreamState.DISCONNECTED);
   }, [cleanup]);
 
-  // Auto-connect when conditions are met
   useEffect(() => {
     mountedRef.current = true;
 
@@ -332,10 +352,11 @@ export function WebRTCStreamProvider({ children }) {
       mountedRef.current = false;
       cleanup();
     };
-  }, [shouldConnect]); // eslint-disable-line react-hooks/exhaustive-deps
+    // `connect`/`disconnect`/`cleanup` are intentionally omitted to avoid reconnecting on every change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldConnect]);
 
-  const value = {
-    // State
+  const value: WebRTCStreamContextValue = {
     state,
     stream,
     audioTrack,
@@ -343,14 +364,12 @@ export function WebRTCStreamProvider({ children }) {
     isConnected: state === StreamState.CONNECTED,
     isConnecting: state === StreamState.CONNECTING,
 
-    // Derived state
     isWifiMode,
     isWebRTCAvailable,
     checkFailed,
     isRobotAwake,
     shouldConnect,
 
-    // Actions
     connect,
     disconnect,
   };
@@ -358,10 +377,8 @@ export function WebRTCStreamProvider({ children }) {
   return <WebRTCStreamContext.Provider value={value}>{children}</WebRTCStreamContext.Provider>;
 }
 
-/**
- * Hook to consume the WebRTC stream context
- */
-export function useWebRTCStreamContext() {
+/** Hook to consume the WebRTC stream context. */
+export function useWebRTCStreamContext(): WebRTCStreamContextValue {
   const context = useContext(WebRTCStreamContext);
   if (!context) {
     throw new Error('useWebRTCStreamContext must be used within a WebRTCStreamProvider');

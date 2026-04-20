@@ -1,5 +1,12 @@
-import { createContext, useContext, useReducer, useRef, useMemo, useCallback } from 'react';
-import { TargetSmoothingManager } from '@utils/targetSmoothing';
+import {
+  createContext,
+  useContext,
+  useReducer,
+  useMemo,
+  type ReactNode,
+  type Dispatch,
+} from 'react';
+import { TargetSmoothingManager, type HeadPose, type SmoothedValues } from '@utils/targetSmoothing';
 
 // =============================================================================
 // STATE MACHINE - Clear states for the controller
@@ -10,59 +17,81 @@ export const ControllerMode = {
   DRAGGING_MOUSE: 'dragging_mouse',
   DRAGGING_GAMEPAD: 'dragging_gamepad',
   RESETTING: 'resetting',
-};
+} as const;
+
+export type ControllerModeType = (typeof ControllerMode)[keyof typeof ControllerMode];
 
 // =============================================================================
-// INITIAL STATE
+// STATE
 // =============================================================================
 
-const createInitialState = () => ({
+export interface ControllerState {
+  mode: ControllerModeType;
+  headPose: HeadPose;
+  bodyYaw: number;
+  antennas: [number, number];
+  lastInteractionTime: number;
+  lastDragEndTime: number;
+  canSyncFromRobot: boolean;
+}
+
+const createInitialState = (): ControllerState => ({
   mode: ControllerMode.IDLE,
-
-  // Robot position values
   headPose: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 },
   bodyYaw: 0,
   antennas: [0, 0],
-
-  // Timestamps for interaction tracking
   lastInteractionTime: 0,
   lastDragEndTime: 0,
-
-  // Sync state
   canSyncFromRobot: true,
 });
 
 // =============================================================================
-// ACTION TYPES
+// ACTIONS
 // =============================================================================
 
 const ActionTypes = {
-  // Mode transitions
   START_MOUSE_DRAG: 'START_MOUSE_DRAG',
   START_GAMEPAD_INPUT: 'START_GAMEPAD_INPUT',
   END_INTERACTION: 'END_INTERACTION',
   START_RESET: 'START_RESET',
 
-  // Value updates
   UPDATE_HEAD_POSE: 'UPDATE_HEAD_POSE',
   UPDATE_BODY_YAW: 'UPDATE_BODY_YAW',
   UPDATE_ANTENNAS: 'UPDATE_ANTENNAS',
   UPDATE_ALL: 'UPDATE_ALL',
 
-  // Sync
   SYNC_FROM_ROBOT: 'SYNC_FROM_ROBOT',
   RESET_TO_ZERO: 'RESET_TO_ZERO',
-};
+} as const;
+
+export type ActionType = (typeof ActionTypes)[keyof typeof ActionTypes];
+
+export interface PartialPositionPayload {
+  headPose?: Partial<HeadPose>;
+  bodyYaw?: number;
+  antennas?: [number, number];
+}
+
+export type ControllerAction =
+  | { type: typeof ActionTypes.START_MOUSE_DRAG }
+  | { type: typeof ActionTypes.START_GAMEPAD_INPUT }
+  | { type: typeof ActionTypes.END_INTERACTION }
+  | { type: typeof ActionTypes.START_RESET }
+  | { type: typeof ActionTypes.UPDATE_HEAD_POSE; payload: Partial<HeadPose> }
+  | { type: typeof ActionTypes.UPDATE_BODY_YAW; payload: number }
+  | { type: typeof ActionTypes.UPDATE_ANTENNAS; payload: [number, number] }
+  | { type: typeof ActionTypes.UPDATE_ALL; payload: PartialPositionPayload }
+  | { type: typeof ActionTypes.SYNC_FROM_ROBOT; payload: PartialPositionPayload }
+  | { type: typeof ActionTypes.RESET_TO_ZERO };
 
 // =============================================================================
 // REDUCER
 // =============================================================================
 
-function controllerReducer(state, action) {
+function controllerReducer(state: ControllerState, action: ControllerAction): ControllerState {
   const now = Date.now();
 
   switch (action.type) {
-    // --- Mode transitions ---
     case ActionTypes.START_MOUSE_DRAG:
       return {
         ...state,
@@ -84,7 +113,6 @@ function controllerReducer(state, action) {
         ...state,
         mode: ControllerMode.IDLE,
         lastDragEndTime: now,
-        // Don't allow sync for 30s after user interaction
         canSyncFromRobot: false,
       };
 
@@ -97,7 +125,6 @@ function controllerReducer(state, action) {
         antennas: [0, 0],
       };
 
-    // --- Value updates ---
     case ActionTypes.UPDATE_HEAD_POSE:
       return {
         ...state,
@@ -119,19 +146,18 @@ function controllerReducer(state, action) {
     case ActionTypes.UPDATE_ALL:
       return {
         ...state,
-        headPose: action.payload.headPose ?? state.headPose,
+        headPose: action.payload.headPose
+          ? { ...state.headPose, ...action.payload.headPose }
+          : state.headPose,
         bodyYaw: action.payload.bodyYaw ?? state.bodyYaw,
         antennas: action.payload.antennas ?? state.antennas,
       };
 
-    // --- Sync ---
     case ActionTypes.SYNC_FROM_ROBOT: {
-      // Only sync if allowed and not interacting
       if (!state.canSyncFromRobot || state.mode !== ControllerMode.IDLE) {
         return state;
       }
 
-      // Check if enough time has passed since last interaction (30s)
       const timeSinceInteraction = now - state.lastInteractionTime;
       if (timeSinceInteraction < 30000) {
         return state;
@@ -139,7 +165,9 @@ function controllerReducer(state, action) {
 
       return {
         ...state,
-        headPose: action.payload.headPose ?? state.headPose,
+        headPose: action.payload.headPose
+          ? { ...state.headPose, ...action.payload.headPose }
+          : state.headPose,
         bodyYaw: action.payload.bodyYaw ?? state.bodyYaw,
         antennas: action.payload.antennas ?? state.antennas,
         canSyncFromRobot: true,
@@ -165,16 +193,47 @@ function controllerReducer(state, action) {
 // CONTEXT
 // =============================================================================
 
-const ControllerContext = createContext(null);
+export interface ControllerActions {
+  startMouseDrag: () => void;
+  startGamepadInput: () => void;
+  endInteraction: () => void;
+  startReset: () => void;
+  updateHeadPose: (pose: Partial<HeadPose>) => void;
+  updateBodyYaw: (yaw: number) => void;
+  updateAntennas: (antennas: [number, number]) => void;
+  updateAll: (values: PartialPositionPayload) => void;
+  syncFromRobot: (values: PartialPositionPayload) => void;
+  resetToZero: () => void;
+}
 
-export function ControllerProvider({ children, isActive }) {
-  const [state, dispatch] = useReducer(controllerReducer, null, createInitialState);
+export interface ControllerContextValue {
+  state: ControllerState;
+  actions: ControllerActions;
+  smoother: TargetSmoothingManager;
+  isDragging: boolean;
+  isUsingGamepad: boolean;
+  isActive: boolean;
+}
 
-  // Single source of truth for smoothing
+const ControllerContext = createContext<ControllerContextValue | null>(null);
+
+export interface ControllerProviderProps {
+  children: ReactNode;
+  isActive: boolean;
+}
+
+export function ControllerProvider({
+  children,
+  isActive,
+}: ControllerProviderProps): React.ReactElement {
+  const [state, dispatch] = useReducer(controllerReducer, null, createInitialState) as [
+    ControllerState,
+    Dispatch<ControllerAction>,
+  ];
+
   const smoother = useMemo(() => new TargetSmoothingManager(), []);
 
-  // Expose actions as clean functions
-  const actions = useMemo(
+  const actions: ControllerActions = useMemo(
     () => ({
       startMouseDrag: () => dispatch({ type: ActionTypes.START_MOUSE_DRAG }),
       startGamepadInput: () => dispatch({ type: ActionTypes.START_GAMEPAD_INPUT }),
@@ -193,13 +252,11 @@ export function ControllerProvider({ children, isActive }) {
     []
   );
 
-  // Derived state
   const isDragging =
     state.mode === ControllerMode.DRAGGING_MOUSE || state.mode === ControllerMode.DRAGGING_GAMEPAD;
-
   const isUsingGamepad = state.mode === ControllerMode.DRAGGING_GAMEPAD;
 
-  const value = useMemo(
+  const value = useMemo<ControllerContextValue>(
     () => ({
       state,
       actions,
@@ -218,7 +275,7 @@ export function ControllerProvider({ children, isActive }) {
 // HOOK
 // =============================================================================
 
-export function useController() {
+export function useController(): ControllerContextValue {
   const context = useContext(ControllerContext);
   if (!context) {
     throw new Error('useController must be used within a ControllerProvider');
@@ -227,3 +284,5 @@ export function useController() {
 }
 
 export { ActionTypes };
+
+export type { SmoothedValues };
