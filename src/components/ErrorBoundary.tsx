@@ -1,42 +1,57 @@
-import React from 'react';
+import React, { type ErrorInfo, type ReactNode } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 
-/**
- * Global error boundary that catches unhandled render errors and
- * displays a recovery UI instead of a blank white screen.
- *
- * Class component because React error boundaries require
- * componentDidCatch / getDerivedStateFromError (no hook equivalent).
- */
-class ErrorBoundary extends React.Component {
-  state = { hasError: false, error: null };
+export interface ErrorBoundaryProps {
+  children: ReactNode;
+}
 
-  static getDerivedStateFromError(error) {
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+/**
+ * Global error boundary that catches unhandled render errors and displays a
+ * recovery UI instead of a blank white screen.
+ *
+ * Class component because React error boundaries require `componentDidCatch`
+ * and `getDerivedStateFromError` (no hook equivalent).
+ */
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error, info) {
+  componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('[ErrorBoundary] Uncaught render error:', error, info.componentStack);
 
     try {
-      const { telemetry } = require('../utils/telemetry');
+      // Synchronous require keeps the boundary working even if telemetry fails.
+
+      const { telemetry } = require('../utils/telemetry') as {
+        telemetry: { appCrash: (props: Record<string, unknown>) => void };
+      };
       telemetry.appCrash({
         error_type: 'react_render_crash',
         error_message: error?.message,
         stack: error?.stack?.slice(0, 500),
       });
     } catch {
-      // Telemetry unavailable — swallow silently
+      // Telemetry unavailable - swallow silently
     }
   }
 
-  handleRecover = () => {
+  handleRecover = (): void => {
     this.setState({ hasError: false, error: null });
   };
 
-  handleFullReset = () => {
+  handleFullReset = (): void => {
     try {
-      const useStore = require('../store/useStore').useStore;
+      const useStore = require('../store/useStore').useStore as {
+        getState: () => { resetAll: () => void };
+      };
       useStore.getState().resetAll();
     } catch {
       // Store unavailable
@@ -44,7 +59,7 @@ class ErrorBoundary extends React.Component {
     this.setState({ hasError: false, error: null });
   };
 
-  render() {
+  render(): ReactNode {
     if (!this.state.hasError) {
       return this.props.children;
     }

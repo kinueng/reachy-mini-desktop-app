@@ -5,8 +5,31 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
+export type ToastSeverity = 'success' | 'error' | 'warning' | 'info';
+
+export interface ToastState {
+  open: boolean;
+  message: React.ReactNode;
+  severity: ToastSeverity;
+}
+
+export interface ToastProps {
+  toast: ToastState;
+  toastProgress: number;
+  onClose: () => void;
+  darkMode?: boolean;
+  zIndex?: number;
+}
+
+interface ToastColors {
+  background: string;
+  border: string;
+  text: string;
+  progress: string;
+}
+
 /**
- * Premium Toast notification component
+ * Premium Toast notification component.
  *
  * Features:
  * - Bottom-center positioning
@@ -16,25 +39,15 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
  * - Click to dismiss
  * - Dark/light mode support
  * - Success/Error/Info/Warning variants
- *
- * @param {Object} props
- * @param {Object} props.toast - Toast state { open, message, severity }
- * @param {number} props.toastProgress - Progress bar percentage (0-100)
- * @param {Function} props.onClose - Close callback
- * @param {boolean} props.darkMode - Dark mode flag
- * @param {number} [props.zIndex=100001] - Z-index for toast
- *
- * @example
- * <Toast
- *   toast={toast}
- *   toastProgress={toastProgress}
- *   onClose={handleCloseToast}
- *   darkMode={darkMode}
- * />
  */
-export default function Toast({ toast, toastProgress, onClose, darkMode, zIndex = 100001 }) {
-  // Icon mapping
-  const getIcon = () => {
+export default function Toast({
+  toast,
+  toastProgress,
+  onClose,
+  darkMode = false,
+  zIndex = 100001,
+}: ToastProps): React.ReactElement {
+  const getIcon = (): React.ReactElement | null => {
     switch (toast.severity) {
       case 'success':
         return <CheckCircleOutlinedIcon sx={{ fontSize: 20, flexShrink: 0, color: 'inherit' }} />;
@@ -49,8 +62,7 @@ export default function Toast({ toast, toastProgress, onClose, darkMode, zIndex 
     }
   };
 
-  // Color mapping
-  const getColors = () => {
+  const getColors = (): ToastColors => {
     switch (toast.severity) {
       case 'success':
         return {
@@ -128,7 +140,6 @@ export default function Toast({ toast, toastProgress, onClose, darkMode, zIndex 
           cursor: 'pointer',
         }}
       >
-        {/* Main content */}
         <Box
           sx={{
             position: 'relative',
@@ -150,7 +161,6 @@ export default function Toast({ toast, toastProgress, onClose, darkMode, zIndex 
             overflow: 'hidden',
           }}
         >
-          {/* Progress bar */}
           <Box
             sx={{
               position: 'absolute',
@@ -164,10 +174,8 @@ export default function Toast({ toast, toastProgress, onClose, darkMode, zIndex 
             }}
           />
 
-          {/* Icon */}
           {getIcon()}
 
-          {/* Message */}
           <Box sx={{ flex: 1, textAlign: 'center' }}>{toast.message}</Box>
         </Box>
       </Box>

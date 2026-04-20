@@ -2,24 +2,27 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import useAppStore from '../store/useAppStore';
 
+export interface FPSMeterProps {
+  darkMode?: boolean;
+}
+
 /**
- * Simple FPS Meter Component
- * Displays FPS counter above the Reachy status tag in 3D viewer
- * Should be rendered inside Viewer3D with position: absolute
+ * Simple FPS Meter component. Displays an FPS counter above the Reachy
+ * status tag in the 3D viewer. Should be rendered inside `Viewer3D` with
+ * `position: absolute`.
  */
-export function FPSMeter({ darkMode }) {
-  const [fps, setFps] = useState(0);
-  const frameCount = useRef(0);
-  const lastTime = useRef(performance.now());
-  const animationFrameId = useRef(null);
+export function FPSMeter({ darkMode = false }: FPSMeterProps): React.ReactElement {
+  const [fps, setFps] = useState<number>(0);
+  const frameCount = useRef<number>(0);
+  const lastTime = useRef<number>(performance.now());
+  const animationFrameId = useRef<number | null>(null);
 
   useEffect(() => {
-    const measureFPS = () => {
+    const measureFPS = (): void => {
       frameCount.current += 1;
       const currentTime = performance.now();
       const deltaTime = currentTime - lastTime.current;
 
-      // Update FPS every second
       if (deltaTime >= 1000) {
         const currentFPS = Math.round((frameCount.current * 1000) / deltaTime);
         setFps(currentFPS);
@@ -33,7 +36,7 @@ export function FPSMeter({ darkMode }) {
     animationFrameId.current = requestAnimationFrame(measureFPS);
 
     return () => {
-      if (animationFrameId.current) {
+      if (animationFrameId.current !== null) {
         cancelAnimationFrame(animationFrameId.current);
       }
     };
@@ -67,8 +70,8 @@ export function FPSMeter({ darkMode }) {
   );
 }
 
-// Default export - wrapper that gets darkMode from store (for backward compatibility)
-export default function FPSMeterWrapper() {
+/** Wrapper that gets `darkMode` from the store, for backward compatibility. */
+export default function FPSMeterWrapper(): React.ReactElement {
   const { darkMode } = useAppStore();
   return <FPSMeter darkMode={darkMode} />;
 }
