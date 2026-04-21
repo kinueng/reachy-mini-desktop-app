@@ -44,7 +44,6 @@ const Viewer3D = Viewer3DUntyped as unknown as React.FC<{
 }>;
 const LogConsole = LogConsoleUntyped as unknown as React.FC<{
   logs?: unknown;
-  remoteLogs?: unknown;
   darkMode?: boolean;
   maxHeight?: number | string;
   height?: number | string;
@@ -239,13 +238,16 @@ function ActiveRobotView({
   // Logs fullscreen modal
   const [logsFullscreenOpen, setLogsFullscreenOpen] = useState<boolean>(false);
 
-  // Remote daemon log stream (WiFi mode only)
+  // Remote daemon log stream (WiFi mode only).
+  // Side-effect hook: pushes incoming lines into `state.logs`, so every
+  // surface (LogConsole, standalone LogViewerWindow via windowSync) sees them
+  // without needing its own WebSocket.
   const logMode = useAppStore((s: FullAppState) => (s as { logMode?: string }).logMode as string);
   const remoteCategories = useMemo<DaemonLogSource[]>(
     () => (logMode === 'dev' ? ['daemon', 'app', 'api'] : ['daemon']),
     [logMode]
   );
-  const remoteLogs = useDaemonLogStream(remoteCategories);
+  useDaemonLogStream(remoteCategories);
 
   // Audio controls - Extracted to hook
   const {
@@ -262,7 +264,7 @@ function ActiveRobotView({
     handleMicrophoneMute,
   } = useAudioControls(isActive);
 
-  // Apps and robot position are pre-loaded during HardwareScanView + wake-up sequence.
+  // Apps and robot position are pre-loaded during StartupScanView + wake-up sequence.
   // The "Preparing robot..." overlay only shows if position data isn't ready yet.
   const hasHeadJoints =
     robotStateFull?.data?.head_joints &&
@@ -348,16 +350,21 @@ function ActiveRobotView({
   // Quick Actions: Curated mix of emotions, dances, and actions (no redundancy)
   const quickActions = QUICK_ACTIONS;
 
-  const handleRestartDaemon = useCallback(async (): Promise<void> => {
+  const handleBackToConnection = useCallback((): void => {
+    // Leave the "daemon crashed" overlay and return to ``FindingRobotView``.
+    // ``resetAll()`` wipes ``connectionMode`` (so ``useViewRouter`` falls back
+    // to the connection screen) and resets ``isDaemonCrashed`` via
+    // ``buildDerivedState(DISCONNECTED)`` (so the overlay closes).
     resetTimeouts();
-    try {
-      await stopDaemon();
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-    } catch {
-      window.location.reload();
-    }
+
+    // Best-effort daemon stop: fire-and-forget so the UI transitions instantly.
+    // If the daemon has genuinely crashed, ``stopDaemon`` will time out and we
+    // don't want to keep the user staring at the overlay while that happens.
+    Promise.resolve(stopDaemon()).catch(() => {
+      /* best effort */
+    });
+
+    useAppStore.getState().resetAll();
   }, [resetTimeouts, stopDaemon]);
 
   return (
@@ -428,11 +435,11 @@ function ActiveRobotView({
               power, the network dropped, or the daemon crashed.
             </Typography>
 
-            {/* Restart button */}
+            {/* Back-to-connection button */}
             <Button
               variant="outlined"
               color="primary"
-              onClick={handleRestartDaemon}
+              onClick={handleBackToConnection}
               sx={{
                 fontWeight: 600,
                 fontSize: 13,
@@ -442,7 +449,7 @@ function ActiveRobotView({
                 textTransform: 'none',
               }}
             >
-              Restart
+              Back to connection
             </Button>
           </Box>
         </FullscreenOverlay>
@@ -608,7 +615,6 @@ function ActiveRobotView({
               >
                 <LogConsole
                   logs={logs}
-                  remoteLogs={remoteLogs}
                   darkMode={darkMode}
                   maxHeight={120}
                   compact={true}
@@ -672,13 +678,7 @@ function ActiveRobotView({
               }}
             >
               <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-                <LogConsole
-                  logs={logs}
-                  remoteLogs={remoteLogs}
-                  darkMode={darkMode}
-                  height="100%"
-                  fullSize={true}
-                />
+                <LogConsole logs={logs} darkMode={darkMode} height="100%" fullSize={true} />
               </Box>
             </Box>
           )}

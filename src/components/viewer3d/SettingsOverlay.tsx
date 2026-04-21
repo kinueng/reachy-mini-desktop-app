@@ -18,6 +18,7 @@ import {
   SettingsCacheCard,
   SettingsDaemonCard,
   ChangeWifiOverlay,
+  WifiConnectingOverlay,
 } from './settings';
 import type { UpdateInfo } from './settings/SettingsUpdateCard';
 import type { WifiStatus } from './settings/SettingsWifiCard';
@@ -39,7 +40,7 @@ export default function SettingsOverlay({
   onClose,
   darkMode,
 }: SettingsOverlayProps): React.ReactElement {
-  const { connectionMode, remoteHost, blacklistRobot, resetAll, clearApps } = useAppStore();
+  const { connectionMode, remoteHost, resetAll, clearApps } = useAppStore();
   const isWifiMode = connectionMode === 'wifi';
 
   const safelyParkRobot = async (): Promise<boolean> => {
@@ -105,6 +106,10 @@ export default function SettingsOverlay({
 
   const [showUpdateConfirm, setShowUpdateConfirm] = useState<boolean>(false);
   const [showChangeWifiOverlay, setShowChangeWifiOverlay] = useState<boolean>(false);
+  // While the robot reconfigures WiFi, the app link drops for ~20s. During
+  // that window we show ``WifiConnectingOverlay`` and, on timeout, fall back
+  // to ``FindingRobotView`` via ``resetAll()``.
+  const [wifiConnectingTo, setWifiConnectingTo] = useState<string | null>(null);
   const [showClearNetworksConfirm, setShowClearNetworksConfirm] = useState<boolean>(false);
   const [isClearingNetworks, setIsClearingNetworks] = useState<boolean>(false);
   const [showResetAppsConfirm, setShowResetAppsConfirm] = useState<boolean>(false);
@@ -373,10 +378,6 @@ export default function SettingsOverlay({
       );
 
       if (response.ok) {
-        if (remoteHost) {
-          blacklistRobot(remoteHost, 10000);
-        }
-
         setShowClearNetworksConfirm(false);
         onClose();
 
@@ -393,7 +394,7 @@ export default function SettingsOverlay({
       showToast('Failed to clear networks', 'error');
       setIsClearingNetworks(false);
     }
-  }, [onClose, showToast, remoteHost, blacklistRobot, resetAll]);
+  }, [onClose, showToast, resetAll]);
 
   const handleResetAppsClick = useCallback((): void => {
     setShowResetAppsConfirm(true);
@@ -467,37 +468,46 @@ export default function SettingsOverlay({
     }
   }, [showToast, onClose, resetAll]);
 
-  const handleWifiConnect = useCallback(async (): Promise<void> => {
+  const handleWifiConnect = useCallback((): void => {
     if (!selectedSSID || !wifiPassword) return;
-    setIsConnecting(true);
+
+    const ssid = selectedSSID;
+    const password = wifiPassword;
+
+    // Close the credentials form and surface the transition modal immediately.
+    // The POST is fire-and-forget because the daemon's response is very likely
+    // to be cut short when the robot tears down the current connection to join
+    // the new SSID; we don't want to block the UI on a request that may never
+    // complete. See ``WifiConnectingOverlay`` for the UX rationale.
+    setShowChangeWifiOverlay(false);
+    setIsConnecting(false);
     setWifiError(null);
+    setWifiPassword('');
+    setSelectedSSID('');
+    setWifiConnectingTo(ssid);
 
-    try {
-      const response = await fetchWithTimeout(
-        buildApiUrl(
-          `/wifi/connect?ssid=${encodeURIComponent(selectedSSID)}&password=${encodeURIComponent(wifiPassword)}`
-        ),
-        { method: 'POST' },
-        DAEMON_CONFIG.TIMEOUTS.COMMAND * 3,
-        { label: 'WiFi connect' }
-      );
+    fetchWithTimeout(
+      buildApiUrl(
+        `/wifi/connect?ssid=${encodeURIComponent(ssid)}&password=${encodeURIComponent(password)}`
+      ),
+      { method: 'POST' },
+      DAEMON_CONFIG.TIMEOUTS.COMMAND,
+      { label: 'WiFi connect', silent: true }
+    ).catch(err => {
+      // Losing the link is expected (that's literally the point of the
+      // overlay), so we swallow network errors and rely on the countdown to
+      // hand the user back to the robot-selection screen.
+      console.debug('[SettingsOverlay] /wifi/connect request ended (expected):', err);
+    });
+  }, [selectedSSID, wifiPassword]);
 
-      if (response.ok) {
-        setShowChangeWifiOverlay(false);
-        setWifiPassword('');
-        setSelectedSSID('');
-        setTimeout(fetchWifiStatus, 5000);
-      } else {
-        const error = await response.json();
-        setWifiError(error.detail || 'Failed to connect');
-      }
-    } catch (err) {
-      console.error('Failed to connect to WiFi:', err);
-      setWifiError('Connection failed');
-    } finally {
-      setIsConnecting(false);
-    }
-  }, [selectedSSID, wifiPassword, fetchWifiStatus]);
+  const handleWifiConnectingTimeout = useCallback((): void => {
+    // Drop the WiFi transition overlay, close the settings modal and wipe the
+    // store so ``useViewRouter`` falls back to ``FindingRobotView``.
+    setWifiConnectingTo(null);
+    onClose();
+    setTimeout(() => resetAll(), 250);
+  }, [onClose, resetAll]);
 
   useEffect(() => {
     if (open) {
@@ -1317,6 +1327,13 @@ export default function SettingsOverlay({
         onPasswordChange={setWifiPassword}
         onConnect={handleWifiConnect}
         onRefresh={fetchWifiStatus}
+      />
+
+      <WifiConnectingOverlay
+        open={wifiConnectingTo !== null}
+        targetSsid={wifiConnectingTo ?? ''}
+        darkMode={darkMode}
+        onTimeout={handleWifiConnectingTimeout}
       />
 
       {isWifiMode && updateJobId && (
