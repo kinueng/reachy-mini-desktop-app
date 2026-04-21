@@ -15,6 +15,7 @@ import {
 import { useDaemonStartupLogs } from '../../hooks/daemon/useDaemonStartupLogs';
 import { useDaemonEventBus } from '../../hooks/daemon/useDaemonEventBus';
 import reachySetupSvg from '../../assets/reachy-how-to-create-app.svg';
+import { useAppPalette } from '@styles';
 import {
   BootstrapOverlay,
   ScanErrorDisplay,
@@ -56,11 +57,11 @@ export default function StartupView({
   onScanComplete: onScanCompleteCallback,
   startDaemon,
 }: StartupViewProps): React.ReactElement {
+  const palette = useAppPalette();
   // ─── Store bindings ───────────────────────────────────────────────
   const {
     setHardwareError,
     setStartupError,
-    darkMode,
     transitionTo,
     robotStatus,
     setShouldStreamRobotState,
@@ -75,7 +76,6 @@ export default function StartupView({
       return {
         setHardwareError: s.setHardwareError,
         setStartupError: s.setStartupError,
-        darkMode: s.darkMode,
         transitionTo: s.transitionTo,
         robotStatus: s.robotStatus,
         setShouldStreamRobotState: s.setShouldStreamRobotState,
@@ -89,7 +89,6 @@ export default function StartupView({
   ) as {
     setHardwareError: (err: unknown) => void;
     setStartupError: (err: unknown) => void;
-    darkMode: boolean;
     transitionTo: { ready: () => void; starting: () => void; [key: string]: () => void };
     robotStatus: string;
     setShouldStreamRobotState: (v: boolean) => void;
@@ -170,7 +169,7 @@ export default function StartupView({
         .replace(/^\s*\[?\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?\]?\s*/, '')
         .replace(/^\[\d{2}:\d{2}:\d{2}(?:[.,]\d+)?\]\s*/, '')
         .replace(/^\[[^\]]+\]\s*/, '')
-        .replace(/^(INFO|WARNING|WARN|ERROR|CRITICAL|FATAL|DEBUG)\s*[:\-]?\s*/i, '')
+        .replace(/^(INFO|WARNING|WARN|ERROR|CRITICAL|FATAL|DEBUG)\s*[:-]?\s*/i, '')
         .trim();
 
     for (let i = startupLogs.length - 1; i >= 0; i--) {
@@ -387,11 +386,7 @@ export default function StartupView({
        * thing reads as one coherent unit instead of two stacked blocks.
        */}
       {isBootstrapping === true ? (
-        <BootstrapOverlay
-          darkMode={darkMode}
-          isBootstrapping={isBootstrapping}
-          bootstrapMessage={bootstrapMessage}
-        />
+        <BootstrapOverlay isBootstrapping={isBootstrapping} bootstrapMessage={bootstrapMessage} />
       ) : null}
 
       <Box
@@ -418,7 +413,6 @@ export default function StartupView({
             isRetrying={isRetrying}
             onRetry={handleRetry}
             onBack={resetAll}
-            darkMode={darkMode}
             illustrationSrc={reachySetupSvg}
             connectionMode={connectionMode}
             probableCause={probableCause}
@@ -451,7 +445,9 @@ export default function StartupView({
                 sx={{
                   fontSize: 16,
                   fontWeight: 600,
-                  color: darkMode ? '#e5e5e5' : '#1a1a1a',
+                  // TODO(style-migration): original literals `#e5e5e5` / `#1a1a1a`
+                  // map approximately to `textPrimary`.
+                  color: palette.textPrimary,
                   lineHeight: 1.3,
                 }}
               >
@@ -462,7 +458,9 @@ export default function StartupView({
                   sx={{
                     fontSize: 12,
                     fontWeight: 400,
-                    color: darkMode ? '#888' : '#888',
+                    // TODO(style-migration): the raw `#888` literal has no exact
+                    // palette token; `textMuted` is the closest semantic match.
+                    color: palette.textMuted,
                     lineHeight: 1.3,
                   }}
                 >
@@ -477,7 +475,6 @@ export default function StartupView({
               waitingForWebSocket={waitingForWebSocket}
               waitingForApps={waitingForApps}
               daemonStep={daemonStep}
-              darkMode={darkMode}
               scanProgress={scanProgress as unknown as number}
             />
 
@@ -486,7 +483,9 @@ export default function StartupView({
                 sx={{
                   fontSize: 10,
                   fontWeight: 400,
-                  color: darkMode ? '#555' : '#aaa',
+                  // TODO(style-migration): `#555` / `#aaa` don't map cleanly;
+                  // `textFaint` is the nearest semantic token.
+                  color: palette.textFaint,
                   mt: 1,
                   fontStyle: 'italic',
                   textAlign: 'center',
@@ -501,7 +500,6 @@ export default function StartupView({
 
       <StartupLogsPanel
         logs={startupLogs as unknown[]}
-        darkMode={darkMode}
         prominentMini={Boolean(isBootstrapping)}
         hasError={hasError}
         expanded={logsExpanded}

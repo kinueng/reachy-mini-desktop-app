@@ -3,10 +3,13 @@ import { createPortal } from 'react-dom';
 import { Box, IconButton, Modal } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { getAppWindow } from '../utils/windowUtils';
+import { ACCENT, whiteAlpha, blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface FullscreenOverlayProps {
   open: boolean;
   onClose: () => void;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   zIndex?: number;
   showCloseButton?: boolean;
@@ -27,7 +30,6 @@ export interface FullscreenOverlayProps {
 export default function FullscreenOverlay({
   open,
   onClose,
-  darkMode = false,
   zIndex = 9999,
   showCloseButton = false,
   backdropBlur = 20,
@@ -41,6 +43,7 @@ export default function FullscreenOverlay({
   scrollRef,
   children,
 }: FullscreenOverlayProps): React.ReactElement {
+  const palette = useAppPalette();
   const appWindow = getAppWindow();
 
   const hasAnimatedRef = useRef(false);
@@ -53,7 +56,7 @@ export default function FullscreenOverlay({
 
   const shouldAnimate = open && !hidden && !hasAnimatedRef.current;
   const defaultBackdropOpacity =
-    backdropOpacity !== undefined ? backdropOpacity : darkMode ? 0.92 : 0.95;
+    backdropOpacity !== undefined ? backdropOpacity : palette.isDark ? 0.92 : 0.95;
 
   const isCenteredX = centeredX !== undefined ? centeredX : centered;
   const isCenteredY = centeredY !== undefined ? centeredY : centered;
@@ -66,7 +69,10 @@ export default function FullscreenOverlay({
     }
   };
 
-  const overlayBgColor = darkMode
+  // TODO(style-migration): the opaque `#121212`/`#ffffff` backdrop with a
+  // user-tunable alpha doesn't map cleanly onto `surfaceBg` (fully opaque).
+  // Keep the raw rgba form, but source the alpha from the prop/palette.
+  const overlayBgColor = palette.isDark
     ? `rgba(18, 18, 18, ${defaultBackdropOpacity})`
     : `rgba(255, 255, 255, ${defaultBackdropOpacity})`;
 
@@ -78,10 +84,10 @@ export default function FullscreenOverlay({
       background: 'transparent',
     },
     '&::-webkit-scrollbar-thumb': {
-      background: darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)',
+      background: palette.borderStrong,
       borderRadius: 4,
       '&:hover': {
-        background: darkMode ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.25)',
+        background: palette.isDark ? whiteAlpha(0.25) : blackAlpha(0.25),
       },
     },
   };
@@ -187,15 +193,15 @@ export default function FullscreenOverlay({
               position: 'fixed',
               top: 20,
               right: 16,
-              color: '#FF9500',
-              bgcolor: darkMode ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
-              border: '1px solid #FF9500',
+              color: ACCENT.main,
+              bgcolor: palette.isDark ? whiteAlpha(0.08) : palette.surfaceBg,
+              border: `1px solid ${ACCENT.main}`,
               opacity: 0.7,
               zIndex: 10000001,
               WebkitAppRegion: 'no-drag',
               '&:hover': {
                 opacity: 1,
-                bgcolor: darkMode ? 'rgba(255, 255, 255, 0.12)' : '#ffffff',
+                bgcolor: palette.isDark ? whiteAlpha(0.12) : palette.surfaceBg,
               },
             }}
           >

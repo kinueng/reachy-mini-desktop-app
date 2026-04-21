@@ -1,11 +1,14 @@
 import React from 'react';
 import { IconButton, CircularProgress } from '@mui/material';
 import PowerSettingsNewOutlinedIcon from '@mui/icons-material/PowerSettingsNewOutlined';
+import { ACCENT, DURATION, EASING, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface PowerButtonProps {
   onStopDaemon: () => void;
   isStopping: boolean;
   isBusy: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
 }
 
@@ -19,8 +22,8 @@ export default function PowerButton({
   onStopDaemon,
   isStopping,
   isBusy,
-  darkMode,
 }: PowerButtonProps): React.ReactElement {
+  const palette = useAppPalette();
   const canPowerOff = !isStopping && !isBusy;
 
   return (
@@ -31,40 +34,35 @@ export default function PowerButton({
         position: 'absolute',
         top: 12,
         left: 12,
-        bgcolor: darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-        color: '#FF9500',
+        bgcolor: palette.surfaceCard,
+        color: ACCENT.main,
         width: 36,
         height: 36,
-        border: darkMode ? '1px solid rgba(255, 149, 0, 0.5)' : '1px solid rgba(255, 149, 0, 0.4)',
+        border: `1px solid ${accentAlpha(palette.isDark ? 0.5 : 0.4)}`,
         backdropFilter: 'blur(10px)',
-        transition:
-          'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: `transform ${DURATION.medium}ms ${EASING.standard}, opacity ${DURATION.medium}ms ${EASING.standard}`,
         opacity: canPowerOff ? 1 : 0.4,
-        boxShadow: darkMode
-          ? '0 2px 8px rgba(255, 149, 0, 0.2)'
-          : '0 2px 8px rgba(255, 149, 0, 0.15)',
+        boxShadow: `0 2px 8px ${accentAlpha(palette.isDark ? 0.2 : 0.15)}`,
         zIndex: 20,
         '&:hover': {
-          bgcolor: darkMode ? 'rgba(255, 149, 0, 0.12)' : 'rgba(255, 149, 0, 0.08)',
+          bgcolor: palette.accentSurfaceHover,
           transform: canPowerOff ? 'scale(1.08)' : 'none',
-          borderColor: darkMode ? 'rgba(255, 149, 0, 0.7)' : 'rgba(255, 149, 0, 0.6)',
-          boxShadow: darkMode
-            ? '0 4px 12px rgba(255, 149, 0, 0.3)'
-            : '0 4px 12px rgba(255, 149, 0, 0.25)',
+          borderColor: accentAlpha(palette.isDark ? 0.7 : 0.6),
+          boxShadow: palette.shadowAccent,
         },
         '&:active': {
           transform: canPowerOff ? 'scale(0.95)' : 'none',
         },
         '&:disabled': {
-          bgcolor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.6)',
-          color: darkMode ? '#666' : '#999',
-          borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+          bgcolor: palette.isDark ? palette.surfaceSubtle : palette.surfaceCard,
+          color: palette.textMuted,
+          borderColor: palette.border,
         },
       }}
       title={isStopping ? 'Stopping...' : isBusy ? 'Wait for robot...' : 'Power Off'}
     >
       {isStopping ? (
-        <CircularProgress size={16} thickness={4} sx={{ color: darkMode ? '#666' : '#999' }} />
+        <CircularProgress size={16} thickness={4} sx={{ color: palette.textMuted }} />
       ) : (
         <PowerSettingsNewOutlinedIcon sx={{ fontSize: 18 }} />
       )}

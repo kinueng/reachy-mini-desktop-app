@@ -11,12 +11,15 @@ const FullscreenOverlay = FullscreenOverlayRaw as unknown as React.ComponentType
 import HowToCreateApp from '@assets/reachy-how-to-create-app.svg';
 import ExploratorIcon from '@assets/exporator.svg';
 import AstronautIcon from '@assets/astronaut.svg';
+import { accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface CreateAppTutorialModalProps {
   open: boolean;
   hidden?: boolean;
   onClose: () => void;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat and forwarded to the legacy FullscreenOverlay only. */
+  darkMode?: boolean;
 }
 
 interface Tutorial {
@@ -31,8 +34,8 @@ export default function CreateAppTutorialModal({
   open: isOpen,
   hidden = false,
   onClose,
-  darkMode,
 }: CreateAppTutorialModalProps): React.ReactElement {
+  const palette = useAppPalette();
   const { shellApi } = useActiveRobotContext();
   const open = shellApi.open;
   const tutorials: Tutorial[] = [
@@ -72,7 +75,7 @@ export default function CreateAppTutorialModal({
       open={isOpen}
       hidden={hidden}
       onClose={onClose}
-      darkMode={darkMode}
+      darkMode={palette.isDark}
       zIndex={10003}
       debugName="CreateAppTutorial"
       centeredX={true}
@@ -93,7 +96,7 @@ export default function CreateAppTutorialModal({
             sx={{
               fontSize: 28,
               fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#1a1a1a',
+              color: palette.textPrimary,
               letterSpacing: '-0.5px',
               lineHeight: 1.1,
               mb: 1,
@@ -104,7 +107,7 @@ export default function CreateAppTutorialModal({
           <Typography
             sx={{
               fontSize: 14,
-              color: darkMode ? '#888' : '#888',
+              color: palette.textMuted,
               fontWeight: 400,
               lineHeight: 1.5,
             }}
@@ -137,12 +140,12 @@ export default function CreateAppTutorialModal({
                 gap: 2,
                 cursor: 'pointer',
                 borderRadius: '16px',
-                border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)'}`,
-                bgcolor: darkMode ? 'rgba(255, 255, 255, 0.03)' : '#ffffff',
+                border: `1px solid ${palette.borderStrong}`,
+                bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.03)' : '#ffffff',
                 transition: 'all 0.2s ease',
                 '&:hover': {
-                  bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.02)',
-                  borderColor: darkMode ? 'rgba(255, 149, 0, 0.4)' : 'rgba(255, 149, 0, 0.5)',
+                  bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.02)',
+                  borderColor: accentAlpha(palette.isDark ? 0.4 : 0.5),
                   transform: 'translateY(-2px)',
                 },
               }}
@@ -162,7 +165,7 @@ export default function CreateAppTutorialModal({
                   sx={{
                     fontSize: 16,
                     fontWeight: 700,
-                    color: darkMode ? '#f5f5f5' : '#1a1a1a',
+                    color: palette.textPrimary,
                     letterSpacing: '-0.2px',
                     mb: 0.25,
                   }}
@@ -172,7 +175,7 @@ export default function CreateAppTutorialModal({
                 <Typography
                   sx={{
                     fontSize: 12,
-                    color: darkMode ? '#888' : '#888',
+                    color: palette.textMuted,
                   }}
                 >
                   {tutorial.description}

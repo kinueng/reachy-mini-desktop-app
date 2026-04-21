@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
+import { ACCENT, accentAlpha } from '@styles/tokens';
 
 interface VerticalSliderProps {
   label: string;
@@ -142,8 +143,8 @@ const VerticalSlider = memo(function VerticalSlider({
                 width: 12,
                 height: 12,
                 borderRadius: '50%',
-                bgcolor: 'rgba(255, 149, 0, 0.2)',
-                border: '1.5px solid rgba(255, 149, 0, 0.5)',
+                bgcolor: accentAlpha(0.2),
+                border: `1.5px solid ${accentAlpha(0.5)}`,
                 zIndex: 1,
                 pointerEvents: 'none',
                 transition: 'top 0.05s linear',
@@ -160,7 +161,7 @@ const VerticalSlider = memo(function VerticalSlider({
             step={0.001}
             disabled={disabled}
             sx={{
-              color: '#FF9500',
+              color: ACCENT.main,
               width: 4,
               height: '100%',
               position: 'relative',
@@ -170,12 +171,12 @@ const VerticalSlider = memo(function VerticalSlider({
                 height: 12,
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
                 '&:hover': {
-                  boxShadow: '0 2px 8px rgba(255, 149, 0, 0.4)',
+                  boxShadow: `0 2px 8px ${accentAlpha(0.4)}`,
                   width: 14,
                   height: 14,
                 },
                 '&:active': {
-                  boxShadow: '0 2px 8px rgba(255, 149, 0, 0.6)',
+                  boxShadow: `0 2px 8px ${accentAlpha(0.6)}`,
                 },
                 '&::before': {
                   boxShadow: 'none',

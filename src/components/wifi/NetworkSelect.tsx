@@ -9,6 +9,8 @@ import {
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
+import { STATUS, whiteAlpha, blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface NetworkSelectProps {
   value: string;
@@ -19,6 +21,7 @@ export interface NetworkSelectProps {
   isLoading?: boolean;
   connectedNetwork?: string | null;
   showLabel?: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   zIndex?: number;
   sx?: SxProps<Theme>;
@@ -40,11 +43,12 @@ export default function NetworkSelect({
   isLoading = false,
   connectedNetwork = null,
   showLabel = false,
-  darkMode = false,
   zIndex = 10004,
   sx = {},
 }: NetworkSelectProps) {
-  const textSecondary = darkMode ? '#888' : '#666';
+  const palette = useAppPalette();
+  const scrollThumb = palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.15);
+  const scrollThumbHover = palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.25);
 
   const selectContent = (
     <Select
@@ -64,8 +68,7 @@ export default function NetworkSelect({
         PaperProps: {
           sx: {
             maxHeight: 200,
-            bgcolor: darkMode ? '#1e1e1e' : '#fff',
-            // Custom scrollbar
+            bgcolor: palette.surfaceCard,
             '&::-webkit-scrollbar': {
               width: '6px',
             },
@@ -73,10 +76,10 @@ export default function NetworkSelect({
               bgcolor: 'transparent',
             },
             '&::-webkit-scrollbar-thumb': {
-              bgcolor: darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+              bgcolor: scrollThumb,
               borderRadius: '3px',
               '&:hover': {
-                bgcolor: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)',
+                bgcolor: scrollThumbHover,
               },
             },
           },
@@ -84,21 +87,21 @@ export default function NetworkSelect({
       }}
       renderValue={(val: unknown) => {
         if (!val) {
-          return <span style={{ color: textSecondary }}>Select a network</span>;
+          return <span style={{ color: palette.textSecondary }}>Select a network</span>;
         }
         return val as string;
       }}
       sx={sx}
     >
       {isLoading && networks.length === 0 ? (
-        <MenuItem value="" disabled sx={{ color: textSecondary, fontSize: 12 }}>
+        <MenuItem value="" disabled sx={{ color: palette.textSecondary, fontSize: 12 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CircularProgress size={14} thickness={3} sx={{ color: textSecondary }} />
+            <CircularProgress size={14} thickness={3} sx={{ color: palette.textSecondary }} />
             <em>Scanning networks...</em>
           </Box>
         </MenuItem>
       ) : networks.length === 0 ? (
-        <MenuItem value="" disabled sx={{ color: textSecondary, fontSize: 12 }}>
+        <MenuItem value="" disabled sx={{ color: palette.textSecondary, fontSize: 12 }}>
           <em>No networks found</em>
         </MenuItem>
       ) : (
@@ -115,13 +118,13 @@ export default function NetworkSelect({
                 justifyContent: 'space-between',
                 '&.Mui-disabled': {
                   opacity: 1,
-                  color: darkMode ? '#888' : '#666',
+                  color: palette.textSecondary,
                 },
               }}
             >
               {network}
               {isCurrentNetwork && (
-                <Typography component="span" sx={{ fontSize: 10, color: '#22c55e', ml: 1 }}>
+                <Typography component="span" sx={{ fontSize: 10, color: STATUS.success, ml: 1 }}>
                   ✓ connected
                 </Typography>
               )}

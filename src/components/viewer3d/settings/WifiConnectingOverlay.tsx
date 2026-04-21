@@ -3,13 +3,16 @@ import { Box, Typography, LinearProgress } from '@mui/material';
 import WifiIcon from '@mui/icons-material/Wifi';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import FullscreenOverlay from '../../FullscreenOverlay';
+import { accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface WifiConnectingOverlayProps {
   /** Controls visibility of the overlay. */
   open: boolean;
   /** SSID the robot is being reconfigured to join. Used for display only. */
   targetSsid: string;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   /**
    * Total duration of the countdown, in seconds. Defaults to 20s which matches
    * the typical time NetworkManager takes to tear down the current connection,
@@ -42,10 +45,10 @@ export interface WifiConnectingOverlayProps {
 export default function WifiConnectingOverlay({
   open,
   targetSsid,
-  darkMode,
   durationSeconds = 20,
   onTimeout,
 }: WifiConnectingOverlayProps): React.ReactElement {
+  const palette = useAppPalette();
   const [remaining, setRemaining] = useState<number>(durationSeconds);
   // Keep the latest ``onTimeout`` in a ref so the interval effect doesn't need
   // the callback in its dependency list (would cause the interval to restart
@@ -81,9 +84,9 @@ export default function WifiConnectingOverlay({
     return ((durationSeconds - remaining) / durationSeconds) * 100;
   }, [durationSeconds, remaining]);
 
-  const textPrimary = darkMode ? '#f5f5f5' : '#222';
-  const textSecondary = darkMode ? '#aaa' : '#555';
-  const textMuted = darkMode ? '#888' : '#777';
+  const textPrimary = palette.textPrimary;
+  const textSecondary = palette.textSecondary;
+  const textMuted = palette.textMuted;
 
   return (
     <FullscreenOverlay
@@ -91,7 +94,7 @@ export default function WifiConnectingOverlay({
       onClose={() => {
         /* non-dismissable: user must wait for the countdown */
       }}
-      darkMode={darkMode}
+      darkMode={palette.isDark}
       zIndex={10005}
       backdropOpacity={0.92}
       backdropBlur={16}
@@ -120,7 +123,7 @@ export default function WifiConnectingOverlay({
               width: 72,
               height: 72,
               borderRadius: '50%',
-              bgcolor: darkMode ? 'rgba(255, 149, 0, 0.14)' : 'rgba(255, 149, 0, 0.1)',
+              bgcolor: palette.isDark ? accentAlpha(0.14) : accentAlpha(0.1),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -178,7 +181,7 @@ export default function WifiConnectingOverlay({
             sx={{
               height: 6,
               borderRadius: 3,
-              bgcolor: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+              bgcolor: palette.border,
               '& .MuiLinearProgress-bar': {
                 borderRadius: 3,
                 transition: 'transform 0.25s linear',
@@ -205,8 +208,8 @@ export default function WifiConnectingOverlay({
             textAlign: 'left',
             p: 2,
             borderRadius: '12px',
-            bgcolor: darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-            border: `1px solid ${darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+            bgcolor: palette.surfaceSubtle,
+            border: `1px solid ${palette.border}`,
             mb: 1.5,
           }}
         >
@@ -225,9 +228,8 @@ export default function WifiConnectingOverlay({
               lineHeight: 1.6,
             }}
           >
-            Reachy is switching networks, so the app will lose its link for about{' '}
-            {durationSeconds} seconds. You&apos;ll then be taken back to the robot selection
-            screen to reconnect.
+            Reachy is switching networks, so the app will lose its link for about {durationSeconds}{' '}
+            seconds. You&apos;ll then be taken back to the robot selection screen to reconnect.
           </Typography>
         </Box>
 

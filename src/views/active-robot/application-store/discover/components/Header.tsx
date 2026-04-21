@@ -2,12 +2,15 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import hfLogo from '@assets/hf-logo.svg';
 import Reachies from '@assets/reachies.svg';
+import { useAppPalette } from '@styles';
 
 interface HeaderProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
 }
 
-export default function Header({ darkMode }: HeaderProps): React.ReactElement {
+export default function Header(_props: HeaderProps): React.ReactElement {
+  const palette = useAppPalette();
   return (
     <Box sx={{ mb: 0 }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 0 }}>
@@ -30,7 +33,7 @@ export default function Header({ darkMode }: HeaderProps): React.ReactElement {
               sx={{
                 fontSize: 32,
                 fontWeight: 700,
-                color: darkMode ? '#f5f5f5' : '#333',
+                color: palette.textPrimary,
                 letterSpacing: '-0.5px',
                 lineHeight: 1.2,
                 mb: 0.5,
@@ -41,7 +44,7 @@ export default function Header({ darkMode }: HeaderProps): React.ReactElement {
             <Typography
               sx={{
                 fontSize: 14,
-                color: darkMode ? '#888' : '#999',
+                color: palette.textMuted,
                 fontWeight: 500,
                 letterSpacing: '0.1px',
                 mb: 1,
@@ -52,7 +55,7 @@ export default function Header({ darkMode }: HeaderProps): React.ReactElement {
             <Typography
               sx={{
                 fontSize: 12,
-                color: darkMode ? '#aaa' : '#666',
+                color: palette.textSecondary,
                 fontWeight: 400,
                 lineHeight: 1.6,
                 maxWidth: '90%',
@@ -86,14 +89,14 @@ export default function Header({ darkMode }: HeaderProps): React.ReactElement {
                 gap: 0.5,
                 mt: 0.5,
                 fontSize: 9,
-                color: darkMode ? '#666' : '#999',
+                color: palette.textMuted,
                 fontWeight: 500,
               }}
             >
               <Box
                 component="span"
                 sx={{
-                  color: darkMode ? '#555' : '#aaa',
+                  color: palette.textFaint,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                 }}

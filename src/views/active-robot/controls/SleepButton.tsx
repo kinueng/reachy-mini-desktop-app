@@ -1,10 +1,13 @@
 import React from 'react';
 import { Box, Tooltip, CircularProgress } from '@mui/material';
 import BedtimeOutlinedIcon from '@mui/icons-material/BedtimeOutlined';
+import { ACCENT, DURATION, EASING, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 import { useWakeSleep } from '../hooks/useWakeSleep';
 import { useActiveRobotContext } from '../context';
 
 export interface SleepButtonProps {
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
 }
 
@@ -19,7 +22,8 @@ export interface SleepButtonProps {
  * - Robot is busy
  * - Controller or Expressions view is active
  */
-export default function SleepButton({ darkMode }: SleepButtonProps): React.ReactElement {
+export default function SleepButton(_props: SleepButtonProps = {}): React.ReactElement {
+  const palette = useAppPalette();
   const { isTransitioning, canToggle, goToSleep } = useWakeSleep();
   const { robotState } = useActiveRobotContext();
   const { rightPanelView } = robotState;
@@ -54,20 +58,20 @@ export default function SleepButton({ darkMode }: SleepButtonProps): React.React
           justifyContent: 'center',
           width: 36,
           height: 36,
-          bgcolor: darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-          border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)'}`,
+          bgcolor: palette.surfaceCard,
+          border: `1px solid ${palette.isDark ? palette.borderStrong : palette.border}`,
           borderRadius: '50%',
           backdropFilter: 'blur(10px)',
           zIndex: 20,
           cursor: isDisabled ? 'not-allowed' : 'pointer',
           opacity: isDisabled ? 0.4 : 1,
-          transition: 'all 0.2s ease',
-          boxShadow: darkMode ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
+          transition: `all ${DURATION.base}ms ${EASING.standard}`,
+          boxShadow: palette.shadowSm,
           '&:hover': isDisabled
             ? {}
             : {
-                bgcolor: darkMode ? 'rgba(255, 149, 0, 0.15)' : 'rgba(255, 149, 0, 0.1)',
-                borderColor: '#FF9500',
+                bgcolor: palette.accentSurfaceHover,
+                borderColor: ACCENT.main,
                 transform: 'scale(1.05)',
               },
           '&:active': isDisabled
@@ -78,16 +82,12 @@ export default function SleepButton({ darkMode }: SleepButtonProps): React.React
         }}
       >
         {isTransitioning ? (
-          <CircularProgress size={16} thickness={3} sx={{ color: '#FF9500' }} />
+          <CircularProgress size={16} thickness={3} sx={{ color: ACCENT.main }} />
         ) : (
           <BedtimeOutlinedIcon
             sx={{
               fontSize: 18,
-              color: isDisabled
-                ? darkMode
-                  ? 'rgba(255, 149, 0, 0.3)'
-                  : 'rgba(255, 149, 0, 0.4)'
-                : '#FF9500',
+              color: isDisabled ? accentAlpha(palette.isDark ? 0.3 : 0.4) : ACCENT.main,
             }}
           />
         )}

@@ -6,6 +6,8 @@ import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import NewReleasesOutlinedIcon from '@mui/icons-material/NewReleasesOutlined';
 import SectionHeader from './SectionHeader';
+import { STATUS } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface UpdateInfo {
   is_available?: boolean;
@@ -15,7 +17,8 @@ export interface UpdateInfo {
 }
 
 export interface SettingsUpdateCardProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   title?: string;
   updateInfo: UpdateInfo | null;
   isCheckingUpdate: boolean;
@@ -30,7 +33,6 @@ export interface SettingsUpdateCardProps {
 }
 
 export default function SettingsUpdateCard({
-  darkMode,
   title = 'System Update',
   updateInfo,
   isCheckingUpdate,
@@ -43,16 +45,17 @@ export default function SettingsUpdateCard({
   buttonStyle,
   isOnline = true,
 }: SettingsUpdateCardProps): React.ReactElement {
-  const textPrimary = darkMode ? '#f5f5f5' : '#333';
-  const textSecondary = darkMode ? '#888' : '#666';
-  const textMuted = darkMode ? '#666' : '#999';
+  const palette = useAppPalette();
+  const textPrimary = palette.textPrimary;
+  const textSecondary = palette.textSecondary;
+  const textMuted = palette.textMuted;
 
   return (
     <Box sx={cardStyle}>
       <SectionHeader
         title={title}
         icon={SystemUpdateAltIcon}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box
@@ -79,7 +82,7 @@ export default function SettingsUpdateCard({
                     },
                   },
                   '& .MuiSwitch-track': {
-                    bgcolor: darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+                    bgcolor: palette.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
                   },
                 }}
               />
@@ -191,7 +194,7 @@ export default function SettingsUpdateCard({
                   <Typography
                     sx={{
                       fontSize: 11,
-                      color: darkMode ? '#f59e0b' : '#d97706',
+                      color: STATUS.warning,
                       fontStyle: 'italic',
                     }}
                   >
@@ -201,7 +204,7 @@ export default function SettingsUpdateCard({
               </>
             ) : (
               <>
-                <CheckCircleOutlineIcon sx={{ fontSize: 32, color: '#22c55e' }} />
+                <CheckCircleOutlineIcon sx={{ fontSize: 32, color: STATUS.success }} />
                 <Box>
                   <Typography
                     sx={{
@@ -253,7 +256,7 @@ export default function SettingsUpdateCard({
               <Typography
                 sx={{
                   fontSize: 11,
-                  color: darkMode ? '#f59e0b' : '#d97706',
+                  color: STATUS.warning,
                   fontStyle: 'italic',
                   mt: 0.5,
                 }}

@@ -5,6 +5,7 @@ import { getAppWindow } from '../utils/windowUtils';
 import { getVersion } from '@utils/tauriCompat';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import useAppStore from '../store/useAppStore';
+import { useAppPalette } from '@styles';
 
 /**
  * Common TopBar component for all views
@@ -14,7 +15,8 @@ import useAppStore from '../store/useAppStore';
  * above MUI Modals (which also use portals) regardless of parent stacking context.
  */
 export default function AppTopBar(): React.ReactPortal {
-  const { darkMode, connectionMode, rightPanelView } = useAppStore();
+  const palette = useAppPalette();
+  const { connectionMode, rightPanelView } = useAppStore();
   const [currentVersion, setCurrentVersion] = useState<string | null>('');
   const [isMainWindow, setIsMainWindow] = useState<boolean>(true);
   const appWindow = getAppWindow();
@@ -76,7 +78,7 @@ export default function AppTopBar(): React.ReactPortal {
             top: 10,
             right: 12,
             fontSize: 9,
-            color: darkMode ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)',
+            color: palette.textFaint,
             fontWeight: 500,
             letterSpacing: '0.02em',
             pointerEvents: 'none',

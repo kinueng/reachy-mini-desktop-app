@@ -13,6 +13,7 @@ import { useRobotWebSocket, useCoalescedRobotState } from './hooks';
 import useAppStore from '../../store/useAppStore';
 import { selectIsBusy } from '../../store/slices';
 import type { BusyReason, RobotStatus } from '../../types/robot';
+import { useAppPalette } from '@styles';
 
 // ============================================================================
 // Camera presets
@@ -140,7 +141,8 @@ export default function RobotViewer3D({
   const cameraConfig = resolveCameraConfig(cameraPreset);
   const isTransparent = initialMode === 'xray';
 
-  const darkMode = useAppStore(state => state.darkMode);
+  const palette = useAppPalette();
+  const darkMode = palette.isDark;
   const isBusy = useAppStore(selectIsBusy);
 
   const effectiveBackgroundColor = resolveBackground(backgroundColor, darkMode);
@@ -231,11 +233,7 @@ export default function RobotViewer3D({
           height: '100%',
           display: 'block',
           background: canvasIsTransparent ? 'transparent' : effectiveBackgroundColor,
-          border: hideBorder
-            ? 'none'
-            : darkMode
-              ? '1px solid rgba(255, 255, 255, 0.08)'
-              : '1px solid rgba(0, 0, 0, 0.08)',
+          border: hideBorder ? 'none' : `1px solid ${palette.border}`,
           borderRadius: hideBorder ? '0' : '16px',
           transform: `scale(${canvasScale}) translate(${canvasTranslateX}, ${canvasTranslateY})`,
           transformOrigin: 'center center',

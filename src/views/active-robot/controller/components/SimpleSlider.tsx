@@ -1,6 +1,8 @@
 import React, { useMemo, memo, useRef } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
 import { telemetry } from '../../../../utils/telemetry';
+import { ACCENT, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface SimpleSliderProps {
   label: string;
@@ -9,7 +11,8 @@ interface SimpleSliderProps {
   min?: number;
   max?: number;
   unit?: string;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   disabled?: boolean;
   centered?: boolean;
   showRollVisualization?: boolean;
@@ -23,12 +26,14 @@ const SimpleSlider = memo(function SimpleSlider({
   min = -1,
   max = 1,
   unit = 'rad',
-  darkMode,
   disabled = false,
   centered = false,
   showRollVisualization = false,
   smoothedValue,
 }: SimpleSliderProps): React.ReactElement {
+  const palette = useAppPalette();
+  // TODO(style-migration): finish migrating remaining darkMode ternaries.
+  const darkMode = palette.isDark;
   const hasTrackedUsageRef = useRef<boolean>(false);
 
   const displayValue =
@@ -266,8 +271,8 @@ const SimpleSlider = memo(function SimpleSlider({
                 width: 12,
                 height: 12,
                 borderRadius: '50%',
-                bgcolor: 'rgba(255, 149, 0, 0.2)',
-                border: '1.5px solid rgba(255, 149, 0, 0.5)',
+                bgcolor: accentAlpha(0.2),
+                border: `1.5px solid ${accentAlpha(0.5)}`,
                 zIndex: 1,
                 pointerEvents: 'none',
                 transition: 'left 0.05s linear',
@@ -289,14 +294,14 @@ const SimpleSlider = memo(function SimpleSlider({
             step={0.01}
             disabled={disabled}
             sx={{
-              color: '#FF9500',
+              color: ACCENT.main,
               height: 3,
               position: 'relative',
               zIndex: 2,
               '& .MuiSlider-thumb': {
                 width: 12,
                 height: 12,
-                boxShadow: '0 2px 6px rgba(255, 149, 0, 0.4)',
+                boxShadow: `0 2px 6px ${accentAlpha(0.4)}`,
               },
               '& .MuiSlider-track': {
                 height: 3,

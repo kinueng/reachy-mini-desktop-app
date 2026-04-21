@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import { STATUS } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 const STORAGE_KEY = 'simulation-disclaimer-accepted';
 
 export interface SimulationDisclaimerProps {
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   onAccept?: () => void;
 }
@@ -14,9 +17,9 @@ export interface SimulationDisclaimerProps {
  * Warns users that apps support is incomplete in simulation mode
  */
 export default function SimulationDisclaimer({
-  darkMode = false,
   onAccept,
 }: SimulationDisclaimerProps): React.ReactElement | null {
+  const palette = useAppPalette();
   const [isVisible, setIsVisible] = useState<boolean>(false);
 
   useEffect(() => {
@@ -32,7 +35,7 @@ export default function SimulationDisclaimer({
 
   if (!isVisible) return null;
 
-  const warningColor = '#f59e0b';
+  const warningColor = STATUS.warning;
 
   return (
     <Box
@@ -42,7 +45,8 @@ export default function SimulationDisclaimer({
         left: 0,
         right: 0,
         bottom: 0,
-        bgcolor: darkMode ? 'rgba(26, 26, 26, 0.97)' : 'rgba(250, 250, 252, 0.97)',
+        // TODO(style-migration): scrim-over-card with 0.97 alpha isn't covered by palette.surfaceCard (0.95).
+        bgcolor: palette.isDark ? 'rgba(26, 26, 26, 0.97)' : 'rgba(250, 250, 252, 0.97)',
         zIndex: 10,
         display: 'flex',
         flexDirection: 'column',
@@ -60,7 +64,7 @@ export default function SimulationDisclaimer({
           sx={{
             fontSize: 13,
             fontWeight: 600,
-            color: darkMode ? '#f5f5f5' : '#333',
+            color: palette.textPrimary,
           }}
         >
           Simulation Mode
@@ -71,14 +75,14 @@ export default function SimulationDisclaimer({
       <Typography
         sx={{
           fontSize: 11,
-          color: darkMode ? '#999' : '#666',
+          color: palette.textSecondary,
           textAlign: 'center',
           lineHeight: 1.6,
           maxWidth: 240,
         }}
       >
-        Apps using <strong style={{ color: darkMode ? '#ccc' : '#444' }}>camera</strong> or{' '}
-        <strong style={{ color: darkMode ? '#ccc' : '#444' }}>microphone</strong> won't work yet —
+        Apps using <strong style={{ color: palette.textPrimary }}>camera</strong> or{' '}
+        <strong style={{ color: palette.textPrimary }}>microphone</strong> won&apos;t work yet -
         coming soon!
       </Typography>
 
@@ -95,9 +99,9 @@ export default function SimulationDisclaimer({
           px: 2,
           py: 0.5,
           borderRadius: '6px',
-          border: `1px solid ${darkMode ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.5)'}`,
+          border: `1px solid ${palette.isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.5)'}`,
           '&:hover': {
-            bgcolor: darkMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
+            bgcolor: palette.isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
             borderColor: warningColor,
           },
         }}

@@ -7,6 +7,14 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ReachyBox from '../../../../assets/reachy-update-box.svg';
 import { useActiveRobotContext } from '../../context';
 import hfLogo from '../../../../assets/hf-logo.svg';
+import { ACCENT, STATUS, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
+
+// TODO(style-migration): `#fbbf24` / `#f59e0b` amber combo is roughly the status
+// warning color. Kept literal because the palette only exposes a single warning
+// hue and we want to preserve the dark/light pair here.
+const AMBER_DARK = '#fbbf24';
+const AMBER_LIGHT = '#f59e0b';
 
 interface AppLike {
   name: string;
@@ -31,7 +39,8 @@ interface JobInfo {
 
 interface DiscoverAppsSectionProps {
   filteredApps: AppLike[];
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   isBusy: boolean;
   activeJobs: unknown;
   isJobRunning: (appName: string, type: string) => boolean;
@@ -44,7 +53,6 @@ interface DiscoverAppsSectionProps {
 
 export default function DiscoverAppsSection({
   filteredApps,
-  darkMode,
   isBusy,
   isJobRunning,
   handleInstall,
@@ -53,6 +61,7 @@ export default function DiscoverAppsSection({
   setSearchQuery,
   onOpenCreateTutorial,
 }: DiscoverAppsSectionProps): React.ReactElement {
+  const palette = useAppPalette();
   const { shellApi } = useActiveRobotContext();
   const open = shellApi.open;
   return (
@@ -66,7 +75,7 @@ export default function DiscoverAppsSection({
               sx={{
                 fontSize: 11,
                 fontWeight: 700,
-                color: darkMode ? '#aaa' : '#666',
+                color: palette.textSecondary,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
               }}
@@ -81,7 +90,7 @@ export default function DiscoverAppsSection({
               <InfoOutlinedIcon
                 sx={{
                   fontSize: 12,
-                  color: darkMode ? '#666' : '#999',
+                  color: palette.textMuted,
                   opacity: 0.6,
                   cursor: 'help',
                 }}
@@ -92,7 +101,7 @@ export default function DiscoverAppsSection({
             sx={{
               fontSize: 11,
               fontWeight: 700,
-              color: darkMode ? '#666' : '#999',
+              color: palette.textMuted,
             }}
           >
             {filteredApps.length}
@@ -103,7 +112,7 @@ export default function DiscoverAppsSection({
           <Typography
             sx={{
               fontSize: 10,
-              color: darkMode ? '#888' : '#999',
+              color: palette.textMuted,
               fontWeight: 500,
             }}
           >
@@ -122,7 +131,7 @@ export default function DiscoverAppsSection({
           <Typography
             sx={{
               fontSize: 10,
-              color: darkMode ? '#888' : '#999',
+              color: palette.textMuted,
               fontWeight: 500,
             }}
           >
@@ -140,16 +149,16 @@ export default function DiscoverAppsSection({
           py: 0.75,
           mb: 2,
           borderRadius: '10px',
-          bgcolor: darkMode ? '#262626' : 'white',
-          border: darkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.12)',
+          bgcolor: palette.isDark ? '#262626' : 'white',
+          border: `1px solid ${palette.border}`,
           transition: 'box-shadow 0.2s ease',
           '&:focus-within': {
-            borderColor: '#FF9500',
-            boxShadow: '0 0 0 3px rgba(255, 149, 0, 0.08)',
+            borderColor: ACCENT.main,
+            boxShadow: `0 0 0 3px ${accentAlpha(0.08)}`,
           },
         }}
       >
-        <SearchIcon sx={{ fontSize: 16, color: darkMode ? '#666' : '#999' }} />
+        <SearchIcon sx={{ fontSize: 16, color: palette.textMuted }} />
         <InputBase
           placeholder="Search apps..."
           value={searchQuery}
@@ -158,9 +167,9 @@ export default function DiscoverAppsSection({
             flex: 1,
             fontSize: 12,
             fontWeight: 500,
-            color: darkMode ? '#f5f5f5' : '#333',
+            color: palette.textPrimary,
             '& input::placeholder': {
-              color: darkMode ? '#666' : '#999',
+              color: palette.textMuted,
               opacity: 1,
             },
           }}
@@ -170,7 +179,7 @@ export default function DiscoverAppsSection({
           sx={{
             fontSize: 11,
             fontWeight: 700,
-            color: darkMode ? '#666' : '#999',
+            color: palette.textMuted,
             letterSpacing: '0.2px',
           }}
         >
@@ -179,15 +188,15 @@ export default function DiscoverAppsSection({
 
         {searchQuery && (
           <>
-            <Box sx={{ width: '1px', height: '14px', bgcolor: 'rgba(0, 0, 0, 0.1)' }} />
+            <Box sx={{ width: '1px', height: '14px', bgcolor: palette.border }} />
             <Typography
               onClick={() => setSearchQuery('')}
               sx={{
                 fontSize: 11,
-                color: darkMode ? '#888' : '#999',
+                color: palette.textMuted,
                 cursor: 'pointer',
                 fontWeight: 600,
-                '&:hover': { color: darkMode ? '#aaa' : '#666' },
+                '&:hover': { color: palette.textSecondary },
               }}
             >
               Clear
@@ -204,7 +213,7 @@ export default function DiscoverAppsSection({
               textAlign: 'center',
             }}
           >
-            <Typography sx={{ fontSize: 12, color: darkMode ? '#666' : '#999' }}>
+            <Typography sx={{ fontSize: 12, color: palette.textMuted }}>
               No apps found for &quot;{searchQuery}&quot;
             </Typography>
           </Box>
@@ -223,21 +232,19 @@ export default function DiscoverAppsSection({
                   p: 2.5,
                   borderRadius: '14px',
                   bgcolor: installFailed
-                    ? darkMode
+                    ? palette.isDark
                       ? 'rgba(239, 68, 68, 0.04)'
                       : 'rgba(239, 68, 68, 0.02)'
                     : isInstalling
-                      ? darkMode
-                        ? 'rgba(255, 149, 0, 0.04)'
-                        : 'rgba(255, 149, 0, 0.02)'
-                      : darkMode
+                      ? accentAlpha(palette.isDark ? 0.04 : 0.02)
+                      : palette.isDark
                         ? 'rgba(255, 255, 255, 0.02)'
                         : 'white',
                   border: installFailed
-                    ? '1.5px solid #ef4444'
+                    ? `1.5px solid ${STATUS.error}`
                     : isInstalling
-                      ? `1.5px solid rgba(255, 149, 0, 0.3)`
-                      : `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`,
+                      ? `1.5px solid ${accentAlpha(0.3)}`
+                      : `1px solid ${palette.border}`,
                   position: 'relative',
                   overflow: 'hidden',
                   boxShadow: 'none',
@@ -246,11 +253,11 @@ export default function DiscoverAppsSection({
                     '@keyframes pulse': {
                       '0%, 100%': {
                         opacity: 1,
-                        borderColor: 'rgba(255, 149, 0, 0.3)',
+                        borderColor: accentAlpha(0.3),
                       },
                       '50%': {
                         opacity: 0.95,
-                        borderColor: 'rgba(255, 149, 0, 0.5)',
+                        borderColor: accentAlpha(0.5),
                       },
                     },
                   }),
@@ -266,8 +273,8 @@ export default function DiscoverAppsSection({
                       alignItems: 'center',
                       justifyContent: 'center',
                       borderRadius: '12px',
-                      bgcolor: darkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
-                      border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`,
+                      bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+                      border: `1px solid ${palette.border}`,
                       flexShrink: 0,
                     }}
                   >
@@ -288,7 +295,7 @@ export default function DiscoverAppsSection({
                           sx={{
                             fontSize: 14,
                             fontWeight: 700,
-                            color: darkMode ? '#f5f5f5' : '#333',
+                            color: palette.textPrimary,
                             lineHeight: 1.3,
                             mb: 0.3,
                             overflow: 'hidden',
@@ -304,7 +311,7 @@ export default function DiscoverAppsSection({
                             sx={{
                               fontSize: 9,
                               fontWeight: 500,
-                              color: darkMode ? '#666' : '#999',
+                              color: palette.textMuted,
                               fontFamily: 'monospace',
                               letterSpacing: '0.2px',
                             }}
@@ -327,7 +334,7 @@ export default function DiscoverAppsSection({
                         onClick={() => handleInstall(app)}
                         endIcon={
                           isInstalling ? (
-                            <CircularProgress size={12} sx={{ color: '#FF9500' }} />
+                            <CircularProgress size={12} sx={{ color: ACCENT.main }} />
                           ) : (
                             <DownloadOutlinedIcon sx={{ fontSize: 13 }} />
                           )
@@ -342,19 +349,17 @@ export default function DiscoverAppsSection({
                           borderRadius: '8px',
                           flexShrink: 0,
                           bgcolor: 'transparent',
-                          color: '#FF9500',
-                          border: '1px solid #FF9500',
+                          color: ACCENT.main,
+                          border: `1px solid ${ACCENT.main}`,
                           transition: 'all 0.2s ease',
                           '&:hover': {
-                            bgcolor: 'rgba(255, 149, 0, 0.08)',
-                            borderColor: '#FF9500',
+                            bgcolor: accentAlpha(0.08),
+                            borderColor: ACCENT.main,
                           },
                           '&:disabled': {
                             bgcolor: 'transparent',
-                            color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
-                            borderColor: darkMode
-                              ? 'rgba(255, 255, 255, 0.1)'
-                              : 'rgba(0, 0, 0, 0.12)',
+                            color: palette.textFaint,
+                            borderColor: palette.border,
                           },
                         }}
                       >
@@ -365,7 +370,7 @@ export default function DiscoverAppsSection({
                     <Typography
                       sx={{
                         fontSize: 11,
-                        color: darkMode ? '#999' : '#666',
+                        color: palette.textSecondary,
                         lineHeight: 1.6,
                         mb: 1.5,
                       }}
@@ -383,17 +388,17 @@ export default function DiscoverAppsSection({
                             height: 22,
                             px: 1,
                             borderRadius: '11px',
-                            bgcolor: darkMode
+                            bgcolor: palette.isDark
                               ? 'rgba(251, 191, 36, 0.08)'
                               : 'rgba(245, 158, 11, 0.08)',
-                            border: `1px solid ${darkMode ? 'rgba(251, 191, 36, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
+                            border: `1px solid ${palette.isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
                           }}
                         >
                           <Typography
                             sx={{
                               fontSize: 10,
                               fontWeight: 600,
-                              color: darkMode ? '#fbbf24' : '#f59e0b',
+                              color: palette.isDark ? AMBER_DARK : AMBER_LIGHT,
                               lineHeight: 1,
                             }}
                           >
@@ -402,7 +407,7 @@ export default function DiscoverAppsSection({
                           <StarOutlineIcon
                             sx={{
                               fontSize: 13,
-                              color: darkMode ? '#fbbf24' : '#f59e0b',
+                              color: palette.isDark ? AMBER_DARK : AMBER_LIGHT,
                             }}
                           />
                         </Box>
@@ -416,8 +421,10 @@ export default function DiscoverAppsSection({
                           width: 22,
                           height: 22,
                           borderRadius: '11px',
-                          bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
-                          border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`,
+                          bgcolor: palette.isDark
+                            ? 'rgba(255, 255, 255, 0.06)'
+                            : 'rgba(0, 0, 0, 0.04)',
+                          border: `1px solid ${palette.border}`,
                         }}
                       >
                         <svg
@@ -428,7 +435,7 @@ export default function DiscoverAppsSection({
                           aria-hidden="true"
                           focusable="false"
                           role="img"
-                          style={{ color: darkMode ? '#888' : '#666' }}
+                          style={{ color: palette.textMuted }}
                         >
                           <path
                             opacity=".5"
@@ -464,7 +471,7 @@ export default function DiscoverAppsSection({
                           sx={{
                             fontSize: 10,
                             fontWeight: 500,
-                            color: darkMode ? '#888' : '#999',
+                            color: palette.textMuted,
                             textDecoration: 'none',
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
@@ -472,7 +479,7 @@ export default function DiscoverAppsSection({
                             alignItems: 'center',
                             gap: 0.3,
                             '&:hover': {
-                              color: '#FF9500',
+                              color: ACCENT.main,
                             },
                           }}
                         >
@@ -498,18 +505,16 @@ export default function DiscoverAppsSection({
             p: 2.5,
             borderRadius: '14px',
             bgcolor: 'transparent',
-            border: `1px dashed ${darkMode ? 'rgba(255, 149, 0, 0.4)' : 'rgba(255, 149, 0, 0.5)'}`,
+            border: `1px dashed ${accentAlpha(palette.isDark ? 0.4 : 0.5)}`,
             cursor: 'pointer',
             transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
             position: 'relative',
             overflow: 'hidden',
             '&:hover': {
-              borderColor: darkMode ? 'rgba(255, 149, 0, 0.6)' : 'rgba(255, 149, 0, 0.7)',
-              bgcolor: darkMode ? 'rgba(255, 149, 0, 0.05)' : 'rgba(255, 149, 0, 0.03)',
+              borderColor: accentAlpha(palette.isDark ? 0.6 : 0.7),
+              bgcolor: accentAlpha(palette.isDark ? 0.05 : 0.03),
               transform: 'translateY(-1px)',
-              boxShadow: darkMode
-                ? `0 4px 12px rgba(255, 149, 0, 0.15)`
-                : `0 4px 12px rgba(255, 149, 0, 0.1)`,
+              boxShadow: `0 4px 12px ${accentAlpha(palette.isDark ? 0.15 : 0.1)}`,
               '& > :last-child': {
                 transform: 'translateX(2px)',
               },
@@ -524,7 +529,7 @@ export default function DiscoverAppsSection({
               width: 48,
               height: 48,
               borderRadius: '12px',
-              bgcolor: darkMode ? 'rgba(255, 149, 0, 0.08)' : 'rgba(255, 149, 0, 0.05)',
+              bgcolor: accentAlpha(palette.isDark ? 0.08 : 0.05),
               border: theme => `1px solid ${theme.palette.primary.main}40`,
               display: 'flex',
               alignItems: 'center',
@@ -540,7 +545,7 @@ export default function DiscoverAppsSection({
               sx={{
                 width: 24,
                 height: 24,
-                opacity: darkMode ? 0.6 : 0.7,
+                opacity: palette.isDark ? 0.6 : 0.7,
               }}
             />
           </Box>
@@ -550,7 +555,7 @@ export default function DiscoverAppsSection({
               sx={{
                 fontSize: 13,
                 fontWeight: 700,
-                color: darkMode ? 'rgba(255, 149, 0, 0.6)' : 'rgba(255, 149, 0, 0.7)',
+                color: accentAlpha(palette.isDark ? 0.6 : 0.7),
                 mb: 0.3,
                 letterSpacing: '-0.2px',
                 textAlign: 'left',
@@ -561,7 +566,7 @@ export default function DiscoverAppsSection({
             <Typography
               sx={{
                 fontSize: 10,
-                color: darkMode ? '#666' : '#888',
+                color: palette.textMuted,
                 lineHeight: 1.4,
                 textAlign: 'left',
               }}

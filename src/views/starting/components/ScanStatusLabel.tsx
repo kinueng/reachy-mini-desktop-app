@@ -6,19 +6,24 @@
 
 import React from 'react';
 import { Typography } from '@mui/material';
+import { useAppPalette } from '@styles';
 
 export interface ScanStatusLabelProps {
   label: string;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
 }
 
-function ScanStatusLabel({ label, darkMode }: ScanStatusLabelProps) {
+function ScanStatusLabel({ label }: ScanStatusLabelProps) {
+  const palette = useAppPalette();
   return (
     <Typography
       sx={{
         fontSize: 11,
         fontWeight: 600,
-        color: darkMode ? '#666' : '#999',
+        // TODO(style-migration): precise grays `#666` / `#999` have no
+        // exact palette mapping; `textMuted` is the closest semantic match.
+        color: palette.textMuted,
         letterSpacing: '1px',
         textTransform: 'uppercase',
       }}

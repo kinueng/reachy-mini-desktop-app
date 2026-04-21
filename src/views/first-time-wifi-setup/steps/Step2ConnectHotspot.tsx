@@ -5,9 +5,20 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
 import qrCodeImage from '../../../assets/reachy-mini-access-point-QR-code.png';
 import type { WifiNetwork } from '../../../hooks/system/useLocalWifiScan';
+import {
+  ACCENT,
+  accentAlpha,
+  STATUS,
+  blackAlpha,
+  whiteAlpha,
+  DURATION,
+  EASING,
+} from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface Step2ConnectHotspotProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   textPrimary: string;
   textSecondary: string;
   reachyHotspots: WifiNetwork[];
@@ -23,7 +34,6 @@ interface CredentialRowProps {
 }
 
 export default function Step2ConnectHotspot({
-  darkMode,
   textPrimary,
   textSecondary,
   reachyHotspots,
@@ -31,6 +41,8 @@ export default function Step2ConnectHotspot({
   onOpenWifiSettings,
   isRetry = false,
 }: Step2ConnectHotspotProps): React.ReactElement {
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
   const hotspotName = reachyHotspots[0]?.ssid || 'reachy-mini-ap';
   const [copiedField, setCopiedField] = React.useState<string | null>(null);
 
@@ -54,11 +66,11 @@ export default function Step2ConnectHotspot({
         py: 0.75,
         px: 1.5,
         borderRadius: '8px',
-        bgcolor: darkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+        bgcolor: isDark ? whiteAlpha(0.04) : blackAlpha(0.03),
         cursor: 'pointer',
-        transition: 'all 0.15s ease',
+        transition: `all ${DURATION.fast}ms ${EASING.standard}`,
         '&:hover': {
-          bgcolor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+          bgcolor: isDark ? whiteAlpha(0.08) : blackAlpha(0.06),
         },
       }}
     >
@@ -80,7 +92,7 @@ export default function Step2ConnectHotspot({
         </Typography>
       </Box>
       {copiedField === field ? (
-        <CheckIcon sx={{ fontSize: 14, color: '#22c55e' }} />
+        <CheckIcon sx={{ fontSize: 14, color: STATUS.success }} />
       ) : (
         <ContentCopyIcon sx={{ fontSize: 14, color: textSecondary }} />
       )}
@@ -99,7 +111,7 @@ export default function Step2ConnectHotspot({
     >
       {isDaemonReachable ? (
         <>
-          <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#22c55e', mb: 1 }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 600, color: STATUS.success, mb: 1 }}>
             ✓ Connected to Reachy!
           </Typography>
           <Typography sx={{ fontSize: 12, color: textSecondary }}>
@@ -115,14 +127,22 @@ export default function Step2ConnectHotspot({
                 mb: 2,
                 p: 1.5,
                 borderRadius: '8px',
-                bgcolor: darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-                border: darkMode
-                  ? '1px solid rgba(239, 68, 68, 0.4)'
-                  : '1px solid rgba(239, 68, 68, 0.3)',
+                // TODO(style-migration): status error surface/border don't
+                // have dedicated palette tokens yet; inlining the red overlay.
+                bgcolor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+                border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)'}`,
               }}
             >
               <Typography
-                sx={{ fontSize: 12, color: darkMode ? '#fca5a5' : '#dc2626', lineHeight: 1.5 }}
+                sx={{
+                  fontSize: 12,
+                  // TODO(style-migration): status-text tones (`#fca5a5` light
+                  // / `#dc2626` dark) don't live in the palette yet; inlining
+                  // the two literals while we wait for a `statusErrorText`
+                  // token so the semantics stay clear.
+                  color: isDark ? '#fca5a5' : '#dc2626',
+                  lineHeight: 1.5,
+                }}
               >
                 Connection failed. Please reconnect to the Reachy hotspot to try again.
               </Typography>
@@ -151,12 +171,15 @@ export default function Step2ConnectHotspot({
             >
               <Box
                 sx={{
+                  // TODO(style-migration): the QR holder is always a white
+                  // card (QR must read on any theme); keeping the raw `#fff`
+                  // on purpose - not mapped to a palette surface.
                   bgcolor: '#fff',
                   p: 1,
                   borderRadius: '10px',
                   width: 110,
                   height: 110,
-                  boxShadow: darkMode ? '0 4px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)',
+                  boxShadow: isDark ? palette.shadowMd : palette.shadowSm,
                 }}
               >
                 <img
@@ -187,14 +210,14 @@ export default function Step2ConnectHotspot({
               fontSize: 13,
               fontWeight: 600,
               textTransform: 'none',
-              borderColor: '#FF9500',
-              color: '#FF9500',
+              borderColor: ACCENT.main,
+              color: ACCENT.main,
               py: 1,
               borderRadius: '10px',
               mb: 2,
               '&:hover': {
-                borderColor: '#e68600',
-                bgcolor: 'rgba(255, 149, 0, 0.08)',
+                borderColor: ACCENT.dark,
+                bgcolor: accentAlpha(0.08),
               },
             }}
           >
@@ -209,9 +232,9 @@ export default function Step2ConnectHotspot({
               gap: 1,
             }}
           >
-            <CircularProgress size={12} sx={{ color: '#FF9500' }} />
+            <CircularProgress size={12} sx={{ color: ACCENT.main }} />
             <Typography sx={{ fontSize: 11, color: textSecondary }}>
-              Detecting connection — we'll auto-advance when connected
+              Detecting connection - we'll auto-advance when connected
             </Typography>
           </Box>
         </>

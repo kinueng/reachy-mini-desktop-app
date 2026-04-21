@@ -7,6 +7,7 @@ import { logInfo } from '../../utils/logging';
 import { applyRobotMaterials } from '../../utils/viewer3d/applyRobotMaterials';
 import { STEWART_JOINT_NAMES, PASSIVE_JOINT_NAMES } from '../../constants/robotBuffer';
 import type { RobotStateFull } from '../../types/robot';
+import { useAppPalette } from '@styles';
 
 // TODO(ts): upstream RobotModel is typed as THREE.Object3D without exposing
 // URDF-loader specific `joints` map and `setJointValue`. Widen locally.
@@ -107,7 +108,7 @@ function URDFRobot({
   const meshesRef = useRef<THREE.Mesh[]>([]);
   const pendingRobotRef = useRef<URDFRobotModel | null>(null);
   const { camera, gl } = useThree();
-  const darkMode = useAppStore(state => state.darkMode);
+  const { isDark: darkMode } = useAppPalette();
   const robotStateFull = useAppStore(state => state.robotStateFull) as RobotStateFull;
 
   const robotStateFullRef = useRef<RobotStateFull | null>(null);

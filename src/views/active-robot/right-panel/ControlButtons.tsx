@@ -5,9 +5,12 @@ import CloseIcon from '@mui/icons-material/Close';
 import ExpressionIcon from '@assets/expression.svg';
 import JoystickIcon from '@assets/joystick.svg';
 import PulseButton from '@components/PulseButton';
+import { DURATION, EASING, STATUS } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 import { useActiveRobotContext } from '../context';
 
 export interface ControlButtonsProps {
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   isBusy?: boolean;
 }
@@ -20,9 +23,9 @@ export interface ControlButtonsProps {
  * Uses ActiveRobotContext for decoupling from global stores
  */
 export default function ControlButtons({
-  darkMode = false,
   isBusy = false,
 }: ControlButtonsProps): React.ReactElement {
+  const palette = useAppPalette();
   const { robotState, actions } = useActiveRobotContext();
   const { rightPanelView, currentApp, robotStatus } = robotState;
   const { setRightPanelView } = actions;
@@ -59,14 +62,15 @@ export default function ControlButtons({
 
   const cardStyle = {
     borderRadius: '14px',
-    bgcolor: darkMode ? 'rgba(255, 255, 255, 0.02)' : 'white',
-    border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`,
+    // TODO(style-migration): card bg uses subtle 0.02 alpha in dark and plain 'white' in light; palette.surfaceCard is 0.95 alpha.
+    bgcolor: palette.isDark ? palette.surfaceSubtle : '#ffffff',
+    border: `1px solid ${palette.border}`,
     p: 2.1,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: 1.5,
-    transition: 'all 0.2s ease',
+    transition: `all ${DURATION.base}ms ${EASING.standard}`,
     opacity: isDisabled ? 0.5 : 1,
     flex: 1,
     position: 'relative',
@@ -74,11 +78,11 @@ export default function ControlButtons({
 
   // Close button has different style (no pulse, neutral colors)
   const closeButtonOverrides = {
-    border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)'}`,
-    color: darkMode ? '#f5f5f5' : '#333',
+    border: `1px solid ${palette.borderStrong}`,
+    color: palette.textPrimary,
     '&:hover': {
-      bgcolor: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
-      border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)'}`,
+      bgcolor: palette.surfaceSubtle,
+      border: `1px solid ${palette.borderStrong}`,
     },
   };
 
@@ -105,7 +109,7 @@ export default function ControlButtons({
           sx={{
             fontSize: 20,
             fontWeight: 700,
-            color: darkMode ? '#f5f5f5' : '#333',
+            color: palette.textPrimary,
             letterSpacing: '-0.3px',
           }}
         >
@@ -136,7 +140,7 @@ export default function ControlButtons({
                 fontSize: 9,
                 fontWeight: 600,
                 bgcolor: 'rgba(34, 197, 94, 0.15)',
-                color: '#22c55e',
+                color: STATUS.success,
                 '& .MuiChip-label': {
                   px: 0.75,
                   py: 0,
@@ -158,7 +162,7 @@ export default function ControlButtons({
             sx={{
               fontSize: 15,
               fontWeight: 600,
-              color: darkMode ? '#f5f5f5' : '#333',
+              color: palette.textPrimary,
               letterSpacing: '-0.2px',
               textAlign: 'center',
             }}
@@ -169,7 +173,7 @@ export default function ControlButtons({
             onClick={handleExpressionsClick}
             disabled={isDisabled}
             pulse={!isExpressionsOpen}
-            darkMode={darkMode}
+            darkMode={palette.isDark}
             size="small"
             startIcon={
               isExpressionsOpen ? (
@@ -198,7 +202,7 @@ export default function ControlButtons({
                 fontSize: 9,
                 fontWeight: 600,
                 bgcolor: 'rgba(34, 197, 94, 0.15)',
-                color: '#22c55e',
+                color: STATUS.success,
                 '& .MuiChip-label': {
                   px: 0.75,
                   py: 0,
@@ -220,7 +224,7 @@ export default function ControlButtons({
             sx={{
               fontSize: 15,
               fontWeight: 600,
-              color: darkMode ? '#f5f5f5' : '#333',
+              color: palette.textPrimary,
               letterSpacing: '-0.2px',
               textAlign: 'center',
             }}
@@ -231,7 +235,7 @@ export default function ControlButtons({
             onClick={handleControllerClick}
             disabled={isDisabled}
             pulse={!isControllerOpen}
-            darkMode={darkMode}
+            darkMode={palette.isDark}
             size="small"
             startIcon={
               isControllerOpen ? (

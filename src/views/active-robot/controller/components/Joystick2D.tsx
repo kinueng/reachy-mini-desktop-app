@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { telemetry } from '../../../../utils/telemetry';
+import { ACCENT, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface Joystick2DProps {
   label: string;
@@ -13,7 +15,8 @@ interface Joystick2DProps {
   minY?: number;
   maxY?: number;
   size?: number;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   disabled?: boolean;
   smoothedValueX?: number | null;
   smoothedValueY?: number | null;
@@ -31,12 +34,14 @@ const Joystick2D = memo(function Joystick2D({
   minY = -1,
   maxY = 1,
   size = 100,
-  darkMode,
   disabled = false,
   smoothedValueX,
   smoothedValueY,
   labelAlign = 'left',
 }: Joystick2DProps): React.ReactElement {
+  const palette = useAppPalette();
+  // TODO(style-migration): finish migrating remaining darkMode ternaries.
+  const darkMode = palette.isDark;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [localStickX, setLocalStickX] = useState<number>(size / 2);
@@ -262,7 +267,7 @@ const Joystick2D = memo(function Joystick2D({
           userSelect: 'none',
           transition: 'all 0.2s ease',
           '&:hover': {
-            borderColor: 'rgba(255, 149, 0, 0.5)',
+            borderColor: accentAlpha(0.5),
           },
         }}
         onMouseDown={handleMouseDown}
@@ -270,8 +275,8 @@ const Joystick2D = memo(function Joystick2D({
         <svg width={size} height={size} style={{ display: 'block' }}>
           <defs>
             <radialGradient id={`stickGrad-${label}`}>
-              <stop offset="0%" stopColor="#FF9500" stopOpacity="1" />
-              <stop offset="100%" stopColor="#FF9500" stopOpacity="0.7" />
+              <stop offset="0%" stopColor={ACCENT.main} stopOpacity="1" />
+              <stop offset="100%" stopColor={ACCENT.main} stopOpacity="0.7" />
             </radialGradient>
             <pattern id={`grid-${label}`} width="10" height="10" patternUnits="userSpaceOnUse">
               <path
@@ -284,8 +289,8 @@ const Joystick2D = memo(function Joystick2D({
           </defs>
 
           <g opacity={0.25}>
-            <line x1={centerX} y1={0} x2={centerX} y2={size} stroke="#FF9500" strokeWidth={1} />
-            <line x1={0} y1={centerY} x2={size} y2={centerY} stroke="#FF9500" strokeWidth={1} />
+            <line x1={centerX} y1={0} x2={centerX} y2={size} stroke={ACCENT.main} strokeWidth={1} />
+            <line x1={0} y1={centerY} x2={size} y2={centerY} stroke={ACCENT.main} strokeWidth={1} />
           </g>
 
           <circle
@@ -293,7 +298,7 @@ const Joystick2D = memo(function Joystick2D({
             cy={centerY}
             r={maxRadius}
             fill="none"
-            stroke="rgba(255, 149, 0, 0.3)"
+            stroke={accentAlpha(0.3)}
             strokeWidth={1.5}
             strokeDasharray="2 2"
           />
@@ -318,7 +323,7 @@ const Joystick2D = memo(function Joystick2D({
                       y1={centerY}
                       x2={ghostX}
                       y2={ghostY}
-                      stroke="rgba(255, 149, 0, 0.3)"
+                      stroke={accentAlpha(0.3)}
                       strokeWidth={1.5}
                       strokeLinecap="round"
                       strokeDasharray="3 3"
@@ -328,8 +333,8 @@ const Joystick2D = memo(function Joystick2D({
                       cx={ghostX}
                       cy={ghostY}
                       r={stickRadius * 0.8}
-                      fill="rgba(255, 149, 0, 0.2)"
-                      stroke="rgba(255, 149, 0, 0.5)"
+                      fill={accentAlpha(0.2)}
+                      stroke={accentAlpha(0.5)}
                       strokeWidth={1.5}
                     />
                   </>
@@ -342,7 +347,7 @@ const Joystick2D = memo(function Joystick2D({
             y1={centerY}
             x2={localStickX}
             y2={localStickY}
-            stroke="#FF9500"
+            stroke={ACCENT.main}
             strokeWidth={2}
             strokeLinecap="round"
             opacity={0.5}
@@ -351,7 +356,7 @@ const Joystick2D = memo(function Joystick2D({
             cx={localStickX}
             cy={localStickY}
             r={stickRadius}
-            fill="#FF9500"
+            fill={ACCENT.main}
             stroke={darkMode ? 'rgba(26, 26, 26, 0.8)' : '#fff'}
             strokeWidth={2}
           />

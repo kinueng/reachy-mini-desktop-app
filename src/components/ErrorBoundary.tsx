@@ -1,5 +1,7 @@
 import React, { type ErrorInfo, type ReactNode } from 'react';
 import { Box, Typography, Button } from '@mui/material';
+import { buildAppPalette } from '@styles';
+import { RADIUS } from '@styles/tokens';
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -64,8 +66,18 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       return this.props.children;
     }
 
+    // Error boundaries are class components, so we build the palette
+    // directly rather than consuming the `useAppPalette` hook. Falls back
+    // to the OS colour scheme since the store may itself be the crash
+    // source.
     const isDark =
       typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+    const palette = buildAppPalette(Boolean(isDark));
+
+    // TODO(style-migration): these off-whites / off-blacks are specific to
+    // the crash screen and don't map cleanly onto `surfaceBg` / `textPrimary`.
+    const crashBg = isDark ? '#1a1a1a' : '#fafafc';
+    const crashText = isDark ? '#fff' : '#1a1a1a';
 
     return (
       <Box
@@ -76,8 +88,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           alignItems: 'center',
           justifyContent: 'center',
           gap: 3,
-          bgcolor: isDark ? '#1a1a1a' : '#fafafc',
-          color: isDark ? '#fff' : '#1a1a1a',
+          bgcolor: crashBg,
+          color: crashText,
           px: 4,
           textAlign: 'center',
         }}
@@ -89,7 +101,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         <Typography
           sx={{
             fontSize: 13,
-            color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)',
+            color: palette.textMuted,
             maxWidth: 420,
             lineHeight: 1.6,
           }}
@@ -105,8 +117,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               mt: 1,
               px: 2,
               py: 1.5,
-              borderRadius: '8px',
-              bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+              borderRadius: `${RADIUS.md}px`,
+              bgcolor: palette.surfaceSubtle,
               maxWidth: 500,
               overflow: 'auto',
             }}
@@ -115,7 +127,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               sx={{
                 fontFamily: 'monospace',
                 fontSize: 11,
-                color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)',
+                color: palette.textMuted,
                 wordBreak: 'break-word',
                 cursor: 'text',
               }}

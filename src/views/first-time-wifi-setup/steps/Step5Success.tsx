@@ -2,8 +2,10 @@ import React from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import type { WifiRobotCompat } from '../../../hooks/system/useRobotDiscovery';
+import { ACCENT, STATUS, hexToRgba } from '@styles';
 
 interface Step5SuccessProps {
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   textPrimary: string;
   textSecondary: string;
@@ -74,7 +76,7 @@ export default function Step5Success({
         </>
       ) : (
         <>
-          <CircularProgress size={32} sx={{ color: '#FF9500', mb: 2 }} />
+          <CircularProgress size={32} sx={{ color: ACCENT.main, mb: 2 }} />
           <Typography sx={{ fontSize: 12, color: textSecondary, mb: 1, lineHeight: 1.6 }}>
             Reachy should now be connected to{' '}
             <strong style={{ color: textPrimary }}>{configuredNetwork || 'your network'}</strong>.
@@ -83,7 +85,7 @@ export default function Step5Success({
             Searching for Reachy on the network...
           </Typography>
           {configuredNetwork && (
-            <Typography sx={{ fontSize: 11, color: '#FF9500', fontWeight: 500 }}>
+            <Typography sx={{ fontSize: 11, color: ACCENT.main, fontWeight: 500 }}>
               Make sure your computer is connected to "{configuredNetwork}"
             </Typography>
           )}

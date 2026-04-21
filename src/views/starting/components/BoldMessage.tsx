@@ -6,23 +6,26 @@
 
 import React from 'react';
 import { Box, Typography } from '@mui/material';
+import { useAppPalette } from '@styles';
 
 export interface BoldMessageProps {
   text?: string;
   bold: string;
   suffix?: string;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   fontSize?: number;
 }
 
-function BoldMessage({ text, bold, suffix, darkMode, fontSize = 14 }: BoldMessageProps) {
+function BoldMessage({ text, bold, suffix, fontSize = 14 }: BoldMessageProps) {
+  const palette = useAppPalette();
   return (
     <Typography
       component="span"
       sx={{
         fontSize,
         fontWeight: 500,
-        color: darkMode ? '#f5f5f5' : '#333',
+        color: palette.textPrimary,
         lineHeight: 1.5,
       }}
     >

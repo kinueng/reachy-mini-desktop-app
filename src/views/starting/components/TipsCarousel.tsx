@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
+import { useAppPalette } from '@styles';
 
 interface Tip {
   icon: string;
@@ -29,11 +30,13 @@ const TIPS_DATA: Tip[] = [
 ];
 
 export interface TipsCarouselProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   interval?: number;
 }
 
-function TipsCarousel({ darkMode, interval = 5000 }: TipsCarouselProps) {
+function TipsCarousel({ interval = 5000 }: TipsCarouselProps) {
+  const palette = useAppPalette();
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isVisible, setIsVisible] = useState<boolean>(true);
 
@@ -98,7 +101,7 @@ function TipsCarousel({ darkMode, interval = 5000 }: TipsCarouselProps) {
           sx={{
             fontSize: 12,
             fontWeight: 450,
-            color: darkMode ? '#a3a3a3' : '#666',
+            color: palette.textSecondary,
             letterSpacing: '0.2px',
             whiteSpace: 'nowrap',
           }}

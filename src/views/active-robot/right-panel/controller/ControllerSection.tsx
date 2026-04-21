@@ -3,6 +3,8 @@ import { Box, Typography, IconButton, Tooltip, Chip } from '@mui/material';
 import SportsEsportsOutlinedIcon from '@mui/icons-material/SportsEsportsOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import { ACCENT, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 import Controller from '../../controller';
 import { useGamepadConnected, useActiveDevice } from '../../../../utils/InputManager';
 import { useWindowFocus } from '../../../windows/hooks';
@@ -12,6 +14,7 @@ import type { ToastSeverity } from '../../../../types/store';
 export interface ControllerSectionProps {
   showToast?: (message: string, severity?: ToastSeverity) => void;
   isBusy?: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
 }
 
@@ -24,8 +27,8 @@ type ResetFn = () => void;
 export default function ControllerSection({
   showToast,
   isBusy = false,
-  darkMode = false,
 }: ControllerSectionProps): React.ReactElement {
+  const palette = useAppPalette();
   const { robotState, actions } = useActiveRobotContext();
   const { rightPanelView, robotStatus, isActive } = robotState;
   const { setRightPanelView } = actions;
@@ -118,9 +121,9 @@ export default function ControllerSection({
             onClick={handleBack}
             size="small"
             sx={{
-              color: '#FF9500',
+              color: ACCENT.main,
               '&:hover': {
-                bgcolor: darkMode ? 'rgba(255, 149, 0, 0.1)' : 'rgba(255, 149, 0, 0.05)',
+                bgcolor: palette.isDark ? accentAlpha(0.1) : accentAlpha(0.05),
               },
             }}
           >
@@ -130,7 +133,7 @@ export default function ControllerSection({
             sx={{
               fontSize: 20,
               fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              color: palette.textPrimary,
               letterSpacing: '-0.3px',
             }}
           >
@@ -164,18 +167,10 @@ export default function ControllerSection({
                 alignItems: 'center',
                 justifyContent: 'center',
                 opacity: isGamepadConnected ? 1 : 0.6,
-                borderColor: isGamepadConnected
-                  ? '#FF9500'
-                  : darkMode
-                    ? 'rgba(255, 255, 255, 0.2)'
-                    : 'rgba(0, 0, 0, 0.2)',
+                borderColor: isGamepadConnected ? ACCENT.main : palette.borderStrong,
                 '& .MuiChip-icon': {
                   fontSize: '1rem',
-                  color: isGamepadConnected
-                    ? '#FF9500'
-                    : darkMode
-                      ? 'rgba(255, 255, 255, 0.5)'
-                      : 'rgba(0, 0, 0, 0.4)',
+                  color: isGamepadConnected ? ACCENT.main : palette.textMuted,
                   margin: 0,
                   padding: 0,
                   display: 'flex',
@@ -199,14 +194,14 @@ export default function ControllerSection({
                 disabled={!isReady || isBusy}
                 sx={{
                   ml: 0.5,
-                  color: darkMode ? '#888' : '#999',
+                  color: palette.textMuted,
                   '&:hover': {
-                    color: '#FF9500',
-                    bgcolor: darkMode ? 'rgba(255, 149, 0, 0.1)' : 'rgba(255, 149, 0, 0.05)',
+                    color: ACCENT.main,
+                    bgcolor: palette.isDark ? accentAlpha(0.1) : accentAlpha(0.05),
                   },
                 }}
               >
-                <RefreshIcon sx={{ fontSize: 16, color: darkMode ? '#888' : '#999' }} />
+                <RefreshIcon sx={{ fontSize: 16, color: palette.textMuted }} />
               </IconButton>
             </Tooltip>
           )}
@@ -217,7 +212,7 @@ export default function ControllerSection({
       <Box sx={{ pt: 1, pr: 3, pb: 1.5, pl: 3 }}>
         <Controller
           isActive={isActive}
-          darkMode={darkMode}
+          darkMode={palette.isDark}
           onResetReady={handleResetReady}
           onIsAtInitialPosition={handleIsAtInitialPosition}
         />

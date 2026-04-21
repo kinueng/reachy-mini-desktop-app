@@ -1,16 +1,17 @@
 import React from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import ReachyDetective from '@assets/reachy-detective.svg';
+import { ACCENT } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface FooterProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   onOpenCreateTutorial: () => void;
 }
 
-export default function Footer({
-  darkMode,
-  onOpenCreateTutorial,
-}: FooterProps): React.ReactElement {
+export default function Footer({ onOpenCreateTutorial }: FooterProps): React.ReactElement {
+  const palette = useAppPalette();
   return (
     <Box
       sx={{
@@ -31,7 +32,7 @@ export default function Footer({
         sx={{
           width: 200,
           height: 'auto',
-          opacity: darkMode ? 0.7 : 0.8,
+          opacity: palette.isDark ? 0.7 : 0.8,
         }}
       />
 
@@ -39,7 +40,7 @@ export default function Footer({
         sx={{
           fontSize: 18,
           fontWeight: 700,
-          color: darkMode ? '#aaa' : '#666',
+          color: palette.textSecondary,
           textAlign: 'center',
         }}
       >
@@ -51,15 +52,15 @@ export default function Footer({
           textTransform: 'none',
           fontSize: 14,
           fontWeight: 600,
-          color: '#FF9500',
-          border: '1px solid #FF9500',
+          color: ACCENT.main,
+          border: `1px solid ${ACCENT.main}`,
           borderRadius: '10px',
           px: 3,
           py: 1,
           bgcolor: 'transparent',
           '&:hover': {
-            bgcolor: darkMode ? 'rgba(255, 149, 0, 0.08)' : 'rgba(255, 149, 0, 0.05)',
-            borderColor: '#FF9500',
+            bgcolor: palette.accentSurfaceHover,
+            borderColor: ACCENT.main,
           },
         }}
       >

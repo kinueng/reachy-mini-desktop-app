@@ -4,11 +4,14 @@ import WifiIcon from '@mui/icons-material/Wifi';
 import FullscreenOverlay from '../../FullscreenOverlay';
 import NetworkSelect from '../../wifi/NetworkSelect';
 import type { WifiStatus } from './SettingsWifiCard';
+import { STATUS, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface ChangeWifiOverlayProps {
   open: boolean;
   onClose: () => void;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   wifiStatus: WifiStatus | null;
   availableNetworks: unknown[];
   selectedSSID: string;
@@ -24,7 +27,6 @@ export interface ChangeWifiOverlayProps {
 export default function ChangeWifiOverlay({
   open,
   onClose,
-  darkMode,
   wifiStatus,
   availableNetworks,
   selectedSSID,
@@ -36,14 +38,15 @@ export default function ChangeWifiOverlay({
   onConnect,
   onRefresh,
 }: ChangeWifiOverlayProps): React.ReactElement {
-  const textPrimary = darkMode ? '#f5f5f5' : '#333';
-  const textSecondary = darkMode ? '#888' : '#666';
+  const palette = useAppPalette();
+  const textPrimary = palette.textPrimary;
+  const textSecondary = palette.textSecondary;
 
   return (
     <FullscreenOverlay
       open={open}
       onClose={onClose}
-      darkMode={darkMode}
+      darkMode={palette.isDark}
       zIndex={10003}
       backdropOpacity={0.85}
       debugName="ChangeWifi"
@@ -76,14 +79,14 @@ export default function ChangeWifiOverlay({
             mb: 3,
             p: 2,
             borderRadius: '12px',
-            bgcolor: darkMode ? 'rgba(255, 152, 0, 0.15)' : 'rgba(255, 152, 0, 0.1)',
-            border: `1px solid ${darkMode ? 'rgba(255, 152, 0, 0.3)' : 'rgba(255, 152, 0, 0.2)'}`,
+            bgcolor: palette.isDark ? accentAlpha(0.15) : accentAlpha(0.1),
+            border: `1px solid ${palette.isDark ? accentAlpha(0.3) : accentAlpha(0.2)}`,
           }}
         >
           <Typography
             sx={{
               fontSize: 12,
-              color: darkMode ? '#FFB74D' : '#F57C00',
+              color: palette.accentTextStrong,
               lineHeight: 1.6,
             }}
           >
@@ -114,7 +117,7 @@ export default function ChangeWifiOverlay({
             disabled={isConnecting}
             onOpen={onRefresh}
             connectedNetwork={wifiStatus?.connected_network}
-            darkMode={darkMode}
+            darkMode={palette.isDark}
             zIndex={10004}
           />
 
@@ -129,7 +132,7 @@ export default function ChangeWifiOverlay({
           />
 
           {wifiError && (
-            <Typography sx={{ fontSize: 11, color: '#ef4444' }}>⚠️ {wifiError}</Typography>
+            <Typography sx={{ fontSize: 11, color: STATUS.error }}>⚠️ {wifiError}</Typography>
           )}
         </Box>
 

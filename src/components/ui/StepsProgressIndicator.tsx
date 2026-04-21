@@ -8,6 +8,7 @@
 import React from 'react';
 import { Box, Typography, keyframes } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
+import { useAppPalette } from '@styles';
 
 export interface StepsProgressStep {
   id: string;
@@ -18,6 +19,7 @@ export interface StepsProgressIndicatorProps {
   steps?: StepsProgressStep[];
   currentStep?: number;
   progress?: number;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
 }
 
@@ -50,17 +52,21 @@ function StepsProgressIndicator({
   steps = [],
   currentStep = 0,
   progress: progressOverride,
-  darkMode = false,
 }: StepsProgressIndicatorProps) {
+  const palette = useAppPalette();
+
   // Calculate progress from currentStep if not provided
   const progress =
     progressOverride ?? (steps.length > 1 ? (currentStep / (steps.length - 1)) * 100 : 0);
 
-  // Colors
-  const bgColor = darkMode ? '#1a1a1a' : '#fdfcfa';
-  const trackColor = darkMode ? '#2a2a2a' : '#e5e5e5';
-  const fillColor = darkMode ? '#22c55e' : '#16a34a'; // Green for completed
-  const activeColor = darkMode ? '#a3a3a3' : '#737373'; // Neutral grey for current
+  // TODO(style-migration): these greys are specific to this component and do not
+  // map to semantic surface / border / text tokens yet. Branching on
+  // `palette.isDark` keeps the visuals stable while staying darkMode-prop-free.
+  const bgColor = palette.isDark ? '#1a1a1a' : '#fdfcfa';
+  const trackColor = palette.isDark ? '#2a2a2a' : '#e5e5e5';
+  const fillColor = palette.isDark ? '#22c55e' : '#16a34a'; // Green for completed
+  const activeColor = palette.isDark ? '#a3a3a3' : '#737373'; // Neutral grey for current
+  const inactiveLabelColor = palette.isDark ? '#525252' : '#a3a3a3';
 
   // Fixed dimensions
   const barHeight = 2;
@@ -195,13 +201,7 @@ function StepsProgressIndicator({
                 sx={{
                   fontSize: 10,
                   fontWeight: isCurrent ? 600 : isCompleted ? 500 : 400,
-                  color: isCompleted
-                    ? fillColor
-                    : isCurrent
-                      ? activeColor
-                      : darkMode
-                        ? '#525252'
-                        : '#a3a3a3',
+                  color: isCompleted ? fillColor : isCurrent ? activeColor : inactiveLabelColor,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                   transition: 'all 0.3s ease',

@@ -7,6 +7,7 @@ import PremiumScanEffect from './effects/PremiumScanEffect';
 import ErrorHighlight from './effects/ErrorHighlight';
 import CinematicCamera from './CinematicCamera';
 import { findErrorMeshes } from '../../utils/viewer3d/findErrorMeshes';
+import { useAppPalette } from '@styles';
 
 // TODO(ts): URDFLoader augments the robot root with `links` and joint helpers.
 // These aren't exposed in the upstream RobotModel type, widen locally.
@@ -43,6 +44,7 @@ export interface SceneProps {
   useCinematicCamera?: boolean;
   errorFocusMesh?: THREE.Mesh | null;
   hideEffects?: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   allowZeroPose?: boolean;
   dataVersion?: number;
@@ -116,10 +118,10 @@ function Scene({
   cameraConfig = {},
   useCinematicCamera = false,
   errorFocusMesh = null,
-  darkMode = false,
   allowZeroPose,
   dataVersion = 0,
 }: SceneProps): React.ReactElement {
+  const { isDark: darkMode } = useAppPalette();
   const [outlineMeshes, setOutlineMeshes] = useState<THREE.Mesh[]>([]);
   const [robotRef, setRobotRef] = useState<URDFLinkedObject | null>(null);
 

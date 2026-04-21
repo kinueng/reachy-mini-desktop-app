@@ -1,11 +1,13 @@
 import React from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { ACCENT, accentAlpha, STATUS } from '@styles';
 
 export type Step4Status = 'waiting' | 'searching' | 'found' | 'failed';
 
 interface Step4ReconnectingProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   textPrimary: string;
   textSecondary: string;
   configuredNetwork: string | null;
@@ -26,7 +28,7 @@ export default function Step4Reconnecting({
       case 'searching':
         return (
           <>
-            <CircularProgress size={32} sx={{ color: '#FF9500', mb: 2 }} />
+            <CircularProgress size={32} sx={{ color: ACCENT.main, mb: 2 }} />
             <Typography sx={{ fontSize: 13, color: textSecondary, lineHeight: 1.6 }}>
               Verifying connection to{' '}
               <strong style={{ color: textPrimary }}>{configuredNetwork || 'network'}</strong>...
@@ -40,8 +42,8 @@ export default function Step4Reconnecting({
       case 'found':
         return (
           <>
-            <CheckCircleIcon sx={{ fontSize: 40, color: '#22c55e', mb: 1 }} />
-            <Typography sx={{ fontSize: 14, fontWeight: 600, color: '#22c55e' }}>
+            <CheckCircleIcon sx={{ fontSize: 40, color: STATUS.success, mb: 1 }} />
+            <Typography sx={{ fontSize: 14, fontWeight: 600, color: STATUS.success }}>
               Connected successfully!
             </Typography>
             <Typography sx={{ fontSize: 12, color: textSecondary, mt: 1 }}>
@@ -69,14 +71,14 @@ export default function Step4Reconnecting({
                 fontSize: 12,
                 fontWeight: 600,
                 textTransform: 'none',
-                borderColor: '#FF9500',
-                color: '#FF9500',
+                borderColor: ACCENT.main,
+                color: ACCENT.main,
                 px: 2,
                 py: 0.5,
                 borderRadius: '8px',
                 '&:hover': {
-                  borderColor: '#e68600',
-                  bgcolor: 'rgba(255, 149, 0, 0.08)',
+                  borderColor: ACCENT.dark,
+                  bgcolor: accentAlpha(0.08),
                 },
               }}
             >

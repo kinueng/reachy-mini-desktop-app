@@ -24,6 +24,7 @@ import LaunchIcon from '@mui/icons-material/Launch';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
 import { openUrl } from '../../../utils/tauriCompat';
+import { useAppPalette, STATUS } from '@styles';
 
 /**
  * Shape of a single startup log entry as produced by `useDaemonStartupLogs`.
@@ -41,8 +42,10 @@ const TROUBLESHOOTING_URL = 'https://huggingface.co/docs/reachy_mini/troubleshoo
 // Severity-driven colour tokens for the small status-strip dot. The retry
 // button itself uses MUI's primary palette via `color="primary"`, so no
 // severity colour is applied to it anymore.
-const ERROR_COLOR = '#ef4444';
-const TIMEOUT_COLOR = '#d97706';
+const ERROR_COLOR = STATUS.error;
+// TODO(style-migration): `#d97706` (amber-600) has no exact token match;
+// `STATUS.warning` (`#f59e0b`) is the closest semantic equivalent.
+const TIMEOUT_COLOR = STATUS.warning;
 
 export interface ScanErrorMessageParts {
   text?: string;
@@ -71,7 +74,8 @@ export interface ScanErrorDisplayProps {
   onRetry: () => void;
   /** "Switch connection mode" - usually resets back to the connection picker. */
   onBack?: () => void;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   /** Optional illustration rendered at the top of the card. */
   illustrationSrc?: string;
   /** User's active connection mode, surfaced in the status strip. */
@@ -170,7 +174,7 @@ function buildSubtitle(
     // stays short while the actionable hint still shows below it.
     const suffix = obj.messageParts?.suffix?.trim();
     if (suffix && !isTechnicalSuffix(suffix)) {
-      const cleaned = suffix.replace(/^[—\-]\s*/, '').trim();
+      const cleaned = suffix.replace(/^[—-]\s*/, '').trim();
       if (cleaned) return cleaned;
     }
   }
@@ -198,12 +202,12 @@ function ScanErrorDisplay({
   isRetrying,
   onRetry,
   onBack,
-  darkMode,
   illustrationSrc,
   connectionMode,
   probableCause,
   logs,
 }: ScanErrorDisplayProps) {
+  const palette = useAppPalette();
   const isTimeout =
     typeof error === 'object' && error ? (error as ScanErrorLike).type === 'timeout' : false;
 
@@ -246,10 +250,13 @@ function ScanErrorDisplay({
     [hasLogs, logs]
   );
 
-  const mutedText = darkMode ? '#8a8a8a' : '#6b7280';
-  const strongText = darkMode ? '#f5f5f5' : '#1f2937';
-  const borderColor = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
-  const stripBg = darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.025)';
+  // TODO(style-migration): the original literals `#8a8a8a` / `#6b7280` and
+  // `#1f2937` don't match the default palette tokens exactly;
+  // `textMuted` / `textPrimary` are the closest semantic fits.
+  const mutedText = palette.textMuted;
+  const strongText = palette.textPrimary;
+  const borderColor = palette.border;
+  const stripBg = palette.surfaceSubtle;
 
   return (
     <Box
@@ -273,7 +280,7 @@ function ScanErrorDisplay({
           sx={{
             width: 128,
             height: 'auto',
-            opacity: darkMode ? 0.9 : 1,
+            opacity: palette.isDark ? 0.9 : 1,
             mb: 0.75,
           }}
         />

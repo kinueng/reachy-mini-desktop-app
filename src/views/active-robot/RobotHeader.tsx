@@ -3,9 +3,11 @@ import { Box, Typography } from '@mui/material';
 import { getVersion } from '@utils/tauriCompat';
 import { invoke } from '@tauri-apps/api/core';
 import useAppStore from '../../store/useAppStore';
+import { useAppPalette } from '@styles';
 
 export interface RobotHeaderProps {
   daemonVersion?: string | null;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
 }
 
@@ -17,10 +19,8 @@ interface SidecarSourceInfo {
  * Robot header with title, version and metadata
  * Apple style: minimalist, clean, spacious
  */
-export default function RobotHeader({
-  daemonVersion,
-  darkMode = false,
-}: RobotHeaderProps): React.ReactElement {
+export default function RobotHeader({ daemonVersion }: RobotHeaderProps): React.ReactElement {
+  const palette = useAppPalette();
   const { connectionMode } = useAppStore();
   const [appVersion, setAppVersion] = useState<string | null>('');
   const [sidecarBranch, setSidecarBranch] = useState<string | null>(null);
@@ -61,7 +61,8 @@ export default function RobotHeader({
           sx={{
             fontSize: 20,
             fontWeight: 600,
-            color: darkMode ? '#f5f5f5' : '#1d1d1f',
+            // TODO(style-migration): palette.textPrimary uses #333 in light; RobotHeader prefers Apple-like #1d1d1f.
+            color: palette.isDark ? palette.textPrimary : '#1d1d1f',
             letterSpacing: '-0.4px',
           }}
         >
@@ -73,8 +74,8 @@ export default function RobotHeader({
             sx={{
               fontSize: 10,
               fontWeight: 600,
-              color: darkMode ? '#666' : '#999',
-              bgcolor: darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+              color: palette.textFaint,
+              bgcolor: palette.surfaceSubtle,
               px: 0.75,
               py: 0.25,
               borderRadius: '4px',
@@ -92,7 +93,7 @@ export default function RobotHeader({
         sx={{
           fontSize: 9,
           fontWeight: 500,
-          color: darkMode ? '#666' : '#999',
+          color: palette.textFaint,
           fontFamily: 'SF Mono, Monaco, Menlo, monospace',
           mb: 0.75,
         }}
@@ -105,7 +106,7 @@ export default function RobotHeader({
             width: 3,
             height: 3,
             borderRadius: '50%',
-            bgcolor: darkMode ? '#555' : '#bbb',
+            bgcolor: palette.textFaint,
             mx: 1,
             verticalAlign: 'middle',
           }}

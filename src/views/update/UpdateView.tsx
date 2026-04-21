@@ -7,6 +7,7 @@ import { DAEMON_CONFIG } from '../../config/daemon';
 import { useInternetHealthcheck } from './hooks';
 import PulseButton from '@components/PulseButton';
 import LogConsole from '@components/LogConsole';
+import { ACCENT } from '@styles/tokens';
 
 export interface UpdateInfo {
   version: string;
@@ -207,7 +208,7 @@ export default function UpdateView({
                   textDecoration: 'none',
                   mb: 2,
                   '&:hover': {
-                    color: '#FF9500',
+                    color: ACCENT.main,
                   },
                 }}
               >

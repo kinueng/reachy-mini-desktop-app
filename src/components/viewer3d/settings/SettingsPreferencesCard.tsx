@@ -7,18 +7,24 @@ import PrivacyTipOutlinedIcon from '@mui/icons-material/PrivacyTipOutlined';
 import useAppStore from '../../../store/useAppStore';
 import { isTelemetryEnabled, setTelemetryEnabled } from '../../../utils/telemetry';
 import SectionHeader from './SectionHeader';
+import { DURATION, EASING, blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface SettingsPreferencesCardProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   cardStyle?: SxProps<Theme>;
 }
 
 export default function SettingsPreferencesCard({
-  darkMode,
   cardStyle,
 }: SettingsPreferencesCardProps): React.ReactElement {
-  const textPrimary = darkMode ? '#f5f5f5' : '#333';
-  const textSecondary = darkMode ? '#888' : '#666';
+  const palette = useAppPalette();
+  const textPrimary = palette.textPrimary;
+  const textSecondary = palette.textSecondary;
+
+  const rowBg = palette.isDark ? blackAlpha(0.2) : blackAlpha(0.02);
+  const rowBgHover = palette.isDark ? blackAlpha(0.3) : blackAlpha(0.04);
 
   const [telemetryEnabled, setTelemetryEnabledState] = useState<boolean>(isTelemetryEnabled());
 
@@ -30,7 +36,7 @@ export default function SettingsPreferencesCard({
 
   return (
     <Box sx={cardStyle}>
-      <SectionHeader title="Preferences" icon={null} darkMode={darkMode} />
+      <SectionHeader title="Preferences" icon={null} darkMode={palette.isDark} />
 
       <Box
         sx={{
@@ -39,27 +45,27 @@ export default function SettingsPreferencesCard({
           justifyContent: 'space-between',
           p: 1.5,
           borderRadius: '12px',
-          bgcolor: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)',
+          bgcolor: rowBg,
           cursor: 'pointer',
-          transition: 'background 0.15s',
+          transition: `background ${DURATION.fast}ms ${EASING.standard}`,
           mb: 1.5,
           '&:hover': {
-            bgcolor: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.04)',
+            bgcolor: rowBgHover,
           },
         }}
         onClick={() => useAppStore.getState().toggleDarkMode()}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          {darkMode ? (
+          {palette.isDark ? (
             <DarkModeOutlinedIcon sx={{ fontSize: 18, color: textSecondary }} />
           ) : (
             <LightModeOutlinedIcon sx={{ fontSize: 18, color: textSecondary }} />
           )}
           <Typography sx={{ fontSize: 13, fontWeight: 500, color: textPrimary }}>
-            {darkMode ? 'Dark Mode' : 'Light Mode'}
+            {palette.isDark ? 'Dark Mode' : 'Light Mode'}
           </Typography>
         </Box>
-        <Switch checked={darkMode} size="small" color="primary" />
+        <Switch checked={palette.isDark} size="small" color="primary" />
       </Box>
 
       <Box
@@ -69,11 +75,11 @@ export default function SettingsPreferencesCard({
           justifyContent: 'space-between',
           p: 1.5,
           borderRadius: '12px',
-          bgcolor: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)',
+          bgcolor: rowBg,
           cursor: 'pointer',
-          transition: 'background 0.15s',
+          transition: `background ${DURATION.fast}ms ${EASING.standard}`,
           '&:hover': {
-            bgcolor: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.04)',
+            bgcolor: rowBgHover,
           },
         }}
         onClick={handleTelemetryToggle}

@@ -1,8 +1,11 @@
 import React from 'react';
 import { Box, Typography, Button, CircularProgress, Link } from '@mui/material';
+import { ACCENT, DURATION, EASING, STATUS, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 import hfLogo from '../../../../assets/hf-logo.svg';
 
 export interface HfLoginOverlayProps {
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   onLogin: () => void;
   onSkip?: () => void;
@@ -16,13 +19,13 @@ export interface HfLoginOverlayProps {
  * Covers the entire RightPanel content with a blur backdrop and a centered login CTA.
  */
 export default function HfLoginOverlay({
-  darkMode,
   onLogin,
   onSkip,
   isLoading,
   isWaitingForAuth,
   error,
 }: HfLoginOverlayProps): React.ReactElement {
+  const palette = useAppPalette();
   const busy = isLoading || isWaitingForAuth;
 
   return (
@@ -35,7 +38,8 @@ export default function HfLoginOverlay({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: darkMode ? 'rgba(20, 20, 20, 0.85)' : 'rgba(248, 248, 250, 0.88)',
+        // TODO(style-migration): login scrim uses 0.85/0.88 alpha, not directly provided by palette.surface*.
+        bgcolor: palette.isDark ? 'rgba(20, 20, 20, 0.85)' : 'rgba(248, 248, 250, 0.88)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         px: 4,
@@ -55,7 +59,7 @@ export default function HfLoginOverlay({
         sx={{
           fontSize: 16,
           fontWeight: 700,
-          color: darkMode ? '#f0f0f0' : '#222',
+          color: palette.textPrimary,
           letterSpacing: '-0.2px',
           textAlign: 'center',
         }}
@@ -67,7 +71,7 @@ export default function HfLoginOverlay({
       <Typography
         sx={{
           fontSize: 12.5,
-          color: darkMode ? '#888' : '#777',
+          color: palette.textSecondary,
           textAlign: 'center',
           lineHeight: 1.6,
           maxWidth: 280,
@@ -91,17 +95,18 @@ export default function HfLoginOverlay({
           textTransform: 'none',
           borderRadius: '12px',
           color: '#fff',
-          background: 'linear-gradient(135deg, #FF9500, #E08500)',
-          boxShadow: '0 2px 12px rgba(255, 149, 0, 0.25)',
-          transition: 'all 0.2s ease',
+          background: `linear-gradient(135deg, ${ACCENT.main}, ${ACCENT.dark})`,
+          boxShadow: `0 2px 12px ${accentAlpha(0.25)}`,
+          transition: `all ${DURATION.base}ms ${EASING.standard}`,
           '&:hover': {
+            // TODO(style-migration): custom accent-brighten gradient stops without palette equivalents.
             background: 'linear-gradient(135deg, #FFa520, #E89510)',
-            boxShadow: '0 4px 16px rgba(255, 149, 0, 0.35)',
+            boxShadow: `0 4px 16px ${accentAlpha(0.35)}`,
             transform: 'translateY(-1px)',
           },
           '&:disabled': {
             color: 'rgba(255,255,255,0.7)',
-            background: darkMode ? 'rgba(255, 149, 0, 0.3)' : 'rgba(255, 149, 0, 0.4)',
+            background: accentAlpha(palette.isDark ? 0.3 : 0.4),
             boxShadow: 'none',
             transform: 'none',
           },
@@ -115,7 +120,7 @@ export default function HfLoginOverlay({
         <Typography
           sx={{
             fontSize: 11,
-            color: darkMode ? '#666' : '#999',
+            color: palette.textMuted,
             textAlign: 'center',
           }}
         >
@@ -128,7 +133,7 @@ export default function HfLoginOverlay({
         <Typography
           sx={{
             fontSize: 11,
-            color: '#ef4444',
+            color: STATUS.error,
             textAlign: 'center',
             maxWidth: 280,
           }}
@@ -146,11 +151,11 @@ export default function HfLoginOverlay({
           sx={{
             mt: 0.5,
             fontSize: 11.5,
-            color: darkMode ? '#666' : '#999',
+            color: palette.textMuted,
             cursor: 'pointer',
-            transition: 'color 0.15s ease',
+            transition: `color ${DURATION.fast}ms ${EASING.standard}`,
             '&:hover': {
-              color: darkMode ? '#999' : '#555',
+              color: palette.textSecondary,
             },
           }}
         >

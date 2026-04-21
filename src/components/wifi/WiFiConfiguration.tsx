@@ -20,6 +20,8 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '../../config/daemon';
 import { isReachyHotspot } from '../../constants/wifi';
 import { telemetry } from '../../utils/telemetry';
+import { ACCENT, STATUS, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 type Severity = 'success' | 'error' | 'warning' | 'info';
 
@@ -30,7 +32,8 @@ interface WifiStatus {
 }
 
 export interface WiFiConfigurationProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   compact?: boolean;
   onConnectSuccess?: (ssid: string) => void;
   onConnectStart?: (ssid: string) => void;
@@ -50,7 +53,6 @@ export interface WiFiConfigurationProps {
  * - Connecting to a network
  */
 export default function WiFiConfiguration({
-  darkMode,
   compact = false,
   onConnectSuccess,
   onConnectStart,
@@ -60,10 +62,7 @@ export default function WiFiConfiguration({
   customBaseUrl = null,
   skipInitialFetch = false,
 }: WiFiConfigurationProps) {
-  // Text colors
-  const textPrimary = darkMode ? '#f5f5f5' : '#333';
-  const textSecondary = darkMode ? '#888' : '#666';
-  const textMuted = darkMode ? '#666' : '#999';
+  const palette = useAppPalette();
 
   // State
   const [wifiStatus, setWifiStatus] = useState<WifiStatus | null>(null);
@@ -395,13 +394,13 @@ export default function WiFiConfiguration({
   // Input styles
   const inputStyles = {
     '& .MuiOutlinedInput-root': {
-      bgcolor: darkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.02)',
+      bgcolor: palette.surfaceSubtle,
       borderRadius: compact ? '8px' : '10px',
       '& fieldset': {
-        borderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+        borderColor: palette.border,
       },
       '&:hover fieldset': {
-        borderColor: darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)',
+        borderColor: palette.borderStrong,
       },
       '&.Mui-focused fieldset': {
         borderColor: 'primary.main',
@@ -409,18 +408,18 @@ export default function WiFiConfiguration({
       },
     },
     '& .MuiInputLabel-root': {
-      color: textSecondary,
+      color: palette.textSecondary,
       fontSize: compact ? 12 : 13,
       '&.Mui-focused': {
         color: 'primary.main',
       },
     },
     '& .MuiInputBase-input': {
-      color: textPrimary,
+      color: palette.textPrimary,
       fontSize: compact ? 12 : 13,
     },
     '& .MuiSelect-icon': {
-      color: textMuted,
+      color: palette.textMuted,
     },
   };
 
@@ -431,24 +430,24 @@ export default function WiFiConfiguration({
     subtitle?: string;
     color: string;
   } => {
-    if (!wifiStatus) return { icon: WifiIcon, text: 'Loading...', color: textSecondary };
+    if (!wifiStatus) return { icon: WifiIcon, text: 'Loading...', color: palette.textSecondary };
 
     switch (wifiStatus.mode) {
       case 'hotspot':
-        return { icon: WifiTetheringIcon, text: 'Hotspot mode', color: '#FF9500' };
+        return { icon: WifiTetheringIcon, text: 'Hotspot mode', color: ACCENT.main };
       case 'wlan':
         return {
           icon: SignalWifi4BarIcon,
           text: wifiStatus.connected_network,
           subtitle: 'Connected',
-          color: '#22c55e',
+          color: STATUS.success,
         };
       case 'disconnected':
-        return { icon: SignalWifiOffIcon, text: 'Disconnected', color: '#ef4444' };
+        return { icon: SignalWifiOffIcon, text: 'Disconnected', color: STATUS.error };
       case 'busy':
-        return { icon: WifiIcon, text: 'Configuring...', color: '#FF9500' };
+        return { icon: WifiIcon, text: 'Configuring...', color: ACCENT.main };
       default:
-        return { icon: WifiIcon, text: 'Unknown', color: textSecondary };
+        return { icon: WifiIcon, text: 'Unknown', color: palette.textSecondary };
     }
   };
 
@@ -470,12 +469,12 @@ export default function WiFiConfiguration({
           textAlign: 'center',
         }}
       >
-        <WifiTetheringIcon sx={{ fontSize: 40, color: '#FF9500' }} />
+        <WifiTetheringIcon sx={{ fontSize: 40, color: ACCENT.main }} />
         <Typography
           sx={{
             fontSize: compact ? 13 : 14,
             fontWeight: 600,
-            color: textPrimary,
+            color: palette.textPrimary,
           }}
         >
           Connect to Reachy's Hotspot
@@ -483,7 +482,7 @@ export default function WiFiConfiguration({
         <Typography
           sx={{
             fontSize: compact ? 11 : 12,
-            color: textSecondary,
+            color: palette.textSecondary,
             maxWidth: 300,
           }}
         >
@@ -491,9 +490,9 @@ export default function WiFiConfiguration({
         </Typography>
         <Box
           sx={{
-            bgcolor: darkMode ? 'rgba(255, 149, 0, 0.1)' : 'rgba(255, 149, 0, 0.08)',
+            bgcolor: palette.isDark ? accentAlpha(0.1) : accentAlpha(0.08),
             border: '1px solid',
-            borderColor: darkMode ? 'rgba(255, 149, 0, 0.3)' : 'rgba(255, 149, 0, 0.2)',
+            borderColor: palette.accentBorder,
             borderRadius: '8px',
             px: 2,
             py: 1.5,
@@ -503,7 +502,7 @@ export default function WiFiConfiguration({
             sx={{
               fontSize: compact ? 12 : 13,
               fontWeight: 600,
-              color: '#FF9500',
+              color: ACCENT.main,
             }}
           >
             Network: reachy-mini-ap
@@ -511,7 +510,7 @@ export default function WiFiConfiguration({
           <Typography
             sx={{
               fontSize: compact ? 11 : 12,
-              color: textSecondary,
+              color: palette.textSecondary,
               mt: 0.5,
             }}
           >
@@ -519,11 +518,11 @@ export default function WiFiConfiguration({
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-          <CircularProgress size={14} sx={{ color: '#FF9500' }} />
+          <CircularProgress size={14} sx={{ color: ACCENT.main }} />
           <Typography
             sx={{
               fontSize: compact ? 10 : 11,
-              color: textSecondary,
+              color: palette.textSecondary,
             }}
           >
             Waiting for connection...
@@ -557,11 +556,11 @@ export default function WiFiConfiguration({
           py: compact ? 3 : 4,
         }}
       >
-        <CircularProgress size={24} sx={{ color: '#FF9500' }} />
+        <CircularProgress size={24} sx={{ color: ACCENT.main }} />
         <Typography
           sx={{
             fontSize: compact ? 12 : 13,
-            color: textSecondary,
+            color: palette.textSecondary,
           }}
         >
           Checking connection...
@@ -628,7 +627,6 @@ export default function WiFiConfiguration({
           onOpen={fetchWifiStatus}
           isLoading={isLoadingWifi}
           showLabel={true}
-          darkMode={darkMode}
           zIndex={99999}
           sx={inputStyles}
         />
@@ -656,8 +654,8 @@ export default function WiFiConfiguration({
                   edge="end"
                   size="small"
                   sx={{
-                    color: textMuted,
-                    '&:hover': { color: textPrimary },
+                    color: palette.textMuted,
+                    '&:hover': { color: palette.textPrimary },
                   }}
                 >
                   {showPassword ? (
@@ -678,20 +676,20 @@ export default function WiFiConfiguration({
           disabled={!selectedSSID || !wifiPassword || isConnecting}
           fullWidth
           sx={{
-            borderColor: '#FF9500',
-            color: '#FF9500',
+            borderColor: ACCENT.main,
+            color: ACCENT.main,
             textTransform: 'none',
             fontSize: compact ? 12 : 13,
             fontWeight: 600,
             minHeight: compact ? 36 : 40,
             borderRadius: compact ? '8px' : '10px',
             '&:hover': {
-              borderColor: '#e68600',
-              bgcolor: 'rgba(255, 149, 0, 0.08)',
+              borderColor: ACCENT.dark,
+              bgcolor: accentAlpha(0.08),
             },
             '&:disabled': {
-              borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-              color: darkMode ? '#555' : '#bbb',
+              borderColor: palette.border,
+              color: palette.textDisabled,
             },
           }}
         >

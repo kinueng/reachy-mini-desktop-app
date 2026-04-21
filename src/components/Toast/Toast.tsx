@@ -4,6 +4,8 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import { blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export type ToastSeverity = 'success' | 'error' | 'warning' | 'info';
 
@@ -17,6 +19,7 @@ export interface ToastProps {
   toast: ToastState;
   toastProgress: number;
   onClose: () => void;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   zIndex?: number;
 }
@@ -44,9 +47,13 @@ export default function Toast({
   toast,
   toastProgress,
   onClose,
-  darkMode = false,
   zIndex = 100001,
 }: ToastProps): React.ReactElement {
+  const palette = useAppPalette();
+  // Too many translucent status-tinted surfaces to keep mapping to semantic
+  // tokens one by one - keep a local alias as the migration guide allows.
+  const darkMode = palette.isDark;
+
   const getIcon = (): React.ReactElement | null => {
     switch (toast.severity) {
       case 'success':
@@ -62,6 +69,9 @@ export default function Toast({
     }
   };
 
+  // TODO(style-migration): these status-tinted translucent surfaces / texts
+  // have no semantic palette token yet. Kept as explicit rgba literals that
+  // branch on `palette.isDark`.
   const getColors = (): ToastColors => {
     switch (toast.severity) {
       case 'success':
@@ -104,6 +114,10 @@ export default function Toast({
 
   const colors = getColors();
 
+  const glassShadow = darkMode
+    ? `0 8px 32px ${blackAlpha(0.5)}, 0 2px 8px ${blackAlpha(0.3)}`
+    : `0 8px 32px ${blackAlpha(0.12)}, 0 2px 8px ${blackAlpha(0.08)}`;
+
   return (
     <Snackbar
       open={toast.open}
@@ -133,9 +147,7 @@ export default function Toast({
           borderRadius: '12px',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: darkMode
-            ? '0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)'
-            : '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
+          boxShadow: glassShadow,
           zIndex,
           cursor: 'pointer',
         }}

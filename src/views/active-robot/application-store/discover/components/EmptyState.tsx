@@ -1,18 +1,21 @@
 import React from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import ReachyDetective from '@assets/reachy-detective.svg';
+import { ACCENT } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface EmptyStateProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
 }
 
 export default function EmptyState({
-  darkMode,
   searchQuery,
   setSearchQuery,
 }: EmptyStateProps): React.ReactElement {
+  const palette = useAppPalette();
   return (
     <Box
       sx={{
@@ -32,7 +35,7 @@ export default function EmptyState({
         sx={{
           width: 120,
           height: 'auto',
-          opacity: darkMode ? 0.7 : 0.8,
+          opacity: palette.isDark ? 0.7 : 0.8,
           mb: 1,
         }}
       />
@@ -43,7 +46,7 @@ export default function EmptyState({
             sx={{
               fontSize: 18,
               fontWeight: 700,
-              color: darkMode ? '#aaa' : '#666',
+              color: palette.textSecondary,
               mb: 0.5,
             }}
           >
@@ -52,7 +55,7 @@ export default function EmptyState({
           <Typography
             sx={{
               fontSize: 14,
-              color: darkMode ? '#888' : '#999',
+              color: palette.textMuted,
               mb: 2,
             }}
           >
@@ -68,11 +71,11 @@ export default function EmptyState({
               py: 1,
               borderRadius: '10px',
               bgcolor: 'transparent',
-              color: '#FF9500',
-              border: '1px solid #FF9500',
+              color: ACCENT.main,
+              border: `1px solid ${ACCENT.main}`,
               '&:hover': {
-                bgcolor: darkMode ? 'rgba(255, 149, 0, 0.08)' : 'rgba(255, 149, 0, 0.05)',
-                borderColor: '#FF9500',
+                bgcolor: palette.accentSurfaceHover,
+                borderColor: ACCENT.main,
               },
             }}
           >
@@ -84,7 +87,7 @@ export default function EmptyState({
           sx={{
             fontSize: 18,
             fontWeight: 700,
-            color: darkMode ? '#aaa' : '#666',
+            color: palette.textSecondary,
           }}
         >
           No apps available

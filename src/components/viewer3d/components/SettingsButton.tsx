@@ -1,17 +1,21 @@
 import { Box, IconButton, Tooltip } from '@mui/material';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import { ACCENT, DURATION, EASING, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface SettingsButtonProps {
   onClick: () => void;
   disabled: boolean;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
 }
 
 export default function SettingsButton({
   onClick,
   disabled,
-  darkMode,
 }: SettingsButtonProps): React.ReactElement {
+  const palette = useAppPalette();
+
   return (
     <Box
       sx={{
@@ -33,34 +37,26 @@ export default function SettingsButton({
             sx={{
               width: 36,
               height: 36,
-              transition: 'all 0.2s ease',
-              color: disabled ? (darkMode ? '#666' : '#999') : '#FF9500',
-              bgcolor: darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+              transition: `all ${DURATION.base}ms ${EASING.standard}`,
+              color: disabled ? palette.textMuted : ACCENT.main,
+              bgcolor: palette.surfaceCard,
               border: '1px solid',
-              borderColor: disabled
-                ? darkMode
-                  ? 'rgba(255, 255, 255, 0.1)'
-                  : 'rgba(0, 0, 0, 0.1)'
-                : darkMode
-                  ? 'rgba(255, 149, 0, 0.5)'
-                  : 'rgba(255, 149, 0, 0.4)',
+              borderColor: disabled ? palette.border : palette.accentBorderStrong,
               backdropFilter: 'blur(10px)',
-              boxShadow: darkMode
-                ? '0 2px 8px rgba(0, 0, 0, 0.3)'
-                : '0 2px 8px rgba(0, 0, 0, 0.08)',
+              boxShadow: palette.shadowSm,
               opacity: disabled ? 0.4 : 1,
               '&:hover': {
-                bgcolor: darkMode ? 'rgba(255, 149, 0, 0.15)' : 'rgba(255, 149, 0, 0.1)',
-                borderColor: '#FF9500',
+                bgcolor: palette.isDark ? accentAlpha(0.15) : accentAlpha(0.1),
+                borderColor: ACCENT.main,
                 transform: disabled ? 'none' : 'scale(1.05)',
               },
               '&:active': {
                 transform: disabled ? 'none' : 'scale(0.95)',
               },
               '&.Mui-disabled': {
-                bgcolor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.6)',
-                color: darkMode ? '#666' : '#999',
-                borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.6)',
+                color: palette.textMuted,
+                borderColor: palette.border,
               },
             }}
           >

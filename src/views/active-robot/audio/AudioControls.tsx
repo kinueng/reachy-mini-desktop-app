@@ -10,6 +10,8 @@ import DoAIndicator from './DoAIndicator';
 import { useDoA } from '../../../hooks/audio/useDoA';
 import { useWebRTCStreamContext } from '../../../contexts/WebRTCStreamContext';
 import useAudioAnalyser from '../../../hooks/media/useAudioAnalyser';
+import { ACCENT, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface AudioControlsProps {
   volume: number;
@@ -23,6 +25,7 @@ export interface AudioControlsProps {
   onMicrophoneVolumeChange?: (value: number) => void;
   onSpeakerMute: () => void;
   onMicrophoneMute: () => void;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   disabled?: boolean;
   isSleeping?: boolean;
@@ -44,10 +47,12 @@ function AudioControls({
   onMicrophoneVolumeChange,
   onSpeakerMute,
   onMicrophoneMute,
-  darkMode,
   disabled = false,
   isSleeping = false,
 }: AudioControlsProps): React.ReactElement {
+  const palette = useAppPalette();
+  // TODO(style-migration): finish migrating remaining darkMode ternaries.
+  const darkMode = palette.isDark;
   const isMicActive = microphoneVolume > 0 && !disabled;
 
   // Get WebRTC context - available when daemon exposes WebRTC (WiFi + USB/Lite)
@@ -71,20 +76,20 @@ function AudioControls({
 
   const sliderStyle = {
     mb: 0,
-    color: '#FF9500',
+    color: ACCENT.main,
     height: 3,
     '& .MuiSlider-thumb': {
       width: 12,
       height: 12,
-      backgroundColor: '#FF9500',
+      backgroundColor: ACCENT.main,
       border: `1.5px solid ${darkMode ? '#1a1a1a' : '#fff'}`,
       boxShadow: 'none',
-      '&:hover': { boxShadow: '0 0 0 6px rgba(255, 149, 0, 0.12)' },
-      '&.Mui-focusVisible': { boxShadow: '0 0 0 6px rgba(255, 149, 0, 0.16)' },
-      '&.Mui-active': { boxShadow: '0 0 0 6px rgba(255, 149, 0, 0.16)' },
+      '&:hover': { boxShadow: `0 0 0 6px ${accentAlpha(0.12)}` },
+      '&.Mui-focusVisible': { boxShadow: `0 0 0 6px ${accentAlpha(0.16)}` },
+      '&.Mui-active': { boxShadow: `0 0 0 6px ${accentAlpha(0.16)}` },
     },
     '& .MuiSlider-track': {
-      backgroundColor: '#FF9500',
+      backgroundColor: ACCENT.main,
       border: 'none',
       height: 1.5,
     },
@@ -212,7 +217,7 @@ function AudioControls({
                     : 'rgba(0, 0, 0, 0.3)',
                 '&:hover': {
                   color: isActive
-                    ? '#FF9500'
+                    ? ACCENT.main
                     : darkMode
                       ? 'rgba(255, 255, 255, 0.5)'
                       : 'rgba(0, 0, 0, 0.5)',

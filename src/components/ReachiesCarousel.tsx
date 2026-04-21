@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Box } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
+import { useAppPalette } from '@styles';
 
 // Load all images from reachies/small-top-sided folder dynamically with Vite
 const imageModules = import.meta.glob('../assets/reachies/small-top-sided/*.png', { eager: true });
@@ -15,6 +16,7 @@ export interface ReachiesCarouselProps {
   fadeOutDuration?: number;
   zoom?: number;
   verticalAlign?: 'top' | 'center' | 'bottom' | string;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   sx?: SxProps<Theme>;
 }
@@ -35,9 +37,9 @@ export default function ReachiesCarousel({
   fadeOutDuration = 120, // Fade-out duration for outgoing image (faster, Apple/Google style)
   zoom = 1.8, // Zoom factor to enlarge the sticker
   verticalAlign = 'center', // Vertical alignment: 'top', 'center', 'bottom', or percentage (e.g.: '60%')
-  darkMode = false,
   sx = {},
 }: ReachiesCarouselProps) {
+  const palette = useAppPalette();
   // Extract URLs of loaded images and sort them for consistent order
   const imagePaths = useMemo<string[]>(() => {
     const paths = Object.values(imageModules)
@@ -165,7 +167,7 @@ export default function ReachiesCarousel({
         }
 
         // Crossfade style Apple/Google: outgoing disappears faster than incoming appears
-        const baseOpacity = darkMode ? 0.8 : 0.9;
+        const baseOpacity = palette.isDark ? 0.8 : 0.9;
         let opacity = 0;
         let transitionStyle = 'none';
 

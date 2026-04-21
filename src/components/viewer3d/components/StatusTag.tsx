@@ -2,6 +2,7 @@ import { Box, Typography } from '@mui/material';
 import CircleIcon from '@mui/icons-material/Circle';
 import { ROBOT_STATUS } from '../../../constants/robotStatus';
 import type { BusyReason, RobotStatus } from '../../../types/robot';
+import { useAppPalette } from '@styles';
 
 export interface StatusTagInfo {
   label: string;
@@ -15,7 +16,8 @@ export interface StatusTagProps {
   isMoving: boolean;
   robotStatus: RobotStatus | null;
   busyReason: BusyReason | null;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
 }
 
 const BUSY_LABELS: Record<BusyReason, StatusTagInfo> = {
@@ -75,9 +77,9 @@ function resolveStatus(props: StatusTagProps): StatusTagInfo {
 }
 
 export default function StatusTag(props: StatusTagProps): React.ReactElement {
-  const { darkMode } = props;
+  const palette = useAppPalette();
   const status = resolveStatus(props);
-  const borderColor = BORDER_BY_COLOR[status.color] ?? 'rgba(0, 0, 0, 0.12)';
+  const borderColor = BORDER_BY_COLOR[status.color] ?? palette.divider;
 
   return (
     <Box
@@ -91,7 +93,7 @@ export default function StatusTag(props: StatusTagProps): React.ReactElement {
         px: 1.5,
         py: 0.75,
         borderRadius: '10px',
-        bgcolor: darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+        bgcolor: palette.surfaceCard,
         border: `1.5px solid ${borderColor}`,
         backdropFilter: 'blur(10px)',
         transition: 'none',

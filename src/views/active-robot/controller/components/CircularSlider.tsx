@@ -1,5 +1,7 @@
 import React, { useMemo, memo } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
+import { ACCENT, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface CircularSliderProps {
   label: string;
@@ -8,7 +10,8 @@ interface CircularSliderProps {
   min?: number;
   max?: number;
   unit?: string;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   disabled?: boolean;
   inverted?: boolean;
   reverse?: boolean;
@@ -23,13 +26,15 @@ const CircularSlider = memo(function CircularSlider({
   min = -Math.PI,
   max = Math.PI,
   unit = 'rad',
-  darkMode,
   disabled = false,
   inverted = false,
   reverse = false,
   alignRight = false,
   smoothedValue,
 }: CircularSliderProps): React.ReactElement {
+  const palette = useAppPalette();
+  // TODO(style-migration): finish migrating remaining darkMode ternaries.
+  const darkMode = palette.isDark;
   const ARC_START = 0.01;
   const ARC_END = 0.74;
   const ARC_SPAN = ARC_END - ARC_START;
@@ -292,8 +297,8 @@ const CircularSlider = memo(function CircularSlider({
                 width: 12,
                 height: 12,
                 borderRadius: '50%',
-                bgcolor: 'rgba(255, 149, 0, 0.2)',
-                border: '1.5px solid rgba(255, 149, 0, 0.5)',
+                bgcolor: accentAlpha(0.2),
+                border: `1.5px solid ${accentAlpha(0.5)}`,
                 zIndex: 1,
                 pointerEvents: 'none',
                 transition: 'left 0.05s linear',
@@ -310,21 +315,21 @@ const CircularSlider = memo(function CircularSlider({
             step={0.1}
             disabled={disabled}
             sx={{
-              color: '#FF9500',
+              color: ACCENT.main,
               height: 3,
               position: 'relative',
               zIndex: 2,
               '& .MuiSlider-thumb': {
                 width: 12,
                 height: 12,
-                boxShadow: '0 2px 6px rgba(255, 149, 0, 0.4)',
+                boxShadow: `0 2px 6px ${accentAlpha(0.4)}`,
                 '&:hover': {
-                  boxShadow: '0 4px 12px rgba(255, 149, 0, 0.6)',
+                  boxShadow: `0 4px 12px ${accentAlpha(0.6)}`,
                   width: 14,
                   height: 14,
                 },
                 '&:active': {
-                  boxShadow: '0 4px 12px rgba(255, 149, 0, 0.8)',
+                  boxShadow: `0 4px 12px ${accentAlpha(0.8)}`,
                 },
               },
               '& .MuiSlider-track': {

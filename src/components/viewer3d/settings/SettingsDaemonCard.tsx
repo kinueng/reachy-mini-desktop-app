@@ -4,6 +4,8 @@ import type { SxProps, Theme } from '@mui/material/styles';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import { buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '../../../config/daemon';
 import SectionHeader from './SectionHeader';
+import { DURATION, EASING, STATUS, blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 type DaemonStateKey = 'running' | 'starting' | 'stopping' | 'stopped' | 'not_initialized' | 'error';
 
@@ -17,29 +19,30 @@ const STATE_LABELS: Record<DaemonStateKey, string> = {
 };
 
 const STATE_COLORS: Record<DaemonStateKey, string> = {
-  running: '#22c55e',
-  starting: '#f59e0b',
-  stopping: '#f59e0b',
-  stopped: '#888',
-  not_initialized: '#888',
-  error: '#ef4444',
+  running: STATUS.success,
+  starting: STATUS.warning,
+  stopping: STATUS.warning,
+  stopped: STATUS.neutral,
+  not_initialized: STATUS.neutral,
+  error: STATUS.error,
 };
 
 export interface SettingsDaemonCardProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   cardStyle?: SxProps<Theme>;
 }
 
 export default function SettingsDaemonCard({
-  darkMode,
   cardStyle,
 }: SettingsDaemonCardProps): React.ReactElement {
+  const palette = useAppPalette();
   const [daemonState, setDaemonState] = useState<string | null>(null);
   const [isToggling, setIsToggling] = useState<boolean>(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const textPrimary = darkMode ? '#f5f5f5' : '#333';
-  const textSecondary = darkMode ? '#888' : '#666';
+  const textPrimary = palette.textPrimary;
+  const textSecondary = palette.textSecondary;
 
   const isRunning = daemonState === 'running';
   const isTransitioning = daemonState === 'starting' || daemonState === 'stopping';
@@ -107,7 +110,7 @@ export default function SettingsDaemonCard({
 
   return (
     <Box sx={cardStyle}>
-      <SectionHeader title="Robot Control" icon={null} darkMode={darkMode} />
+      <SectionHeader title="Robot Control" icon={null} darkMode={palette.isDark} />
 
       <Box
         sx={{
@@ -116,23 +119,23 @@ export default function SettingsDaemonCard({
           justifyContent: 'space-between',
           p: 1.5,
           borderRadius: '12px',
-          bgcolor: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)',
+          bgcolor: palette.isDark ? blackAlpha(0.2) : blackAlpha(0.02),
           cursor: isTransitioning || isToggling ? 'default' : 'pointer',
-          transition: 'background 0.15s',
+          transition: `background ${DURATION.fast}ms ${EASING.standard}`,
           '&:hover': {
             bgcolor:
               isTransitioning || isToggling
                 ? undefined
-                : darkMode
-                  ? 'rgba(0,0,0,0.3)'
-                  : 'rgba(0,0,0,0.04)',
+                : palette.isDark
+                  ? blackAlpha(0.3)
+                  : blackAlpha(0.04),
           },
         }}
         onClick={handleToggle}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <PowerSettingsNewIcon
-            sx={{ fontSize: 18, color: isRunning ? '#22c55e' : textSecondary }}
+            sx={{ fontSize: 18, color: isRunning ? STATUS.success : textSecondary }}
           />
           <Box>
             <Typography sx={{ fontSize: 13, fontWeight: 500, color: textPrimary }}>

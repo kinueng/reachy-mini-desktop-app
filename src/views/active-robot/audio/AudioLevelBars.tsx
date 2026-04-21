@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Box } from '@mui/material';
+import { ACCENT } from '@styles/tokens';
 
 export interface AudioLevelBarsProps {
   isActive: boolean;
@@ -19,7 +20,7 @@ interface Dimensions {
  */
 export default function AudioLevelBars({
   isActive,
-  color = '#FF9500',
+  color = ACCENT.main,
   externalLevel,
 }: AudioLevelBarsProps): React.ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);

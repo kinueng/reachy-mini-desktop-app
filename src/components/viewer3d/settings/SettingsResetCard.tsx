@@ -4,9 +4,11 @@ import type { SxProps, Theme } from '@mui/material/styles';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import DeleteForeverOutlinedIcon from '@mui/icons-material/DeleteForeverOutlined';
 import SectionHeader from './SectionHeader';
+import { useAppPalette } from '@styles';
 
 export interface SettingsResetCardProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   cardStyle?: SxProps<Theme>;
   buttonStyle?: SxProps<Theme>;
   onResetAppsVenv: () => void;
@@ -16,7 +18,6 @@ export interface SettingsResetCardProps {
 }
 
 export default function SettingsResetCard({
-  darkMode,
   cardStyle,
   buttonStyle,
   onResetAppsVenv,
@@ -24,18 +25,32 @@ export default function SettingsResetCard({
   onResetPythonEnv,
   isResettingPythonEnv,
 }: SettingsResetCardProps): React.ReactElement {
-  const textSecondary = darkMode ? '#888' : '#666';
-  const dangerColor = darkMode ? '#f87171' : '#dc2626';
-  const dangerBorder = darkMode ? 'rgba(248, 113, 113, 0.5)' : 'rgba(220, 38, 38, 0.5)';
-  const dangerHoverBg = darkMode ? 'rgba(248, 113, 113, 0.1)' : 'rgba(220, 38, 38, 0.08)';
-  const disabledBorder = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
-  const disabledColor = darkMode ? '#555' : '#bbb';
+  const palette = useAppPalette();
+  const textSecondary = palette.textSecondary;
 
   const isDisabled = isResettingAppsVenv || isResettingPythonEnv;
 
+  const dangerButtonStyle = {
+    ...buttonStyle,
+    fontSize: 12,
+    py: 0.75,
+    px: 2,
+    borderRadius: '8px',
+    color: palette.dangerText,
+    borderColor: palette.dangerBorder,
+    '&:hover': {
+      borderColor: palette.dangerText,
+      bgcolor: palette.dangerSurfaceHover,
+    },
+    '&:disabled': {
+      borderColor: palette.border,
+      color: palette.textDisabled,
+    },
+  };
+
   return (
     <Box sx={cardStyle}>
-      <SectionHeader title="Environment" icon={RestartAltIcon} darkMode={darkMode} />
+      <SectionHeader title="Environment" icon={RestartAltIcon} darkMode={palette.isDark} />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
@@ -53,23 +68,7 @@ export default function SettingsResetCard({
               <RestartAltIcon />
             )
           }
-          sx={{
-            ...buttonStyle,
-            fontSize: 12,
-            py: 0.75,
-            px: 2,
-            borderRadius: '8px',
-            color: dangerColor,
-            borderColor: dangerBorder,
-            '&:hover': {
-              borderColor: dangerColor,
-              bgcolor: dangerHoverBg,
-            },
-            '&:disabled': {
-              borderColor: disabledBorder,
-              color: disabledColor,
-            },
-          }}
+          sx={dangerButtonStyle}
         >
           {isResettingAppsVenv ? 'Resetting...' : 'Reset Apps Environment'}
         </Button>
@@ -89,23 +88,7 @@ export default function SettingsResetCard({
               <DeleteForeverOutlinedIcon />
             )
           }
-          sx={{
-            ...buttonStyle,
-            fontSize: 12,
-            py: 0.75,
-            px: 2,
-            borderRadius: '8px',
-            color: dangerColor,
-            borderColor: dangerBorder,
-            '&:hover': {
-              borderColor: dangerColor,
-              bgcolor: dangerHoverBg,
-            },
-            '&:disabled': {
-              borderColor: disabledBorder,
-              color: disabledColor,
-            },
-          }}
+          sx={dangerButtonStyle}
         >
           {isResettingPythonEnv ? 'Resetting...' : 'Full Environment Reset'}
         </Button>

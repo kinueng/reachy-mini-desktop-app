@@ -7,7 +7,14 @@ import VerifiedIcon from '@mui/icons-material/Verified';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import { ACCENT, STATUS, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 import { useActiveRobotContext } from '../../../context';
+
+// TODO(style-migration): `#8b5cf6` (private purple) and `#6366f1` (web indigo)
+// have no palette tokens yet. Keep literals here until tokens are introduced.
+const PRIVATE_COLOR = '#8b5cf6';
+const WEB_COLOR = '#6366f1';
 
 interface AppLike {
   name: string;
@@ -33,7 +40,8 @@ interface AppLike {
 
 interface AppCardProps {
   app: AppLike;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   isBusy: boolean;
   isInstalling: boolean;
   installFailed: boolean;
@@ -46,13 +54,13 @@ interface AppCardProps {
 
 function AppCard({
   app,
-  darkMode,
   isBusy,
   isInstalling,
   installFailed,
   isInstalled,
   handleInstall,
 }: AppCardProps): React.ReactElement {
+  const palette = useAppPalette();
   const { shellApi } = useActiveRobotContext();
   const open = shellApi.open;
   const cardData = app.extra?.cardData || {};
@@ -84,12 +92,12 @@ function AppCard({
         borderRadius: '16px',
         position: 'relative',
         overflow: 'hidden',
-        bgcolor: darkMode ? '#1a1a1a' : '#ffffff',
+        bgcolor: palette.isDark ? '#1a1a1a' : '#ffffff',
         border: installFailed
           ? '1px solid rgba(239, 68, 68, 0.4)'
           : isInstalling
-            ? '1px solid rgba(255, 149, 0, 0.4)'
-            : `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
+            ? `1px solid ${accentAlpha(0.4)}`
+            : `1px solid ${palette.isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
         cursor: 'pointer',
         transition: 'transform 0.2s ease, border-color 0.2s ease',
         '&:hover': {
@@ -97,8 +105,8 @@ function AppCard({
           borderColor: installFailed
             ? 'rgba(239, 68, 68, 0.6)'
             : isInstalling
-              ? 'rgba(255, 149, 0, 0.6)'
-              : darkMode
+              ? accentAlpha(0.6)
+              : palette.isDark
                 ? 'rgba(255, 255, 255, 0.18)'
                 : 'rgba(0, 0, 0, 0.18)',
         },
@@ -138,12 +146,12 @@ function AppCard({
                     height: 20,
                     bgcolor: isOfficial
                       ? 'rgba(59, 130, 246, 0.15)'
-                      : darkMode
+                      : palette.isDark
                         ? 'rgba(255, 255, 255, 0.1)'
                         : 'rgba(0, 0, 0, 0.08)',
                     fontSize: 10,
                     fontWeight: 600,
-                    color: isOfficial ? '#FF9500' : darkMode ? '#ffffff' : '#1a1a1a',
+                    color: isOfficial ? ACCENT.main : palette.textPrimary,
                     flexShrink: 0,
                   }}
                 >
@@ -153,7 +161,7 @@ function AppCard({
                   sx={{
                     fontSize: 11,
                     fontWeight: 500,
-                    color: darkMode ? '#aaaaaa' : '#666666',
+                    color: palette.textSecondary,
                     fontFamily: 'monospace',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -170,13 +178,13 @@ function AppCard({
                 label="Official"
                 size="small"
                 sx={{
-                  bgcolor: darkMode ? 'rgba(255, 149, 0, 0.15)' : 'rgba(255, 149, 0, 0.1)',
-                  color: '#FF9500',
+                  bgcolor: accentAlpha(palette.isDark ? 0.15 : 0.1),
+                  color: ACCENT.main,
                   fontWeight: 600,
                   fontSize: 9,
                   height: 18,
                   flexShrink: 0,
-                  '& .MuiChip-icon': { color: '#FF9500', ml: 0.5 },
+                  '& .MuiChip-icon': { color: ACCENT.main, ml: 0.5 },
                   '& .MuiChip-label': { px: 0.5 },
                 }}
               />
@@ -187,13 +195,13 @@ function AppCard({
                 label="Private"
                 size="small"
                 sx={{
-                  bgcolor: darkMode ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)',
-                  color: '#8b5cf6',
+                  bgcolor: palette.isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)',
+                  color: PRIVATE_COLOR,
                   fontWeight: 600,
                   fontSize: 9,
                   height: 18,
                   flexShrink: 0,
-                  '& .MuiChip-icon': { color: '#8b5cf6', ml: 0.5 },
+                  '& .MuiChip-icon': { color: PRIVATE_COLOR, ml: 0.5 },
                   '& .MuiChip-label': { px: 0.5 },
                 }}
               />
@@ -203,8 +211,8 @@ function AppCard({
                 label="Web"
                 size="small"
                 sx={{
-                  bgcolor: darkMode ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
-                  color: '#6366f1',
+                  bgcolor: palette.isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+                  color: WEB_COLOR,
                   fontWeight: 600,
                   fontSize: 9,
                   height: 18,
@@ -216,12 +224,12 @@ function AppCard({
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <FavoriteBorderIcon sx={{ fontSize: 16, color: darkMode ? '#aaaaaa' : '#666666' }} />
+            <FavoriteBorderIcon sx={{ fontSize: 16, color: palette.textSecondary }} />
             <Typography
               sx={{
                 fontSize: 12,
                 fontWeight: 600,
-                color: darkMode ? '#aaaaaa' : '#666666',
+                color: palette.textSecondary,
                 lineHeight: 1,
               }}
             >
@@ -243,7 +251,7 @@ function AppCard({
         >
           <Box
             sx={{
-              borderBottom: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+              borderBottom: `1px solid ${palette.border}`,
             }}
           />
         </Box>
@@ -277,7 +285,7 @@ function AppCard({
               sx={{
                 fontSize: 16,
                 fontWeight: 700,
-                color: darkMode ? '#ffffff' : '#1a1a1a',
+                color: palette.textPrimary,
                 letterSpacing: '-0.3px',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -291,7 +299,7 @@ function AppCard({
             <Typography
               sx={{
                 fontSize: 12,
-                color: darkMode ? '#aaaaaa' : '#666666',
+                color: palette.textSecondary,
                 lineHeight: 1.5,
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
@@ -307,12 +315,12 @@ function AppCard({
 
             {formattedDate && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <AccessTimeIcon sx={{ fontSize: 12, color: darkMode ? '#aaaaaa' : '#666666' }} />
+                <AccessTimeIcon sx={{ fontSize: 12, color: palette.textSecondary }} />
                 <Typography
                   sx={{
                     fontSize: 10,
                     fontWeight: 500,
-                    color: darkMode ? '#aaaaaa' : '#666666',
+                    color: palette.textSecondary,
                   }}
                 >
                   {formattedDate}
@@ -349,7 +357,7 @@ function AppCard({
               isInstalled ? (
                 <CheckCircleOutlineIcon sx={{ fontSize: 14 }} />
               ) : isInstalling ? (
-                <CircularProgress size={14} sx={{ color: '#FF9500' }} />
+                <CircularProgress size={14} sx={{ color: ACCENT.main }} />
               ) : (
                 <DownloadOutlinedIcon sx={{ fontSize: 14 }} />
               )
@@ -364,40 +372,34 @@ function AppCard({
               borderRadius: '10px',
               bgcolor: 'transparent',
               color: isInstalled
-                ? darkMode
+                ? palette.isDark
                   ? 'rgba(255, 255, 255, 0.5)'
                   : 'rgba(0, 0, 0, 0.5)'
                 : installFailed
-                  ? '#ef4444'
-                  : '#FF9500',
+                  ? STATUS.error
+                  : ACCENT.main,
               border: isInstalled
-                ? darkMode
-                  ? '1px solid rgba(255, 255, 255, 0.2)'
-                  : '1px solid rgba(0, 0, 0, 0.2)'
+                ? `1px solid ${palette.borderStrong}`
                 : installFailed
-                  ? '1px solid #ef4444'
-                  : isInstalling
-                    ? '1px solid #FF9500'
-                    : '1px solid #FF9500',
+                  ? `1px solid ${STATUS.error}`
+                  : `1px solid ${ACCENT.main}`,
               transition: 'all 0.2s ease',
               '&:hover': {
                 bgcolor: isInstalled
                   ? 'transparent'
                   : installFailed
                     ? 'rgba(239, 68, 68, 0.08)'
-                    : 'rgba(255, 149, 0, 0.08)',
+                    : accentAlpha(0.08),
                 borderColor: isInstalled
-                  ? darkMode
-                    ? 'rgba(255, 255, 255, 0.2)'
-                    : 'rgba(0, 0, 0, 0.2)'
+                  ? palette.borderStrong
                   : installFailed
-                    ? '#ef4444'
-                    : '#FF9500',
+                    ? STATUS.error
+                    : ACCENT.main,
               },
               '&:disabled': {
                 bgcolor: 'transparent',
-                color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
-                borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.12)',
+                color: palette.textFaint,
+                borderColor: palette.border,
               },
             }}
           >
@@ -431,12 +433,12 @@ function AppCard({
               textTransform: 'none',
               borderRadius: '10px',
               bgcolor: 'transparent',
-              color: '#6366f1',
-              border: '1px solid #6366f1',
+              color: WEB_COLOR,
+              border: `1px solid ${WEB_COLOR}`,
               transition: 'all 0.2s ease',
               '&:hover': {
                 bgcolor: 'rgba(99, 102, 241, 0.08)',
-                borderColor: '#6366f1',
+                borderColor: WEB_COLOR,
               },
             }}
           >
