@@ -6,3 +6,4 @@ export { default as SettingsCacheCard } from './SettingsCacheCard';
 export { default as SettingsDaemonCard } from './SettingsDaemonCard';
 export { default as SettingsResetCard } from './SettingsResetCard';
 export { default as ChangeWifiOverlay } from './ChangeWifiOverlay';
+export { default as WifiConnectingOverlay } from './WifiConnectingOverlay';
