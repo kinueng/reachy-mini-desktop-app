@@ -1,11 +1,7 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { useActiveRobotContext } from '../../context';
+import { TIMING, WS_RETRY } from '@utils/inputConstants';
 import type { HeadPose } from '@utils/targetSmoothing';
-
-const SEND_THROTTLE_MS = 50;
-
-const WS_RECONNECT_DELAY_MS = 1000;
-const WS_MAX_RECONNECT_ATTEMPTS = 5;
 
 interface CommandRequestBody {
   target_head_pose: HeadPose;
@@ -22,6 +18,13 @@ interface UseControllerAPIReturn {
   ) => Promise<unknown> | void;
 }
 
+interface SendOptions {
+  /** If true, skip the throttle window and reset its timer. */
+  force?: boolean;
+  /** If true, discard the HTTP response promise (fire-and-forget). */
+  fireAndForget?: boolean;
+}
+
 export function useControllerAPI(): UseControllerAPIReturn {
   const { api } = useActiveRobotContext();
   const { buildApiUrl, fetchWithTimeout, config: DAEMON_CONFIG } = api;
@@ -31,10 +34,10 @@ export function useControllerAPI(): UseControllerAPIReturn {
   const wsReconnectAttempts = useRef<number>(0);
   const wsReconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const buildWsUrl = useCallback((): string => {
-    const httpUrl = buildApiUrl('/api/move/ws/set_target');
-    return httpUrl.replace(/^http/, 'ws');
-  }, [buildApiUrl]);
+  const buildWsUrl = useCallback(
+    (): string => buildApiUrl('/api/move/ws/set_target').replace(/^http/, 'ws'),
+    [buildApiUrl]
+  );
 
   const connectWebSocket = useCallback((): void => {
     if (wsRef.current) {
@@ -57,9 +60,9 @@ export function useControllerAPI(): UseControllerAPIReturn {
       ws.onclose = event => {
         wsRef.current = null;
 
-        if (event.code !== 1000 && wsReconnectAttempts.current < WS_MAX_RECONNECT_ATTEMPTS) {
+        if (event.code !== 1000 && wsReconnectAttempts.current < WS_RETRY.MAX_ATTEMPTS) {
           wsReconnectAttempts.current++;
-          wsReconnectTimeoutRef.current = setTimeout(connectWebSocket, WS_RECONNECT_DELAY_MS);
+          wsReconnectTimeoutRef.current = setTimeout(connectWebSocket, TIMING.WS_RECONNECT_DELAY);
         }
       };
 
@@ -96,10 +99,7 @@ export function useControllerAPI(): UseControllerAPIReturn {
 
   useEffect(() => {
     connectWebSocket();
-
-    return () => {
-      disconnectWebSocket();
-    };
+    return () => disconnectWebSocket();
   }, [connectWebSocket, disconnectWebSocket]);
 
   const sendViaWebSocket = useCallback((requestBody: CommandRequestBody): boolean => {
@@ -112,29 +112,33 @@ export function useControllerAPI(): UseControllerAPIReturn {
 
   const sendViaHttp = useCallback(
     (requestBody: CommandRequestBody, fireAndForget: boolean = true): Promise<unknown> => {
-      const options: RequestInit = {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      };
-
       // TODO(ts): DAEMON_CONFIG is typed as Record<string, unknown>; narrow upstream
       const timeoutMs = (DAEMON_CONFIG as { MOVEMENT: { CONTINUOUS_MOVE_TIMEOUT: number } })
         .MOVEMENT.CONTINUOUS_MOVE_TIMEOUT;
 
-      return fetchWithTimeout(buildApiUrl('/api/move/set_target'), options, timeoutMs, {
-        label: 'Set target',
-        silent: true,
-        fireAndForget,
-      }).catch(() => {});
+      return fetchWithTimeout(
+        buildApiUrl('/api/move/set_target'),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        },
+        timeoutMs,
+        { label: 'Set target', silent: true, fireAndForget }
+      ).catch(() => {});
     },
     [buildApiUrl, fetchWithTimeout, DAEMON_CONFIG]
   );
 
-  const sendCommand = useCallback(
-    (headPose: HeadPose, antennas: [number, number] | number[], bodyYaw: number): void => {
+  const send = useCallback(
+    (
+      headPose: HeadPose,
+      antennas: [number, number] | number[],
+      bodyYaw: number,
+      { force = false, fireAndForget = true }: SendOptions = {}
+    ): Promise<unknown> | void => {
       const now = Date.now();
-      if (now - lastSendTimeRef.current < SEND_THROTTLE_MS) {
+      if (!force && now - lastSendTimeRef.current < TIMING.SEND_THROTTLE) {
         return;
       }
       lastSendTimeRef.current = now;
@@ -145,11 +149,19 @@ export function useControllerAPI(): UseControllerAPIReturn {
         target_body_yaw: bodyYaw,
       };
 
-      if (!sendViaWebSocket(requestBody)) {
-        sendViaHttp(requestBody);
+      if (sendViaWebSocket(requestBody)) {
+        return force ? Promise.resolve({ status: 'ok' }) : undefined;
       }
+      return sendViaHttp(requestBody, fireAndForget);
     },
     [sendViaWebSocket, sendViaHttp]
+  );
+
+  const sendCommand = useCallback(
+    (headPose: HeadPose, antennas: [number, number] | number[], bodyYaw: number): void => {
+      send(headPose, antennas, bodyYaw);
+    },
+    [send]
   );
 
   const forceSendCommand = useCallback(
@@ -157,22 +169,9 @@ export function useControllerAPI(): UseControllerAPIReturn {
       headPose: HeadPose,
       antennas: [number, number] | number[],
       bodyYaw: number
-    ): Promise<unknown> | void => {
-      lastSendTimeRef.current = Date.now();
-
-      const requestBody: CommandRequestBody = {
-        target_head_pose: headPose,
-        target_antennas: antennas,
-        target_body_yaw: bodyYaw,
-      };
-
-      if (sendViaWebSocket(requestBody)) {
-        return Promise.resolve({ status: 'ok' });
-      }
-
-      return sendViaHttp(requestBody, false);
-    },
-    [sendViaWebSocket, sendViaHttp]
+    ): Promise<unknown> | void =>
+      send(headPose, antennas, bodyYaw, { force: true, fireAndForget: false }),
+    [send]
   );
 
   return { sendCommand, forceSendCommand };

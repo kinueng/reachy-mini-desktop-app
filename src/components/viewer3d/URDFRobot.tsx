@@ -19,6 +19,17 @@ interface PassiveJointsLike {
   array?: number[];
 }
 
+const CLICK_THROTTLE_MS = 300;
+const FRAME_UPDATE_INTERVAL = 3;
+
+const CLICK_MESSAGES = [
+  '👆 You clicked on Reachy!',
+  '🤖 That tickles!',
+  '✨ Nice aim!',
+  '🎯 Bullseye!',
+  '👋 Hey there!',
+];
+
 export interface URDFRobotProps {
   headJoints?: number[] | null;
   passiveJoints?: number[] | PassiveJointsLike | null;
@@ -30,8 +41,48 @@ export interface URDFRobotProps {
   wireframe?: boolean;
   onMeshesReady?: (meshes: THREE.Mesh[]) => void;
   onRobotReady?: (robot: THREE.Object3D) => void;
+  onPoseReady?: (ready: boolean) => void;
   forceLoad?: boolean;
+  /**
+   * If true, mount the robot with a zero pose even when no pose data is
+   * available. Useful for scan / xray views that don't stream real joints.
+   * Defaults to true when `isActive` is false.
+   */
+  allowZeroPose?: boolean;
   dataVersion?: number;
+}
+
+function applyHeadJoints(robot: URDFRobotModel, headJoints: number[]): void {
+  if (robot.joints['yaw_body']) robot.setJointValue('yaw_body', headJoints[0]);
+  STEWART_JOINT_NAMES.forEach((jointName, index) => {
+    if (robot.joints[jointName]) {
+      robot.setJointValue(jointName, headJoints[index + 1]);
+    }
+  });
+}
+
+function applyPassiveJoints(robot: URDFRobotModel, passiveArray: number[]): void {
+  for (let i = 0; i < 21; i++) {
+    const jointName = PASSIVE_JOINT_NAMES[i];
+    if (robot.joints[jointName]) {
+      robot.setJointValue(jointName, passiveArray[i]);
+    }
+  }
+}
+
+function applyAntennaJoints(robot: URDFRobotModel, antennas: number[]): void {
+  if (robot.joints['left_antenna']) robot.setJointValue('left_antenna', -antennas[1]);
+  if (robot.joints['right_antenna']) robot.setJointValue('right_antenna', -antennas[0]);
+}
+
+function resetAllJoints(robot: URDFRobotModel): void {
+  if (robot.joints['yaw_body']) robot.setJointValue('yaw_body', 0);
+  STEWART_JOINT_NAMES.forEach(name => {
+    if (robot.joints[name]) robot.setJointValue(name, 0);
+  });
+  PASSIVE_JOINT_NAMES.forEach(name => {
+    if (robot.joints[name]) robot.setJointValue(name, 0);
+  });
 }
 
 function URDFRobot({
@@ -45,14 +96,16 @@ function URDFRobot({
   wireframe = false,
   onMeshesReady,
   onRobotReady,
+  onPoseReady,
   forceLoad = false,
+  allowZeroPose,
   dataVersion = 0,
 }: URDFRobotProps): React.ReactElement | null {
   const [robot, setRobot] = useState<URDFRobotModel | null>(null);
   const [isReady, setIsReady] = useState<boolean>(false);
   const groupRef = useRef<THREE.Object3D>(null);
   const meshesRef = useRef<THREE.Mesh[]>([]);
-  const displayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRobotRef = useRef<URDFRobotModel | null>(null);
   const { camera, gl } = useThree();
   const darkMode = useAppStore(state => state.darkMode);
   const robotStateFull = useAppStore(state => state.robotStateFull) as RobotStateFull;
@@ -63,12 +116,18 @@ function URDFRobot({
   } else if (!robotStateFullRef.current && robotStateFull?.data?.head_joints) {
     robotStateFullRef.current = robotStateFull;
   }
+
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2());
   const frameCountRef = useRef<number>(0);
   const lastClickTimeRef = useRef<number>(0);
-  const clickThrottleMs = 300;
   const lastAppliedVersionRef = useRef<number>(-1);
+
+  const shouldWaitForPose = allowZeroPose !== undefined ? !allowZeroPose : isActive;
+
+  useEffect(() => {
+    onPoseReady?.(isReady);
+  }, [isReady, onPoseReady]);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent): void => {
@@ -81,7 +140,7 @@ function URDFRobot({
       if (!robot) return;
 
       const now = Date.now();
-      if (now - lastClickTimeRef.current < clickThrottleMs) return;
+      if (now - lastClickTimeRef.current < CLICK_THROTTLE_MS) return;
       lastClickTimeRef.current = now;
 
       requestAnimationFrame(() => {
@@ -98,14 +157,7 @@ function URDFRobot({
             userData: { isErrorMesh?: boolean; [key: string]: unknown };
           };
           if (mesh.isMesh && !mesh.userData.isErrorMesh) {
-            const messages = [
-              '👆 You clicked on Reachy!',
-              '🤖 That tickles!',
-              '✨ Nice aim!',
-              '🎯 Bullseye!',
-              '👋 Hey there!',
-            ];
-            logInfo(messages[Math.floor(Math.random() * messages.length)]);
+            logInfo(CLICK_MESSAGES[Math.floor(Math.random() * CLICK_MESSAGES.length)]);
           }
         }
       });
@@ -123,6 +175,7 @@ function URDFRobot({
     if (!isActive && !forceLoad) {
       setRobot(null);
       setIsReady(false);
+      pendingRobotRef.current = null;
       return;
     }
 
@@ -143,84 +196,50 @@ function URDFRobot({
         onMeshesReady?.(collectedMeshes);
         onRobotReady?.(robotModel);
 
-        if (robotModel?.joints) {
-          // TODO(ts): RobotStateData doesn't expose an `antennas` field, only
-          // `antennas_position`. The original JS read `.antennas`, preserve 1:1.
-          const data = robotStateFullRef.current?.data as
-            | (RobotStateFull['data'] & { antennas?: number[] })
-            | null
-            | undefined;
-          const initialJoints = data?.head_joints;
-          const hasValidInitialJoints = Array.isArray(initialJoints) && initialJoints.length === 7;
+        if (!robotModel?.joints) {
+          setRobot(robotModel);
+          return;
+        }
 
-          if (hasValidInitialJoints && initialJoints) {
-            if (robotModel.joints['yaw_body']) {
-              robotModel.setJointValue('yaw_body', initialJoints[0]);
-            }
-            STEWART_JOINT_NAMES.forEach((jointName, index) => {
-              if (robotModel.joints[jointName]) {
-                robotModel.setJointValue(jointName, initialJoints[index + 1]);
-              }
-            });
+        const data = robotStateFullRef.current?.data as
+          | (RobotStateFull['data'] & { antennas?: number[] })
+          | null
+          | undefined;
+        const initialJoints = data?.head_joints;
+        const hasValidInitialJoints = Array.isArray(initialJoints) && initialJoints.length === 7;
 
-            const initialAntennas = data?.antennas;
-            if (Array.isArray(initialAntennas) && initialAntennas.length === 2) {
-              if (robotModel.joints['left_antenna']) {
-                robotModel.setJointValue('left_antenna', -initialAntennas[1]);
-              }
-              if (robotModel.joints['right_antenna']) {
-                robotModel.setJointValue('right_antenna', -initialAntennas[0]);
-              }
-            }
-          } else {
-            if (robotModel.joints['yaw_body']) {
-              robotModel.setJointValue('yaw_body', 0);
-            }
-            STEWART_JOINT_NAMES.forEach(jointName => {
-              if (robotModel.joints[jointName]) {
-                robotModel.setJointValue(jointName, 0);
-              }
-            });
+        if (hasValidInitialJoints && initialJoints) {
+          applyHeadJoints(robotModel, initialJoints);
+
+          const initialAntennas = data?.antennas;
+          if (Array.isArray(initialAntennas) && initialAntennas.length === 2) {
+            applyAntennaJoints(robotModel, initialAntennas);
           }
 
           const initialPassiveJoints = data?.passive_joints;
-          const hasValidPassiveJoints =
-            Array.isArray(initialPassiveJoints) && initialPassiveJoints.length >= 21;
-
-          if (hasValidPassiveJoints && initialPassiveJoints) {
-            for (let i = 0; i < 21; i++) {
-              const jointName = PASSIVE_JOINT_NAMES[i];
-              if (robotModel.joints[jointName]) {
-                robotModel.setJointValue(jointName, initialPassiveJoints[i]);
-              }
-            }
-          } else {
-            PASSIVE_JOINT_NAMES.forEach(jointName => {
-              if (robotModel.joints[jointName]) {
-                robotModel.setJointValue(jointName, 0);
-              }
-            });
+          if (Array.isArray(initialPassiveJoints) && initialPassiveJoints.length >= 21) {
+            applyPassiveJoints(robotModel, initialPassiveJoints);
           }
-
-          robotModel.traverse(child => {
-            if ((child as THREE.Object3D).isObject3D) {
-              child.updateMatrix();
-              child.updateMatrixWorld(true);
-            }
-          });
-
-          if (hasValidInitialJoints) {
-            if (!isMounted) return;
-            setRobot(robotModel);
-            return;
-          }
+        } else {
+          resetAllJoints(robotModel);
         }
 
-        displayTimeoutRef.current = setTimeout(() => {
-          if (!isMounted) return;
+        robotModel.traverse(child => {
+          if ((child as THREE.Object3D).isObject3D) {
+            child.updateMatrix();
+            child.updateMatrixWorld(true);
+          }
+        });
+
+        if (hasValidInitialJoints || !shouldWaitForPose) {
           setRobot(robotModel);
-          displayTimeoutRef.current = null;
-        }, 500);
+          return;
+        }
+
+        // Defer mounting until the first valid pose arrives via useFrame.
+        // Keeps the user from seeing the default zero-pose between mount
+        // and the first websocket frame.
+        pendingRobotRef.current = robotModel;
       })
       .catch(err => {
         console.error('URDF loading error:', err);
@@ -228,32 +247,55 @@ function URDFRobot({
 
     return () => {
       isMounted = false;
-      if (displayTimeoutRef.current) {
-        clearTimeout(displayTimeoutRef.current);
-        displayTimeoutRef.current = null;
-      }
+      pendingRobotRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, forceLoad, onMeshesReady]);
+  }, [isActive, forceLoad, onMeshesReady, shouldWaitForPose]);
 
   useFrame(() => {
+    const hasValidHeadJoints = Array.isArray(headJoints) && headJoints.length === 7;
+
+    if (pendingRobotRef.current && hasValidHeadJoints) {
+      const pending = pendingRobotRef.current;
+      applyHeadJoints(pending, headJoints as number[]);
+
+      if (passiveJoints) {
+        const passiveArray = Array.isArray(passiveJoints)
+          ? passiveJoints
+          : (passiveJoints as PassiveJointsLike).array;
+        if (passiveArray && passiveArray.length >= 21) {
+          applyPassiveJoints(pending, passiveArray);
+        }
+      }
+
+      if (antennas && Array.isArray(antennas) && antennas.length >= 2) {
+        applyAntennaJoints(pending, antennas);
+      }
+
+      pending.traverse(child => {
+        if ((child as THREE.Object3D).isObject3D) {
+          child.updateMatrix();
+          child.updateMatrixWorld(true);
+        }
+      });
+
+      pendingRobotRef.current = null;
+      lastAppliedVersionRef.current = dataVersion;
+      setRobot(pending);
+      return;
+    }
+
     if (!robot) return;
     if (!isActive && !forceLoad) return;
 
     frameCountRef.current++;
-    if (frameCountRef.current % 3 !== 0) return;
+    if (frameCountRef.current % FRAME_UPDATE_INTERVAL !== 0) return;
 
     if (dataVersion === lastAppliedVersionRef.current) return;
     lastAppliedVersionRef.current = dataVersion;
 
-    if (headJoints && Array.isArray(headJoints) && headJoints.length === 7) {
-      if (robot.joints['yaw_body']) robot.setJointValue('yaw_body', headJoints[0]);
-      if (robot.joints['stewart_1']) robot.setJointValue('stewart_1', headJoints[1]);
-      if (robot.joints['stewart_2']) robot.setJointValue('stewart_2', headJoints[2]);
-      if (robot.joints['stewart_3']) robot.setJointValue('stewart_3', headJoints[3]);
-      if (robot.joints['stewart_4']) robot.setJointValue('stewart_4', headJoints[4]);
-      if (robot.joints['stewart_5']) robot.setJointValue('stewart_5', headJoints[5]);
-      if (robot.joints['stewart_6']) robot.setJointValue('stewart_6', headJoints[6]);
+    if (hasValidHeadJoints) {
+      applyHeadJoints(robot, headJoints as number[]);
     } else if (yawBody !== undefined && robot.joints['yaw_body']) {
       robot.setJointValue('yaw_body', yawBody);
     }
@@ -263,18 +305,12 @@ function URDFRobot({
         ? passiveJoints
         : (passiveJoints as PassiveJointsLike).array;
       if (passiveArray && passiveArray.length >= 21) {
-        for (let i = 0; i < 21; i++) {
-          const jointName = PASSIVE_JOINT_NAMES[i];
-          if (robot.joints[jointName]) {
-            robot.setJointValue(jointName, passiveArray[i]);
-          }
-        }
+        applyPassiveJoints(robot, passiveArray);
       }
     }
 
     if (antennas && Array.isArray(antennas) && antennas.length >= 2) {
-      if (robot.joints['left_antenna']) robot.setJointValue('left_antenna', -antennas[1]);
-      if (robot.joints['right_antenna']) robot.setJointValue('right_antenna', -antennas[0]);
+      applyAntennaJoints(robot, antennas);
     }
   });
 
@@ -305,6 +341,7 @@ const URDFRobotMemo = memo(URDFRobot, (prevProps, nextProps) => {
     prevProps.wireframe !== nextProps.wireframe ||
     prevProps.forceLoad !== nextProps.forceLoad ||
     prevProps.xrayOpacity !== nextProps.xrayOpacity ||
+    prevProps.allowZeroPose !== nextProps.allowZeroPose ||
     prevProps.dataVersion !== nextProps.dataVersion
   ) {
     return false;

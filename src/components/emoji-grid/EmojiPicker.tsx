@@ -1,31 +1,22 @@
 import { useMemo } from 'react';
 import { EmojiGrid, type EmojiGridItem } from './EmojiGrid';
-import { EMOTION_EMOJIS, DANCE_EMOJIS } from '@constants/choreographies';
+import {
+  DANCE_EMOJIS,
+  EMOTION_EMOJIS,
+  WHEEL_EMOTIONS,
+  labelFromActionName,
+  type EmojiGridAction,
+} from '@constants/choreographies';
 
-// Emotions featured in the wheel - shown first in the library
-const WHEEL_EMOTIONS: string[] = [
-  'loving1',
-  'grateful1',
-  'helpful1',
-  'surprised1',
-  'thoughtful1',
-  'yes1',
-  'no1',
-  'boredom2',
-  'anxiety1',
-  'downcast1',
-  'sad1',
-  'sad2',
-  'dying1',
-  'reprimand1',
-];
+const FALLBACK_EMOTION_EMOJI = '😐';
+const FALLBACK_DANCE_EMOJI = '🎵';
 
 type NamedItem = string | { name: string };
 
 export interface EmojiPickerProps {
-  emotions?: NamedItem[];
-  dances?: NamedItem[];
-  onAction?: (action: unknown) => void;
+  emotions?: readonly NamedItem[];
+  dances?: readonly NamedItem[];
+  onAction?: (action: EmojiGridAction) => void;
   darkMode?: boolean;
   disabled?: boolean;
   searchQuery?: string;
@@ -33,9 +24,34 @@ export interface EmojiPickerProps {
   isExecuting?: boolean;
 }
 
+function extractName(item: NamedItem): string {
+  return typeof item === 'string' ? item : item.name;
+}
+
+function buildEmotionItem(name: string): EmojiGridItem & { name: string } {
+  const label = labelFromActionName(name);
+  return {
+    name,
+    emoji: (EMOTION_EMOJIS as Record<string, string>)[name] ?? FALLBACK_EMOTION_EMOJI,
+    label,
+    originalAction: { name, type: 'emotion', label },
+  };
+}
+
+function buildDanceItem(name: string): EmojiGridItem & { name: string } {
+  const label = name.replace(/_/g, ' ');
+  return {
+    name,
+    emoji: (DANCE_EMOJIS as Record<string, string>)[name] ?? FALLBACK_DANCE_EMOJI,
+    label,
+    originalAction: { name, type: 'dance', label },
+  };
+}
+
 /**
- * Emoji picker with two grids - Emotions and Dances
- * Simple grid layout, 3 rows visible with animated "show more" accordion
+ * Emoji picker with two grids - Emotions and Dances.
+ * Simple grid layout, 3 rows visible with an animated "show more" accordion.
+ * Emotions featured in the wheel are sorted first so the two views stay consistent.
  */
 export function EmojiPicker({
   emotions = [],
@@ -47,60 +63,29 @@ export function EmojiPicker({
   activeActionName = null,
   isExecuting = false,
 }: EmojiPickerProps) {
-  // Prepare emotion items with emojis from constants
-  // Sort to show wheel emotions first
   const emotionItems = useMemo<EmojiGridItem[]>(() => {
-    const wheelSet = new Set(WHEEL_EMOTIONS);
+    const wheelOrder = new Map<string, number>(WHEEL_EMOTIONS.map((name, i) => [name, i]));
 
-    // Separate wheel emotions from others
-    const wheelEmotions: (EmojiGridItem & { name: string })[] = [];
-    const otherEmotions: (EmojiGridItem & { name: string })[] = [];
+    const featured: (EmojiGridItem & { name: string })[] = [];
+    const others: (EmojiGridItem & { name: string })[] = [];
 
     emotions.forEach(item => {
-      const name = typeof item === 'string' ? item : item.name;
-      const emotionItem = {
-        name,
-        emoji: (EMOTION_EMOJIS as Record<string, string>)[name] || '😐',
-        label: name.replace(/[0-9]+$/, '').replace(/_/g, ' '),
-        originalAction: {
-          name,
-          type: 'emotion',
-          label: name.replace(/[0-9]+$/, '').replace(/_/g, ' '),
-        },
-      };
-
-      if (wheelSet.has(name)) {
-        wheelEmotions.push(emotionItem);
+      const entry = buildEmotionItem(extractName(item));
+      if (wheelOrder.has(entry.name)) {
+        featured.push(entry);
       } else {
-        otherEmotions.push(emotionItem);
+        others.push(entry);
       }
     });
 
-    // Sort wheel emotions to match wheel order
-    wheelEmotions.sort((a, b) => {
-      return WHEEL_EMOTIONS.indexOf(a.name) - WHEEL_EMOTIONS.indexOf(b.name);
-    });
-
-    return [...wheelEmotions, ...otherEmotions];
+    featured.sort((a, b) => (wheelOrder.get(a.name) ?? 0) - (wheelOrder.get(b.name) ?? 0));
+    return [...featured, ...others];
   }, [emotions]);
 
-  // Prepare dance items with emojis from constants
-  const danceItems = useMemo<EmojiGridItem[]>(() => {
-    return dances.map(item => {
-      const name = typeof item === 'string' ? item : item.name;
-
-      return {
-        name,
-        emoji: (DANCE_EMOJIS as Record<string, string>)[name] || '🎵',
-        label: name.replace(/_/g, ' '),
-        originalAction: {
-          name,
-          type: 'dance',
-          label: name.replace(/_/g, ' '),
-        },
-      };
-    });
-  }, [dances]);
+  const danceItems = useMemo<EmojiGridItem[]>(
+    () => dances.map(item => buildDanceItem(extractName(item))),
+    [dances]
+  );
 
   return (
     <div
@@ -111,7 +96,6 @@ export function EmojiPicker({
         width: '100%',
       }}
     >
-      {/* Emotions grid */}
       {emotionItems.length > 0 && (
         <EmojiGrid
           items={emotionItems}
@@ -125,7 +109,6 @@ export function EmojiPicker({
         />
       )}
 
-      {/* Dances grid */}
       {danceItems.length > 0 && (
         <EmojiGrid
           items={danceItems}

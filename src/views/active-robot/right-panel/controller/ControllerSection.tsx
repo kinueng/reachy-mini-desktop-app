@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Box, Typography, IconButton, Tooltip, Chip } from '@mui/material';
 import SportsEsportsOutlinedIcon from '@mui/icons-material/SportsEsportsOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -90,6 +90,18 @@ export default function ControllerSection({
   const handleBack = (): void => {
     setRightPanelView(null); // Return to applications view
   };
+
+  const handleResetReady = useCallback((resetFn: ResetFn): void => {
+    controllerResetRef.current = resetFn;
+  }, []);
+
+  const handleIsAtInitialPosition = useCallback((isAtInitial: boolean): void => {
+    setIsAtInitialPosition(isAtInitial);
+  }, []);
+
+  const handleResetClick = useCallback((): void => {
+    controllerResetRef.current?.();
+  }, []);
 
   return (
     <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -183,11 +195,7 @@ export default function ControllerSection({
             <Tooltip title="Reset all position controls" arrow>
               <IconButton
                 size="small"
-                onClick={() => {
-                  if (controllerResetRef.current) {
-                    controllerResetRef.current();
-                  }
-                }}
+                onClick={handleResetClick}
                 disabled={!isReady || isBusy}
                 sx={{
                   ml: 0.5,
@@ -210,12 +218,8 @@ export default function ControllerSection({
         <Controller
           isActive={isActive}
           darkMode={darkMode}
-          onResetReady={(resetFn: ResetFn) => {
-            controllerResetRef.current = resetFn;
-          }}
-          onIsAtInitialPosition={(isAtInitial: boolean) => {
-            setIsAtInitialPosition(isAtInitial);
-          }}
+          onResetReady={handleResetReady}
+          onIsAtInitialPosition={handleIsAtInitialPosition}
         />
       </Box>
     </Box>

@@ -55,5 +55,14 @@ export interface DaemonStatusResponse {
 
 /**
  * Log level used across the app (frontend logs, app logs, daemon logs).
+ *
+ * Not every producer emits every level:
+ *   - `'success'` is only used by user-facing frontend events (e.g. a finished
+ *     install). The daemon-line parser never produces it.
+ *   - `'debug'` is only emitted by the daemon-line parser when the Python
+ *     logger prints a `DEBUG`-level record. Frontend/app producers ignore it.
+ *
+ * Consumers that need a narrower alphabet should `Exclude<LogLevel, …>` from
+ * this type instead of declaring a parallel union.
  */
-export type LogLevel = 'info' | 'success' | 'warning' | 'error';
+export type LogLevel = 'info' | 'success' | 'warning' | 'error' | 'debug';

@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useCallback } from 'react';
-import { Box, Typography, IconButton, Tooltip, InputBase } from '@mui/material';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { Box, Typography, IconButton, Tooltip, InputBase, CircularProgress } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
 import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -104,7 +104,6 @@ export interface LogConsoleProps {
   logs?: unknown[] | null;
   darkMode?: boolean;
   includeStoreLogs?: boolean;
-  remoteLogs?: LogEntry[] | readonly LogEntry[] | readonly never[];
   sx?: SxProps<Theme>;
   maxHeight?: number | string | null;
   height?: number | string | null;
@@ -115,6 +114,12 @@ export interface LogConsoleProps {
   emptyMessage?: string;
   onExpand?: (() => void) | null;
   fullSize?: boolean;
+  /**
+   * When set, overrides the store `logMode` for this instance and hides the
+   * Simple/Dev toggle from the full-size header. Useful for views that must
+   * always render in a specific mode (e.g. startup fullscreen pinned to Dev).
+   */
+  forceMode?: LogMode;
 }
 
 /**
@@ -129,7 +134,6 @@ function LogConsole({
   logs,
   darkMode = false,
   includeStoreLogs = true,
-  remoteLogs = EMPTY_ARRAY,
   sx = {},
   maxHeight = null,
   height = null,
@@ -140,6 +144,7 @@ function LogConsole({
   emptyMessage = 'No logs',
   onExpand = null,
   fullSize = false,
+  forceMode,
 }: LogConsoleProps) {
   const frontendLogs = useAppStore(state =>
     includeStoreLogs ? state.frontendLogs : (EMPTY_ARRAY as unknown as LogEntry[])
@@ -155,19 +160,13 @@ function LogConsole({
   const categoryFilters = useAppStore(s => s.logCategoryFilters);
   const toggleCategory = useAppStore(s => s.toggleLogCategory);
 
-  const effectiveMode: LogMode = simpleStyle ? 'simple' : logMode;
+  const effectiveMode: LogMode = simpleStyle ? 'simple' : (forceMode ?? logMode);
   const isDevMode = effectiveMode === 'dev';
-
-  const mergedAppLogs = useMemo(
-    () =>
-      remoteLogs.length > 0 ? [...appLogs, ...(remoteLogs as LogEntry[])] : (appLogs as LogEntry[]),
-    [appLogs, remoteLogs]
-  );
 
   const normalizedLogs = useLogProcessing(
     logs as unknown[] | null | undefined,
     frontendLogs as unknown[],
-    mergedAppLogs as unknown[],
+    appLogs as unknown[],
     includeStoreLogs,
     simpleStyle,
     {
@@ -183,6 +182,58 @@ function LogConsole({
 
   const parentRef = useRef<HTMLDivElement | null>(null);
 
+  // Hide the Simple <-> Dev toggle flash behind a short spinner overlay.
+  // Only applies to full-size layouts (that's where the toggle lives).
+  //
+  // Flow (to avoid any frame showing the "new" logs before the spinner):
+  //   1. User clicks the toggle -> `handleModeChange` flips `showOverlay` to
+  //      true with `enableFade` disabled, so the overlay snaps in instantly
+  //      (no opacity transition) in the same render as the click.
+  //   2. Inside `requestAnimationFrame`, we call `setLogMode` so the actual
+  //      switch happens on the next frame, by which time the overlay is
+  //      already painted on top.
+  //   3. Once `effectiveMode` reflects the new value, we hold briefly then
+  //      re-enable the fade and hide the overlay smoothly.
+  const [showOverlay, setShowOverlay] = useState<boolean>(false);
+  const [enableFade, setEnableFade] = useState<boolean>(false);
+  const prevModeRef = useRef<LogMode>(effectiveMode);
+
+  const handleModeChange = useCallback(
+    (next: LogMode) => {
+      if (next === logMode) return;
+      if (!fullSize) {
+        setLogMode(next);
+        return;
+      }
+      setEnableFade(false);
+      setShowOverlay(true);
+      // Defer the mode switch to the next frame so the overlay paints first.
+      requestAnimationFrame(() => {
+        setLogMode(next);
+      });
+    },
+    [logMode, setLogMode, fullSize]
+  );
+
+  useEffect(() => {
+    if (!fullSize) return;
+    if (prevModeRef.current === effectiveMode) return;
+    prevModeRef.current = effectiveMode;
+    if (!showOverlay) return;
+
+    // Hold the spinner briefly so the new virtualizer has time to settle,
+    // then fade the overlay out.
+    const holdTimer = window.setTimeout(() => {
+      setEnableFade(true);
+      // Use a second frame so the `transition` property is applied before
+      // the opacity change, guaranteeing a visible fade-out.
+      requestAnimationFrame(() => {
+        setShowOverlay(false);
+      });
+    }, 180);
+    return () => window.clearTimeout(holdTimer);
+  }, [effectiveMode, fullSize, showOverlay]);
+
   const virtualizer = useVirtualizer({
     count: normalizedLogs.length,
     getScrollElement: () => parentRef.current,
@@ -190,12 +241,18 @@ function LogConsole({
     overscan: 5,
   });
 
+  // Read once per render so `useVirtualizerScroll` can detect when measured
+  // items (multi-line logs) grow the total content height without the item
+  // count changing, and re-pin the viewport to the new bottom.
+  const virtualizerTotalSize = virtualizer.getTotalSize();
+
   const { handleScroll } = useVirtualizerScroll({
     virtualizer: virtualizer as unknown as import('@tanstack/react-virtual').Virtualizer<
       HTMLElement,
       Element
     >,
     totalCount: normalizedLogs.length,
+    totalSize: virtualizerTotalSize,
     enabled: true,
     compact,
     simpleStyle,
@@ -296,10 +353,7 @@ function LogConsole({
       >
         Logs
       </Typography>
-      <Box
-        className="log-console-actions"
-        sx={{ display: 'flex', gap: 0.25, opacity: 0, transition: 'opacity 0.15s' }}
-      >
+      <Box className="log-console-actions" sx={{ display: 'flex', gap: 0.25 }}>
         {onExpand && (
           <IconButton
             onClick={onExpand}
@@ -353,10 +407,10 @@ function LogConsole({
         Logs
       </Typography>
 
-      <ModeToggle mode={logMode} onChange={setLogMode} darkMode={darkMode} />
+      {!forceMode && <ModeToggle mode={logMode} onChange={handleModeChange} darkMode={darkMode} />}
 
-      {/* Dev-only: category filters + search */}
-      {isDevMode && (
+      {/* Dev-only: category filters + search (hidden when the mode is forced from outside) */}
+      {isDevMode && !forceMode && (
         <>
           {Object.entries(CATEGORY_META).map(([key, meta]) => (
             <FilterChip
@@ -433,16 +487,46 @@ function LogConsole({
     </Box>
   );
 
+  const transitionOverlayBg = darkMode ? '#1a1a1a' : '#ffffff';
+
   return (
     <Box
       className="log-console"
       sx={{
         ...(boxSx as object),
         position: 'relative',
-        '&:hover .log-console-actions': { opacity: 1 },
       }}
     >
       {!simpleStyle && (fullSize ? renderFullSizeHeader() : renderInlineHeader())}
+
+      {fullSize && (
+        <Box
+          aria-hidden={!showOverlay}
+          sx={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            // Sit below the full-size header (~36px) so the toggle stays visible.
+            top: 36,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: transitionOverlayBg,
+            opacity: showOverlay ? 1 : 0,
+            pointerEvents: showOverlay ? 'auto' : 'none',
+            // Snap in instantly (no enter transition), only fade on the way out.
+            transition: enableFade ? 'opacity 180ms ease' : 'none',
+            zIndex: 5,
+          }}
+        >
+          <CircularProgress
+            size={28}
+            thickness={3}
+            sx={{ color: darkMode ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.35)' }}
+          />
+        </Box>
+      )}
 
       {normalizedLogs.length === 0 ? (
         <Box
@@ -498,9 +582,7 @@ function LogConsole({
             },
           }}
         >
-          <Box
-            sx={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}
-          >
+          <Box sx={{ height: `${virtualizerTotalSize}px`, width: '100%', position: 'relative' }}>
             {virtualizer.getVirtualItems().map(virtualItem => {
               const log = normalizedLogs[virtualItem.index];
               if (!log) return null;

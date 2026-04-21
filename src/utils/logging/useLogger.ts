@@ -24,6 +24,15 @@ export interface UseLoggerResult {
   userAction: (action: string, details?: string) => void;
   permission: (message: string) => void;
   timeout: (message: string) => void;
+  /**
+   * Mark a message as user-facing: it will always be shown in simple mode,
+   * bypassing the regex allowlist. Use for key product events surfaced in
+   * the main log panel ("wake up", "connected to ...", "installing X", ...).
+   *
+   * The regex allowlist remains in place as a fallback, so adopting `event`
+   * is incremental and does not change behavior for untagged entries.
+   */
+  event: (message: string, level?: LogLevel, category?: LogCategory) => void;
 }
 
 /**
@@ -115,8 +124,31 @@ export function useLogger(): UseLoggerResult {
     [addFrontendLog]
   );
 
+  const event = useCallback(
+    (
+      message: string,
+      level: LogLevel = LOG_LEVELS.INFO,
+      category: LogCategory = LOG_CATEGORIES.FRONTEND
+    ) => {
+      addFrontendLog(message, level, category, { userFacing: true });
+    },
+    [addFrontendLog]
+  );
+
   return useMemo(
-    () => ({ info, success, warning, error, api, daemon, app, userAction, permission, timeout }),
-    [info, success, warning, error, api, daemon, app, userAction, permission, timeout]
+    () => ({
+      info,
+      success,
+      warning,
+      error,
+      api,
+      daemon,
+      app,
+      userAction,
+      permission,
+      timeout,
+      event,
+    }),
+    [info, success, warning, error, api, daemon, app, userAction, permission, timeout, event]
   );
 }

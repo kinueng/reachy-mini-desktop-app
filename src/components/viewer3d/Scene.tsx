@@ -6,8 +6,7 @@ import ScanEffect from './effects/ScanEffect';
 import PremiumScanEffect from './effects/PremiumScanEffect';
 import ErrorHighlight from './effects/ErrorHighlight';
 import CinematicCamera from './CinematicCamera';
-import useAppStore from '../../store/useAppStore';
-import { DAEMON_CONFIG } from '../../config/daemon';
+import { findErrorMeshes } from '../../utils/viewer3d/findErrorMeshes';
 
 // TODO(ts): URDFLoader augments the robot root with `links` and joint helpers.
 // These aren't exposed in the upstream RobotModel type, widen locally.
@@ -39,12 +38,62 @@ export interface SceneProps {
   onScanComplete?: (() => void) | null;
   onScanMesh?: ((mesh: THREE.Mesh, index: number, total: number) => void) | null;
   onMeshesReady?: ((meshes: THREE.Mesh[]) => void) | null;
+  onPoseReady?: ((ready: boolean) => void) | null;
   cameraConfig?: CameraConfig;
   useCinematicCamera?: boolean;
   errorFocusMesh?: THREE.Mesh | null;
   hideEffects?: boolean;
   darkMode?: boolean;
+  allowZeroPose?: boolean;
   dataVersion?: number;
+}
+
+// ============================================================================
+// Scene constants (hoisted out of the render to keep stable references)
+// ============================================================================
+
+const LIGHTING = {
+  ambient: 0.3,
+  keyIntensity: 1.8,
+  fillIntensity: 0.3,
+  rimIntensity: 0.8,
+} as const;
+
+const SCENE = {
+  showGrid: true,
+  fogDistance: 2.5,
+} as const;
+
+const XRAY_OPACITY_LIGHT = 0.2;
+const XRAY_OPACITY_DARK = 0.05;
+
+const FOG_COLOR_LIGHT = '#fdfcfa';
+const FOG_COLOR_DARK = '#1a1a1a';
+
+const GRID_COLORS = {
+  light: { major: '#999999', minor: '#cccccc', opacity: 0.5 },
+  dark: { major: '#555555', minor: '#333333', opacity: 0.4 },
+} as const;
+
+const SCAN_COLORS = {
+  standard: '#16a34a',
+  premium: '#00ff88',
+} as const;
+
+const ERROR_COLOR = '#ff0000';
+
+// Dev-only helper: expose latest kinematics payload on window for debugging.
+// Never enabled in production builds.
+function exposeKinematicsForDebug(payload: {
+  headJoints: number[];
+  passiveJoints: unknown;
+  headPose: number[] | null | undefined;
+}): void {
+  if (!import.meta.env.DEV) return;
+  (window as unknown as { kinematics: unknown }).kinematics = {
+    ...payload,
+    timestamp: new Date().toISOString(),
+  };
 }
 
 function Scene({
@@ -63,14 +112,14 @@ function Scene({
   onScanComplete = null,
   onScanMesh = null,
   onMeshesReady = null,
+  onPoseReady = null,
   cameraConfig = {},
   useCinematicCamera = false,
   errorFocusMesh = null,
-  hideEffects: _hideEffects = false,
   darkMode = false,
+  allowZeroPose,
   dataVersion = 0,
 }: SceneProps): React.ReactElement {
-  void _hideEffects;
   const [outlineMeshes, setOutlineMeshes] = useState<THREE.Mesh[]>([]);
   const [robotRef, setRobotRef] = useState<URDFLinkedObject | null>(null);
 
@@ -83,209 +132,62 @@ function Scene({
   const lastHeadJointsRef = useRef<number[] | null>(null);
   const lastHasPassiveJointsRef = useRef<boolean | null>(null);
   useEffect(() => {
-    if (headJoints && headJoints.length === 7) {
-      const headJointsChanged =
-        !lastHeadJointsRef.current ||
-        headJoints.some((v, i) => Math.abs(v - (lastHeadJointsRef.current?.[i] || 0)) > 0.001);
-      const hasPassiveJoints = !!passiveJoints;
-      const passiveJointsChanged = hasPassiveJoints !== lastHasPassiveJointsRef.current;
+    if (!headJoints || headJoints.length !== 7) return;
 
-      if (headJointsChanged || passiveJointsChanged) {
-        (window as unknown as { kinematics: unknown }).kinematics = {
-          headJoints,
-          passiveJoints,
-          headPose,
-          timestamp: new Date().toISOString(),
-        };
-        lastHeadJointsRef.current = headJoints;
-        lastHasPassiveJointsRef.current = hasPassiveJoints;
-      }
-    }
+    const prev = lastHeadJointsRef.current;
+    const headJointsChanged =
+      !prev || headJoints.some((v, i) => Math.abs(v - (prev[i] ?? 0)) > 0.001);
+    const hasPassiveJoints = !!passiveJoints;
+    const passiveJointsChanged = hasPassiveJoints !== lastHasPassiveJointsRef.current;
+
+    if (!headJointsChanged && !passiveJointsChanged) return;
+
+    exposeKinematicsForDebug({ headJoints, passiveJoints, headPose });
+    lastHeadJointsRef.current = headJoints;
+    lastHasPassiveJointsRef.current = hasPassiveJoints;
   }, [headJoints, passiveJoints, headPose]);
 
-  // scanDuration kept for parity with original (unused variable was
-  // present in JS version as well, preserved 1:1 runtime behavior).
-  const scanDuration = DAEMON_CONFIG.ANIMATIONS.SCAN_DURATION / 1000;
-  void scanDuration;
-
-  const { activeEffect } = useAppStore();
-
-  const cellShading = {
-    bands: 100,
-    smoothness: 0.45,
-    rimIntensity: 0.4,
-    specularIntensity: 0.3,
-    ambientIntensity: 0.45,
-    contrastBoost: 0.9,
-    outlineEnabled: true,
-    outlineThickness: 12.0,
-    outlineColor: '#000000',
-  };
-  void cellShading;
-  const lighting = {
-    ambient: 0.3,
-    keyIntensity: 1.8,
-    fillIntensity: 0.3,
-    rimIntensity: 0.8,
-  };
-  const xraySettings = {
-    opacity: darkMode ? 0.05 : 0.2,
-  };
-  const scene = {
-    showGrid: true,
-    fogDistance: 2.5,
-  };
-
-  const headPositionVectorRef = useRef(new THREE.Vector3());
-
-  const headPosition = useMemo<[number, number, number]>(() => {
-    if (!robotRef) return [0, 0.18, 0.02];
-
-    const cameraLink = robotRef.links?.['camera'];
-    if (cameraLink) {
-      cameraLink.getWorldPosition(headPositionVectorRef.current);
-
-      return [
-        headPositionVectorRef.current.x,
-        headPositionVectorRef.current.y + 0.03,
-        headPositionVectorRef.current.z + 0.02,
-      ];
-    }
-
-    const headLink = robotRef.links?.['xl_330'];
-    if (headLink) {
-      headLink.getWorldPosition(headPositionVectorRef.current);
-      return [
-        headPositionVectorRef.current.x,
-        headPositionVectorRef.current.y + 0.03,
-        headPositionVectorRef.current.z + 0.02,
-      ];
-    }
-
-    return [0, 0.18, 0.02];
-  }, [robotRef, activeEffect]);
-  void headPosition;
+  const xrayOpacity = darkMode ? XRAY_OPACITY_DARK : XRAY_OPACITY_LIGHT;
+  const fogColor = darkMode ? FOG_COLOR_DARK : FOG_COLOR_LIGHT;
 
   const gridHelper = useMemo(() => {
-    const majorLineColor = darkMode ? '#555555' : '#999999';
-    const minorLineColor = darkMode ? '#333333' : '#cccccc';
-
-    const grid = new THREE.GridHelper(2, 20, majorLineColor, minorLineColor);
+    const palette = darkMode ? GRID_COLORS.dark : GRID_COLORS.light;
+    const grid = new THREE.GridHelper(2, 20, palette.major, palette.minor);
     const gridMat = grid.material as THREE.Material & {
       opacity: number;
       transparent: boolean;
       fog: boolean;
     };
-    gridMat.opacity = darkMode ? 0.4 : 0.5;
+    gridMat.opacity = palette.opacity;
     gridMat.transparent = true;
     gridMat.fog = true;
     return grid;
   }, [darkMode]);
 
-  const errorMeshes = useMemo<THREE.Mesh[] | null>(() => {
-    if (!errorFocusMesh) {
-      return null;
-    }
-
-    if (!robotRef || !outlineMeshes.length) {
-      return [errorFocusMesh];
-    }
-
-    const collectMeshesFromObject = (
-      obj: THREE.Object3D,
-      meshes: THREE.Mesh[] = []
-    ): THREE.Mesh[] => {
-      const maybeMesh = obj as THREE.Mesh & {
-        isMesh?: boolean;
-        userData: { isOutline?: boolean; [key: string]: unknown };
-      };
-      if (maybeMesh.isMesh && !maybeMesh.userData.isOutline) {
-        meshes.push(maybeMesh);
-      }
-      if (obj.children) {
-        obj.children.forEach(child => {
-          collectMeshesFromObject(child, meshes);
-        });
-      }
-      return meshes;
-    };
-
-    let isCameraMesh = false;
-    let cameraLink: THREE.Object3D | null = null;
-
-    if (robotRef.links?.['camera']) {
-      cameraLink = robotRef.links['camera'];
-      const cameraMeshes = collectMeshesFromObject(cameraLink, []);
-      isCameraMesh = cameraMeshes.includes(errorFocusMesh);
-
-      if (isCameraMesh) {
-        return cameraMeshes.length > 0 ? cameraMeshes : [errorFocusMesh];
-      }
-    }
-
-    let current: THREE.Object3D | null = errorFocusMesh;
-    let depth = 0;
-    while (current && current.parent && depth < 10) {
-      const parentName = (current.parent.name || '').toLowerCase();
-      const currentName = (current.name || '').toLowerCase();
-
-      if (parentName.includes('camera') || currentName.includes('camera')) {
-        isCameraMesh = true;
-        break;
-      }
-      current = current.parent;
-      depth++;
-    }
-
-    if (isCameraMesh) {
-      if (cameraLink) {
-        const cameraMeshes = collectMeshesFromObject(cameraLink, []);
-        return cameraMeshes.length > 0 ? cameraMeshes : [errorFocusMesh];
-      }
-
-      const cameraMeshes: THREE.Mesh[] = [];
-      outlineMeshes.forEach(mesh => {
-        let cur: THREE.Object3D | null = mesh;
-        let d = 0;
-        while (cur && cur.parent && d < 10) {
-          const parentName = (cur.parent.name || '').toLowerCase();
-          const currentName = (cur.name || '').toLowerCase();
-          if (parentName.includes('camera') || currentName.includes('camera')) {
-            cameraMeshes.push(mesh);
-            break;
-          }
-          cur = cur.parent;
-          d++;
-        }
-      });
-
-      return cameraMeshes.length > 0 ? cameraMeshes : [errorFocusMesh];
-    }
-
-    return [errorFocusMesh];
-  }, [errorFocusMesh, robotRef, outlineMeshes]);
-
-  const fogColor = darkMode ? '#1a1a1a' : '#fdfcfa';
+  const errorMeshes = useMemo(
+    () => findErrorMeshes(errorFocusMesh, robotRef, outlineMeshes),
+    [errorFocusMesh, robotRef, outlineMeshes]
+  );
 
   return (
     <>
-      <fog attach="fog" args={[fogColor, 1, scene.fogDistance]} />
+      <fog attach="fog" args={[fogColor, 1, SCENE.fogDistance]} />
 
-      <ambientLight intensity={lighting.ambient} />
+      <ambientLight intensity={LIGHTING.ambient} />
 
       <directionalLight
         position={[2, 4, 2]}
-        intensity={lighting.keyIntensity}
+        intensity={LIGHTING.keyIntensity}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
       />
 
-      <directionalLight position={[-2, 2, 1.5]} intensity={lighting.fillIntensity} />
+      <directionalLight position={[-2, 2, 1.5]} intensity={LIGHTING.fillIntensity} />
 
-      <directionalLight position={[0, 3, -2]} intensity={lighting.rimIntensity} color="#FFB366" />
+      <directionalLight position={[0, 3, -2]} intensity={LIGHTING.rimIntensity} color="#FFB366" />
 
-      {!hideGrid && scene.showGrid && <primitive object={gridHelper} position={[0, 0, 0]} />}
+      {!hideGrid && SCENE.showGrid && <primitive object={gridHelper} position={[0, 0, 0]} />}
 
       <URDFRobot
         headJoints={headJoints}
@@ -295,59 +197,40 @@ function Scene({
         isActive={isActive}
         isTransparent={isTransparent}
         wireframe={wireframe}
-        xrayOpacity={xraySettings.opacity}
+        xrayOpacity={xrayOpacity}
         onMeshesReady={setOutlineMeshes}
         onRobotReady={(r: THREE.Object3D) => setRobotRef(r as URDFLinkedObject)}
+        onPoseReady={onPoseReady ?? undefined}
         forceLoad={forceLoad}
+        allowZeroPose={allowZeroPose}
         dataVersion={dataVersion}
       />
 
-      {showScanEffect && (
-        <>
-          {usePremiumScan ? (
-            <PremiumScanEffect
-              meshes={outlineMeshes}
-              scanColor="#00ff88"
-              enabled={true}
-              onScanMesh={(mesh, index, total) => {
-                if (onScanMesh) {
-                  onScanMesh(mesh, index, total);
-                }
-              }}
-              onComplete={() => {
-                if (onScanComplete) {
-                  onScanComplete();
-                }
-              }}
-            />
-          ) : (
-            <>
-              <ScanEffect
-                meshes={outlineMeshes}
-                scanColor="#16a34a"
-                enabled={true}
-                onScanMesh={(mesh, index, total) => {
-                  if (onScanMesh) {
-                    onScanMesh(mesh, index, total);
-                  }
-                }}
-                onComplete={() => {
-                  if (onScanComplete) {
-                    onScanComplete();
-                  }
-                }}
-              />
-            </>
-          )}
-        </>
-      )}
+      {showScanEffect &&
+        (usePremiumScan ? (
+          <PremiumScanEffect
+            meshes={outlineMeshes}
+            scanColor={SCAN_COLORS.premium}
+            enabled={true}
+            onScanMesh={(mesh, index, total) => onScanMesh?.(mesh, index, total)}
+            onComplete={() => onScanComplete?.()}
+          />
+        ) : (
+          <ScanEffect
+            meshes={outlineMeshes}
+            scanColor={SCAN_COLORS.standard}
+            enabled={true}
+            onScanMesh={(mesh, index, total) => onScanMesh?.(mesh, index, total)}
+            onComplete={() => onScanComplete?.()}
+          />
+        ))}
 
       {errorFocusMesh && (
         <ErrorHighlight
           errorMesh={errorFocusMesh}
           errorMeshes={errorMeshes}
           allMeshes={outlineMeshes}
-          errorColor="#ff0000"
+          errorColor={ERROR_COLOR}
           enabled={true}
         />
       )}
@@ -386,7 +269,9 @@ export default memo(Scene, (prevProps, nextProps) => {
     prevProps.showScanEffect !== nextProps.showScanEffect ||
     prevProps.useCinematicCamera !== nextProps.useCinematicCamera ||
     prevProps.hideEffects !== nextProps.hideEffects ||
-    prevProps.darkMode !== nextProps.darkMode
+    prevProps.darkMode !== nextProps.darkMode ||
+    prevProps.allowZeroPose !== nextProps.allowZeroPose ||
+    prevProps.errorFocusMesh !== nextProps.errorFocusMesh
   ) {
     return false;
   }

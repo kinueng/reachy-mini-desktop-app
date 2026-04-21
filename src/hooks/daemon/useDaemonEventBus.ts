@@ -6,11 +6,14 @@
  *
  * Events:
  * - daemon:start:attempt - User initiated daemon start
- * - daemon:start:success - Daemon process started successfully
+ * - daemon:start:success - Daemon sidecar process started successfully
  * - daemon:start:error - Error during daemon startup
  * - daemon:start:timeout - Daemon didn't become active within timeout
+ * - daemon:ready - Daemon reports state=running AND /api/state/full is 200
+ *                  (single source of truth for "backend fully operational").
+ *                  Emitted exactly once per start cycle by useDaemonLifecycle.
  * - daemon:crash - Daemon process terminated unexpectedly
- * - daemon:hardware:error - Hardware error detected from stderr
+ * - daemon:hardware:error - Hardware error detected (via stderr or API)
  * - daemon:health:success - Daemon responding successfully
  * - daemon:health:failure - Daemon not responding (timeout)
  * - daemon:stop - Daemon stop initiated

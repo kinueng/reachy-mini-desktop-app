@@ -1,5 +1,6 @@
 import React from 'react';
 import { INPUT_DEVICE_TYPES, type InputDeviceType } from './navigationConstants';
+import { PROGRESSIVE_INCREMENT, TIMING } from './inputConstants';
 import { telemetry } from './telemetry';
 
 export interface RawInputState {
@@ -41,23 +42,99 @@ interface ProgressiveIncrement {
 type InputListener = (inputs: RawInputState) => void;
 type DeviceChangeListener = (device: InputDeviceType | null) => void;
 
-const createEmptyInputs = (): RawInputState => ({
-  moveForward: 0,
-  moveRight: 0,
-  moveUp: 0,
-  lookHorizontal: 0,
-  lookVertical: 0,
-  roll: 0,
-  bodyYaw: 0,
-  antennaLeft: 0,
-  antennaRight: 0,
-  toggleMode: false,
-  nextPosition: false,
-  action1: false,
-  action2: false,
-  interact: false,
-  returnHome: false,
-});
+const BIPOLAR_AXES = [
+  'moveForward',
+  'moveRight',
+  'moveUp',
+  'lookHorizontal',
+  'lookVertical',
+  'roll',
+  'bodyYaw',
+] as const satisfies ReadonlyArray<keyof RawInputState>;
+
+const UNIPOLAR_AXES = ['antennaLeft', 'antennaRight'] as const satisfies ReadonlyArray<
+  keyof RawInputState
+>;
+
+const BUTTON_KEYS = [
+  'toggleMode',
+  'nextPosition',
+  'action1',
+  'action2',
+  'interact',
+  'returnHome',
+] as const satisfies ReadonlyArray<keyof RawInputState>;
+
+const clamp01 = (value: number, min: number): number => Math.max(min, Math.min(1, value));
+
+const createEmptyInputs = (): RawInputState => {
+  const base: Record<string, number | boolean> = {};
+  for (const axis of BIPOLAR_AXES) base[axis] = 0;
+  for (const axis of UNIPOLAR_AXES) base[axis] = 0;
+  for (const button of BUTTON_KEYS) base[button] = false;
+  return base as unknown as RawInputState;
+};
+
+const resetInputObject = (obj: RawInputState): void => {
+  for (const axis of BIPOLAR_AXES) obj[axis] = 0;
+  for (const axis of UNIPOLAR_AXES) obj[axis] = 0;
+  for (const button of BUTTON_KEYS) obj[button] = false;
+};
+
+interface ProgressiveBounds {
+  initial: number;
+  frameStep: number;
+  max: number;
+}
+
+const DEFAULT_PROGRESSIVE_BOUNDS: ProgressiveBounds = {
+  initial: PROGRESSIVE_INCREMENT.INITIAL_MAGNITUDE,
+  frameStep: PROGRESSIVE_INCREMENT.FRAME_STEP,
+  max: PROGRESSIVE_INCREMENT.MAX_MAGNITUDE,
+};
+
+/**
+ * Advance the held-button state machine for one frame and return the output value.
+ * Mutates `state` in-place.
+ */
+/**
+ * Read a D-pad direction (-1, 0, 1) from a gamepad by comparing two button indices.
+ */
+function readDpadDirection(
+  gamepad: Gamepad,
+  positiveIndex: number,
+  negativeIndex: number
+): -1 | 0 | 1 {
+  const positive = gamepad.buttons[positiveIndex]?.pressed || false;
+  const negative = gamepad.buttons[negativeIndex]?.pressed || false;
+  if (positive && !negative) return 1;
+  if (negative && !positive) return -1;
+  return 0;
+}
+
+function tickProgressive(
+  state: ProgressiveIncrement,
+  direction: -1 | 0 | 1,
+  bounds: ProgressiveBounds = DEFAULT_PROGRESSIVE_BOUNDS
+): number {
+  if (direction === 0) {
+    state.value = 0;
+    state.isHolding = false;
+    state.holdTime = 0;
+    return 0;
+  }
+
+  if (!state.isHolding) {
+    state.value = direction * bounds.initial;
+    state.isHolding = true;
+    state.holdTime = Date.now();
+    return state.value;
+  }
+
+  const next = state.value + bounds.frameStep * direction;
+  state.value = direction > 0 ? Math.min(next, bounds.max) : Math.max(next, -bounds.max);
+  return state.value;
+}
 
 /** Unified input management class (keyboard and gamepad). */
 export class InputManager {
@@ -205,12 +282,11 @@ export class InputManager {
     };
   }
 
-  /** Notify all listeners of input update (throttled to ~30fps for performance). */
+  /** Notify all listeners of input update (throttled for performance). */
   notifyListeners(): void {
     const now = Date.now();
-    const throttleMs = 33; // ~30fps
 
-    if (now - this.lastNotificationTime < throttleMs) {
+    if (now - this.lastNotificationTime < TIMING.NOTIFICATION_THROTTLE) {
       return;
     }
 
@@ -222,57 +298,15 @@ export class InputManager {
   }
 
   combineInputs(): void {
-    this.inputs.moveForward = Math.max(
-      -1,
-      Math.min(1, this.keyboardInputs.moveForward + this.gamepadInputs.moveForward)
-    );
-
-    this.inputs.moveRight = Math.max(
-      -1,
-      Math.min(1, this.keyboardInputs.moveRight + this.gamepadInputs.moveRight)
-    );
-
-    this.inputs.moveUp = Math.max(
-      -1,
-      Math.min(1, this.keyboardInputs.moveUp + this.gamepadInputs.moveUp)
-    );
-
-    this.inputs.lookHorizontal = Math.max(
-      -1,
-      Math.min(1, this.keyboardInputs.lookHorizontal + this.gamepadInputs.lookHorizontal)
-    );
-
-    this.inputs.lookVertical = Math.max(
-      -1,
-      Math.min(1, this.keyboardInputs.lookVertical + this.gamepadInputs.lookVertical)
-    );
-
-    this.inputs.roll = Math.max(
-      -1,
-      Math.min(1, this.keyboardInputs.roll + this.gamepadInputs.roll)
-    );
-
-    this.inputs.bodyYaw = Math.max(
-      -1,
-      Math.min(1, this.keyboardInputs.bodyYaw + this.gamepadInputs.bodyYaw)
-    );
-
-    // Antennas (analog inputs) - triggers are 0 to 1, not -1 to 1
-    this.inputs.antennaLeft = Math.max(
-      0,
-      Math.min(1, this.keyboardInputs.antennaLeft + this.gamepadInputs.antennaLeft)
-    );
-    this.inputs.antennaRight = Math.max(
-      0,
-      Math.min(1, this.keyboardInputs.antennaRight + this.gamepadInputs.antennaRight)
-    );
-
-    this.inputs.toggleMode = this.keyboardInputs.toggleMode || this.gamepadInputs.toggleMode;
-    this.inputs.nextPosition = this.keyboardInputs.nextPosition || this.gamepadInputs.nextPosition;
-    this.inputs.action1 = this.keyboardInputs.action1 || this.gamepadInputs.action1;
-    this.inputs.action2 = this.keyboardInputs.action2 || this.gamepadInputs.action2;
-    this.inputs.interact = this.keyboardInputs.interact || this.gamepadInputs.interact;
-    this.inputs.returnHome = this.keyboardInputs.returnHome || this.gamepadInputs.returnHome;
+    for (const axis of BIPOLAR_AXES) {
+      this.inputs[axis] = clamp01(this.keyboardInputs[axis] + this.gamepadInputs[axis], -1);
+    }
+    for (const axis of UNIPOLAR_AXES) {
+      this.inputs[axis] = clamp01(this.keyboardInputs[axis] + this.gamepadInputs[axis], 0);
+    }
+    for (const button of BUTTON_KEYS) {
+      this.inputs[button] = this.keyboardInputs[button] || this.gamepadInputs[button];
+    }
   }
 
   bindEvents(): void {
@@ -338,31 +372,37 @@ export class InputManager {
       this.keyboardInputs.toggleMode = false;
     }
     if (event.code === 'Space') {
-      setTimeout(() => {
-        this.keyboardInputs.nextPosition = false;
-        this.combineInputs();
-        this.notifyListeners();
-      }, 50);
+      this.releaseKeyboardButtonLater('nextPosition');
     }
-
     if (event.code === 'KeyT') {
-      setTimeout(() => {
-        this.keyboardInputs.interact = false;
-        this.combineInputs();
-        this.notifyListeners();
-      }, 50);
+      this.releaseKeyboardButtonLater('interact');
     }
-
     if (event.code === 'Escape') {
-      setTimeout(() => {
-        this.keyboardInputs.returnHome = false;
-        this.combineInputs();
-        this.notifyListeners();
-      }, 50);
+      this.releaseKeyboardButtonLater('returnHome');
     }
 
     this.processKeyboardInput();
   };
+
+  /**
+   * Release a keyboard button key after the configured pulse delay,
+   * then recombine inputs and notify listeners.
+   */
+  private releaseKeyboardButtonLater(key: keyof RawInputState): void {
+    setTimeout(() => {
+      (this.keyboardInputs[key] as boolean) = false;
+      this.combineInputs();
+      this.notifyListeners();
+    }, TIMING.BUTTON_PULSE);
+  }
+
+  private releaseGamepadButtonLater(key: keyof RawInputState): void {
+    setTimeout(() => {
+      (this.gamepadInputs[key] as boolean) = false;
+      this.combineInputs();
+      this.notifyListeners();
+    }, TIMING.BUTTON_PULSE);
+  }
 
   /** Keyboard input processing (movement currently disabled). */
   processKeyboardInput(): void {
@@ -442,62 +482,18 @@ export class InputManager {
       this.gamepadInputs.moveForward = -leftStickY;
 
       // D-pad Up/Down -> Z position with progressive increment
-      const dpadUpPressed = gamepad.buttons[12]?.pressed || false;
-      const dpadDownPressed = gamepad.buttons[13]?.pressed || false;
-      const moveUpDirection = dpadUpPressed ? 1 : dpadDownPressed ? -1 : 0;
-
-      if (moveUpDirection !== 0) {
-        if (!this.progressiveIncrement.moveUp.isHolding) {
-          this.progressiveIncrement.moveUp.value = moveUpDirection * 0.2;
-          this.progressiveIncrement.moveUp.isHolding = true;
-          this.progressiveIncrement.moveUp.holdTime = Date.now();
-        } else {
-          const frameIncrement = 0.002;
-          const maxIncrement = 1.0;
-          const newIncrement =
-            this.progressiveIncrement.moveUp.value + frameIncrement * moveUpDirection;
-          if (moveUpDirection > 0) {
-            this.progressiveIncrement.moveUp.value = Math.min(newIncrement, maxIncrement);
-          } else {
-            this.progressiveIncrement.moveUp.value = Math.max(newIncrement, -maxIncrement);
-          }
-        }
-      } else {
-        this.progressiveIncrement.moveUp.value = 0;
-        this.progressiveIncrement.moveUp.isHolding = false;
-        this.progressiveIncrement.moveUp.holdTime = 0;
-      }
-
-      this.gamepadInputs.moveUp = this.progressiveIncrement.moveUp.value;
+      const moveUpDirection = readDpadDirection(gamepad, /*positive*/ 12, /*negative*/ 13);
+      this.gamepadInputs.moveUp = tickProgressive(
+        this.progressiveIncrement.moveUp,
+        moveUpDirection
+      );
 
       // D-pad Left/Right -> body yaw with progressive increment
-      const dpadRightPressed = gamepad.buttons[15]?.pressed || false;
-      const dpadLeftPressed = gamepad.buttons[14]?.pressed || false;
-      const bodyYawDirection = dpadRightPressed ? 1 : dpadLeftPressed ? -1 : 0;
-
-      if (bodyYawDirection !== 0) {
-        if (!this.progressiveIncrement.bodyYaw.isHolding) {
-          this.progressiveIncrement.bodyYaw.value = bodyYawDirection * 0.2;
-          this.progressiveIncrement.bodyYaw.isHolding = true;
-          this.progressiveIncrement.bodyYaw.holdTime = Date.now();
-        } else {
-          const frameIncrement = 0.002;
-          const maxIncrement = 1.0;
-          const newIncrement =
-            this.progressiveIncrement.bodyYaw.value + frameIncrement * bodyYawDirection;
-          if (bodyYawDirection > 0) {
-            this.progressiveIncrement.bodyYaw.value = Math.min(newIncrement, maxIncrement);
-          } else {
-            this.progressiveIncrement.bodyYaw.value = Math.max(newIncrement, -maxIncrement);
-          }
-        }
-      } else {
-        this.progressiveIncrement.bodyYaw.value = 0;
-        this.progressiveIncrement.bodyYaw.isHolding = false;
-        this.progressiveIncrement.bodyYaw.holdTime = 0;
-      }
-
-      this.gamepadInputs.bodyYaw = this.progressiveIncrement.bodyYaw.value;
+      const bodyYawDirection = readDpadDirection(gamepad, /*positive*/ 15, /*negative*/ 14);
+      this.gamepadInputs.bodyYaw = tickProgressive(
+        this.progressiveIncrement.bodyYaw,
+        bodyYawDirection
+      );
 
       // Antennas: L1/R1 bumpers (analog buttons)
       this.gamepadInputs.antennaLeft = gamepad.buttons[6]?.value || 0;
@@ -565,11 +561,7 @@ export class InputManager {
       // Next position (X)
       if (gamepad.buttons[2]?.pressed && !this.previousButtonStates.nextPosition) {
         this.gamepadInputs.nextPosition = true;
-        setTimeout(() => {
-          this.gamepadInputs.nextPosition = false;
-          this.combineInputs();
-          this.notifyListeners();
-        }, 50);
+        this.releaseGamepadButtonLater('nextPosition');
       }
       this.previousButtonStates.nextPosition = gamepad.buttons[2]?.pressed;
 
@@ -584,11 +576,7 @@ export class InputManager {
       // Return home (B / circle)
       if (gamepad.buttons[1]?.pressed && !this.previousButtonStates.returnHome) {
         this.gamepadInputs.returnHome = true;
-        setTimeout(() => {
-          this.gamepadInputs.returnHome = false;
-          this.combineInputs();
-          this.notifyListeners();
-        }, 50);
+        this.releaseGamepadButtonLater('returnHome');
       }
       this.previousButtonStates.returnHome = gamepad.buttons[1]?.pressed;
 
@@ -605,25 +593,11 @@ export class InputManager {
   }
 
   resetGamepadInputs(): void {
-    (Object.keys(this.gamepadInputs) as Array<keyof RawInputState>).forEach(key => {
-      const value = this.gamepadInputs[key];
-      if (typeof value === 'number') {
-        (this.gamepadInputs[key] as number) = 0;
-      } else if (typeof value === 'boolean') {
-        (this.gamepadInputs[key] as boolean) = false;
-      }
-    });
+    resetInputObject(this.gamepadInputs);
   }
 
   resetKeyboardInputs(): void {
-    (Object.keys(this.keyboardInputs) as Array<keyof RawInputState>).forEach(key => {
-      const value = this.keyboardInputs[key];
-      if (typeof value === 'number') {
-        (this.keyboardInputs[key] as number) = 0;
-      } else if (typeof value === 'boolean') {
-        (this.keyboardInputs[key] as boolean) = false;
-      }
-    });
+    resetInputObject(this.keyboardInputs);
   }
 
   resetInputs(): void {
@@ -656,29 +630,23 @@ export class InputManager {
   }
 
   triggerNextPositionAction(): void {
-    this.resetInputs();
-    this.keyboardInputs.nextPosition = true;
-    this.combineInputs();
-    this.notifyListeners();
-
-    setTimeout(() => {
-      this.keyboardInputs.nextPosition = false;
-      this.combineInputs();
-      this.notifyListeners();
-    }, 50);
+    this.triggerKeyboardPulse('nextPosition');
   }
 
   triggerInteractAction(): void {
+    this.triggerKeyboardPulse('interact');
+  }
+
+  /**
+   * Reset all inputs, set a keyboard button to pressed, notify, then release
+   * the button after the standard pulse delay.
+   */
+  private triggerKeyboardPulse(key: keyof RawInputState): void {
     this.resetInputs();
-    this.keyboardInputs.interact = true;
+    (this.keyboardInputs[key] as boolean) = true;
     this.combineInputs();
     this.notifyListeners();
-
-    setTimeout(() => {
-      this.keyboardInputs.interact = false;
-      this.combineInputs();
-      this.notifyListeners();
-    }, 50);
+    this.releaseKeyboardButtonLater(key);
   }
 
   /**
@@ -807,7 +775,7 @@ export const useGamepadConnected = (): boolean => {
 
     const checkInterval = setInterval(() => {
       setIsConnected(inputManager.isGamepadConnected());
-    }, 500);
+    }, TIMING.GAMEPAD_CONNECTION_POLL);
 
     return () => clearInterval(checkInterval);
   }, [isVisible]);

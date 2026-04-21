@@ -75,12 +75,27 @@ async function checkUsbRobot(): Promise<UsbRobotState> {
 }
 
 /**
+ * Hard upper-bound for a single `discover_robots` call. The Rust command has
+ * its own internal deadlines (~3s for mDNS, plus cache + static peer checks),
+ * so anything past this cap means Rust is hung. We bail and let the next scan
+ * cycle retry on a fresh command instance.
+ */
+const DISCOVER_TIMEOUT_MS = 8000;
+
+/**
  * Discover WiFi robots using the native Rust discovery system.
  * Uses cache → static peers → mDNS in order for speed.
  */
 async function checkWifiRobotV2(): Promise<{ available: boolean; robots: DiscoveredRobot[] }> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('discover_robots timeout')), DISCOVER_TIMEOUT_MS);
+  });
+
   try {
-    const rawRobots = (await invoke('discover_robots')) as RawDiscoveredRobot[] | null;
+    const rawRobots = (await Promise.race([
+      invoke('discover_robots'),
+      timeoutPromise,
+    ])) as RawDiscoveredRobot[] | null;
 
     if (rawRobots && rawRobots.length > 0) {
       const robots: DiscoveredRobot[] = rawRobots.map(robot => ({
@@ -106,7 +121,6 @@ async function checkWifiRobotV2(): Promise<{ available: boolean; robots: Discove
 export function useRobotDiscovery(): UseRobotDiscoveryResult {
   const isFirstCheck = useAppStore(state => state.isFirstCheck);
   const setIsFirstCheck = useAppStore(state => state.setIsFirstCheck);
-  const cleanupBlacklist = useAppStore(state => state.cleanupBlacklist);
 
   // Discovery state.
   const [isScanning, setIsScanning] = useState<boolean>(true);
@@ -125,15 +139,6 @@ export function useRobotDiscovery(): UseRobotDiscoveryResult {
   const isMountedRef = useRef<boolean>(true);
   // Prevent overlapping scans.
   const isScanningRef = useRef<boolean>(false);
-
-  // Cleanup expired blacklist entries periodically.
-  useEffect(() => {
-    const cleanupInterval = setInterval(() => {
-      cleanupBlacklist();
-    }, 2000);
-
-    return () => clearInterval(cleanupInterval);
-  }, [cleanupBlacklist]);
 
   const selectWifiRobot = useCallback((robot: DiscoveredRobot | null): void => {
     setWifiRobots(prev => ({ ...prev, selectedRobot: robot }));

@@ -146,12 +146,21 @@ export function useConnection(): UseConnectionResult {
           if (!options.host) {
             return false;
           }
-          // Set local proxy target for WiFi mode (bypasses browser PNA restrictions)
+          // Set local proxy target for WiFi mode (bypasses browser PNA restrictions).
+          // The Rust command now waits for every listener to confirm its bind
+          // before returning, so any error here means the proxy is NOT up and
+          // we must NOT proceed - otherwise requests on localhost:8000 would
+          // either fail or (worse) hit whatever other service holds the port.
           try {
             await invoke('set_local_proxy_target', { host: options.host });
-          } catch {
-            // Keep going even if proxy setup fails; the daemon health check
-            // will surface the resulting connectivity error.
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e ?? 'unknown error');
+            telemetry.connectionError({
+              mode,
+              error_type: 'proxy_bind_failed',
+              error_message: message.slice(0, 200),
+            });
+            return false;
           }
           startConnection('wifi', { remoteHost: options.host });
           break;

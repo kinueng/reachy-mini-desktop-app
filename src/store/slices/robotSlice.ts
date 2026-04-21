@@ -111,8 +111,6 @@ export const robotInitialState: RobotSliceState = {
 
   activeEffect: null,
   effectTimestamp: 0,
-
-  robotBlacklist: {},
 };
 
 // ============================================================================
@@ -414,60 +412,5 @@ export const createRobotSlice: StateCreator<AppState, [], [], RobotSlice> = (set
     triggerEffect: (effectType: string) =>
       set({ activeEffect: effectType, effectTimestamp: Date.now() }),
     stopEffect: () => set({ activeEffect: null }),
-
-    // ========================================================================
-    // ROBOT BLACKLIST (temporary hiding after network operations)
-    // ========================================================================
-
-    /**
-     * Add a robot to the blacklist for a specified duration
-     */
-    blacklistRobot: (host: string, durationMs = 10000) => {
-      const expiryTime = Date.now() + durationMs;
-      set(state => ({
-        robotBlacklist: {
-          ...state.robotBlacklist,
-          [host]: expiryTime,
-        },
-      }));
-    },
-
-    /**
-     * Check if a robot is currently blacklisted
-     */
-    isRobotBlacklisted: (host: string): boolean => {
-      const state = get();
-      const expiryTime = state.robotBlacklist[host];
-      if (!expiryTime) return false;
-
-      const now = Date.now();
-      return now < expiryTime;
-    },
-
-    /**
-     * Remove expired entries from blacklist.
-     * Called periodically by useRobotDiscovery.
-     */
-    cleanupBlacklist: () => {
-      const now = Date.now();
-      set(state => {
-        const cleaned = Object.entries(state.robotBlacklist)
-          .filter(([, expiryTime]) => now < expiryTime)
-          .reduce<Record<string, number>>(
-            (acc, [host, expiryTime]) => ({ ...acc, [host]: expiryTime }),
-            {}
-          );
-
-        if (Object.keys(cleaned).length !== Object.keys(state.robotBlacklist).length) {
-          return { robotBlacklist: cleaned };
-        }
-        return state;
-      });
-    },
-
-    /**
-     * Clear all blacklisted robots
-     */
-    clearBlacklist: () => set({ robotBlacklist: {} }),
   };
 };

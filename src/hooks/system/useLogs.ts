@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useShallow } from 'zustand/react/shallow';
 import useAppStore from '../../store/useAppStore';
 import { useLogger } from '../../utils/logging';
+import { normalizeLog } from '../../components/LogConsole/utils';
 import type { AppState } from '../../types/store';
 
 // Module-level ref to prevent overlapping log fetches across hook instances.
@@ -16,8 +17,12 @@ export interface UseLogsResult {
 }
 
 export const useLogs = (): UseLogsResult => {
-  const { logs, setLogs } = useAppStore(
-    useShallow((state: AppState) => ({ logs: state.logs, setLogs: state.setLogs }))
+  const { logs, setLogs, connectionMode } = useAppStore(
+    useShallow((state: AppState) => ({
+      logs: state.logs,
+      setLogs: state.setLogs,
+      connectionMode: state.connectionMode,
+    }))
   );
   const logger = useLogger();
 
@@ -27,17 +32,27 @@ export const useLogs = (): UseLogsResult => {
       return;
     }
 
+    // In wifi mode the daemon runs on the robot, not on the local Rust
+    // sidecar, so `get_logs` would return an empty buffer and wipe the
+    // entries streamed by `useDaemonLogStream`. Skip the poll entirely.
+    if (connectionMode === 'wifi') {
+      return;
+    }
+
     isFetchingLogsRef.current = true;
 
     try {
-      const fetchedLogs = (await invoke('get_logs')) as AppState['logs'];
-      setLogs(fetchedLogs);
+      const fetchedLogs = (await invoke('get_logs')) as unknown[];
+      // The Rust ring buffer returns `Vec<String>` ("TIMESTAMP|MESSAGE").
+      // Normalize here so the store always holds `LogEntry[]` regardless of
+      // the source (local sidecar, remote WS, …).
+      setLogs(fetchedLogs.map(normalizeLog));
     } catch {
       // Fetch errors are non-fatal; the UI just won't refresh this tick.
     } finally {
       isFetchingLogsRef.current = false;
     }
-  }, [setLogs]);
+  }, [setLogs, connectionMode]);
 
   // Function to add a frontend log.
   // The `type` parameter is accepted for API compatibility but currently ignored

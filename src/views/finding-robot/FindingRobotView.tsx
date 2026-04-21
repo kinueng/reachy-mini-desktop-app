@@ -29,9 +29,10 @@ import useAppStore from '../../store/useAppStore';
 import { useRobotDiscovery } from '../../hooks/system';
 import { useConnection, ConnectionMode } from '../../hooks/useConnection';
 import type { ConnectionMode as ConnectionModeType } from '../../types/robot';
-import { fetchWithTimeout, DAEMON_CONFIG } from '../../config/daemon';
+import { useExternalDaemonProbe } from '../../hooks/daemon';
 import { invoke } from '@tauri-apps/api/core';
 import { useToast } from '../../hooks/useToast';
+import { probeWifiHost, type WifiProbeResult } from '../../utils/probeWifiHost';
 import reachyBuste from '../../assets/reachy-buste.png';
 
 // LocalStorage key for persisting last connection mode
@@ -292,7 +293,6 @@ export default function FindingRobotView() {
   const { connect, isConnecting, isDisconnecting } = useConnection();
   const [selectedMode, setSelectedMode] = useState<ConnectionModeType | null>(null);
   const [dots, setDots] = useState<string>('');
-  const [externalDaemonAvailable, setExternalDaemonAvailable] = useState<boolean>(false);
   const hasRestoredFromStorage = useRef<boolean>(false);
   const { showToast } = useToast();
 
@@ -344,40 +344,47 @@ export default function FindingRobotView() {
     return () => clearInterval(interval);
   }, []);
 
-  // Detect external daemon running on localhost:8000
-  // Only consider it available if the daemon is actually in a usable state
-  // (prevents false positives from stale proxy or stopped daemons)
-  useEffect(() => {
-    if (isBusy) return;
+  // Robust external-daemon detection (see `useExternalDaemonProbe` for full
+  // rationale). Three validation layers + hysteresis + visibility gating +
+  // post-shutdown grace window, to avoid falsely labeling our own dying
+  // daemon as "external".
+  const { available: externalDaemonAvailable, probe: probeExternalDaemon } = useExternalDaemonProbe(
+    { enabled: !isBusy }
+  );
 
-    setExternalDaemonAvailable(false);
+  const handleConnectExternal = useCallback(async () => {
+    // Last-chance revalidation: the banner might be a few seconds stale, and
+    // we don't want to hand off to a daemon that just died. If the probe
+    // fails here, surface a toast instead of attempting a doomed connection.
+    const stillAvailable = await probeExternalDaemon();
+    if (!stillAvailable) {
+      showToast('External daemon is no longer reachable.', 'error');
+      return;
+    }
+    await connect(ConnectionMode.EXTERNAL);
+  }, [probeExternalDaemon, connect, showToast]);
 
-    const checkExternalDaemon = async () => {
-      try {
-        const response = await fetchWithTimeout(
-          'http://localhost:8000/api/daemon/status',
-          {},
-          1500,
-          { silent: true }
-        );
-        if (!response.ok) {
-          setExternalDaemonAvailable(false);
-          return;
-        }
-        const data = (await response.json()) as { state?: string } | null;
-        const usableStates = ['running', 'started', 'ready', 'not_initialized'];
-        setExternalDaemonAvailable(
-          Boolean(data && data.state && usableStates.includes(data.state))
-        );
-      } catch {
-        setExternalDaemonAvailable(false);
-      }
-    };
+  /**
+   * Pre-flight probe for a WiFi target. Returns true if the host answers like
+   * a Reachy daemon; otherwise surfaces a tailored toast and returns false so
+   * the caller bails without going through the 90s startup timeout.
+   */
+  const verifyWifiHost = useCallback(
+    async (host: string): Promise<boolean> => {
+      const result = await probeWifiHost(host);
+      if (result.ok) return true;
 
-    checkExternalDaemon();
-    const interval = setInterval(checkExternalDaemon, DAEMON_CONFIG.INTERVALS.USB_CHECK);
-    return () => clearInterval(interval);
-  }, [isBusy]);
+      const messages: Record<Exclude<WifiProbeResult['reason'], null>, string> = {
+        unreachable: `Cannot reach ${host}. Check the robot is powered on and on the same network.`,
+        wrong_service: `${host} responded but does not look like a Reachy daemon.`,
+        daemon_error: `The daemon at ${host} reported an error state. Restart the robot and try again.`,
+      };
+      const reason = result.reason ?? 'unreachable';
+      showToast(messages[reason], 'error');
+      return false;
+    },
+    [showToast]
+  );
 
   // Restore last selected mode from localStorage on mount
   // Only run once, and only pre-select if that mode is currently available
@@ -456,9 +463,22 @@ export default function FindingRobotView() {
     if (isBusy) return;
     if (!selectedMode && !manualIp.trim()) return;
 
+    const connectWifi = async (host: string): Promise<void> => {
+      if (!(await verifyWifiHost(host))) return;
+      const ok = await connect(ConnectionMode.WIFI, { host });
+      if (!ok) {
+        // Pre-flight passed but the local proxy failed to bind (e.g. port
+        // already held by another process). Surface it so the user can act.
+        showToast(
+          'Could not start the local proxy on port 8000. Close any other app using it and try again.',
+          'error'
+        );
+      }
+    };
+
     // Manual IP always takes priority - connect as WiFi regardless of selected mode
     if (manualIp.trim()) {
-      await connect(ConnectionMode.WIFI, { host: manualIp.trim() });
+      await connectWifi(manualIp.trim());
       return;
     }
 
@@ -471,14 +491,23 @@ export default function FindingRobotView() {
         {
           const host = wifiRobots.selectedRobot?.displayHost;
           if (!host) return;
-          await connect(ConnectionMode.WIFI, { host });
+          await connectWifi(host);
         }
         break;
       case ConnectionMode.SIMULATION:
         await connect(ConnectionMode.SIMULATION);
         break;
     }
-  }, [selectedMode, isBusy, usbRobot, wifiRobots, manualIp, connect]);
+  }, [
+    selectedMode,
+    isBusy,
+    usbRobot,
+    wifiRobots,
+    manualIp,
+    connect,
+    verifyWifiHost,
+    showToast,
+  ]);
 
   const canStart =
     // Manual IP always allows starting (as WiFi)
@@ -712,10 +741,10 @@ export default function FindingRobotView() {
         {/* Title */}
         <Typography
           sx={{
-            fontSize: 20,
+            fontSize: 26,
             fontWeight: 600,
             color: darkMode ? '#f5f5f5' : '#333',
-            mb: 0.25,
+            mb: 0.5,
             textAlign: 'center',
           }}
         >
@@ -725,11 +754,11 @@ export default function FindingRobotView() {
         {/* Subtitle - scanning status */}
         <Typography
           sx={{
-            fontSize: 12,
+            fontSize: 14,
             color: darkMode ? '#888' : '#666',
             textAlign: 'center',
             mb: 2.5,
-            minHeight: 18,
+            minHeight: 20,
           }}
         >
           {isScanning
@@ -768,7 +797,7 @@ export default function FindingRobotView() {
             </Typography>
             <Box
               component="button"
-              onClick={() => connect(ConnectionMode.EXTERNAL)}
+              onClick={handleConnectExternal}
               sx={{
                 ml: 1.5,
                 px: 1.5,

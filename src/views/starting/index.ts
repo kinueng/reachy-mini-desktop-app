@@ -2,4 +2,4 @@
  * Starting view module
  */
 export { default } from './StartingView';
-export { default as HardwareScanView } from './HardwareScanView';
+export { default as StartupView } from './StartupView';

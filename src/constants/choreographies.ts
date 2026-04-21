@@ -305,6 +305,60 @@ export interface QuickAction {
   type: QuickActionType;
 }
 
+/**
+ * Minimal action payload emitted by the emoji grid / wheel.
+ * The `emoji` field is intentionally omitted because consumers derive it from
+ * EMOTION_EMOJIS / DANCE_EMOJIS maps based on `type` + `name`.
+ */
+export type EmojiGridAction = Pick<QuickAction, 'name' | 'type' | 'label'>;
+
+/**
+ * Curated selection of emotions shown on the circular EmotionWheel.
+ * Order matters: indexes drive both the wheel slice positions and the
+ * "featured first" sort in the full library view.
+ */
+export const WHEEL_EMOTIONS: readonly EmotionName[] = [
+  'loving1',
+  'grateful1',
+  'helpful1',
+  'surprised1',
+  'thoughtful1',
+  'yes1',
+  'no1',
+  'boredom2',
+  'anxiety1',
+  'downcast1',
+  'sad1',
+  'sad2',
+  'dying1',
+  'reprimand1',
+];
+
+/**
+ * Derive a display label from a raw action name.
+ * Example: `loving1` -> `loving`, `head_tilt_roll` -> `head tilt roll`.
+ * Used by components that only receive a `name` and need to render a label.
+ */
+export function labelFromActionName(name: string): string {
+  return name.replace(/[0-9]+$/, '').replace(/_/g, ' ');
+}
+
+/**
+ * 3D visual effect triggered alongside certain emotions / actions.
+ * `null` means "no effect" (explicit override for actions that share a name
+ * with an effect but should not trigger one).
+ */
+export const EMOTION_EFFECT_MAP: Record<string, string | null> = {
+  goto_sleep: 'sleep',
+  wake_up: null,
+  loving1: 'love',
+  sad1: 'sad',
+  surprised1: 'surprised',
+};
+
+/** How long a 3D effect stays visible before being stopped (ms). */
+export const EMOTION_EFFECT_DURATION_MS = 4000;
+
 // Curated selection of emotions and dances for Quick Actions
 // Avoids redundancy and provides a representative mix
 export const QUICK_ACTIONS: QuickAction[] = [

@@ -7,6 +7,8 @@ import {
   type Dispatch,
 } from 'react';
 import { TargetSmoothingManager, type HeadPose, type SmoothedValues } from '@utils/targetSmoothing';
+import { TIMING } from '@utils/inputConstants';
+import { createZeroHeadPose, createZeroAntennas } from '@utils/inputHelpers';
 
 // =============================================================================
 // STATE MACHINE - Clear states for the controller
@@ -30,19 +32,20 @@ export interface ControllerState {
   headPose: HeadPose;
   bodyYaw: number;
   antennas: [number, number];
+  /**
+   * Timestamp of the last user interaction (mouse or gamepad). Used to prevent
+   * robot-state echoes from overwriting the user's pose immediately after an
+   * interaction. See `SYNC_FROM_ROBOT` for the grace-period guard.
+   */
   lastInteractionTime: number;
-  lastDragEndTime: number;
-  canSyncFromRobot: boolean;
 }
 
 const createInitialState = (): ControllerState => ({
   mode: ControllerMode.IDLE,
-  headPose: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 },
+  headPose: createZeroHeadPose(),
   bodyYaw: 0,
-  antennas: [0, 0],
+  antennas: createZeroAntennas(),
   lastInteractionTime: 0,
-  lastDragEndTime: 0,
-  canSyncFromRobot: true,
 });
 
 // =============================================================================
@@ -97,7 +100,6 @@ function controllerReducer(state: ControllerState, action: ControllerAction): Co
         ...state,
         mode: ControllerMode.DRAGGING_MOUSE,
         lastInteractionTime: now,
-        canSyncFromRobot: false,
       };
 
     case ActionTypes.START_GAMEPAD_INPUT:
@@ -105,24 +107,22 @@ function controllerReducer(state: ControllerState, action: ControllerAction): Co
         ...state,
         mode: ControllerMode.DRAGGING_GAMEPAD,
         lastInteractionTime: now,
-        canSyncFromRobot: false,
       };
 
     case ActionTypes.END_INTERACTION:
       return {
         ...state,
         mode: ControllerMode.IDLE,
-        lastDragEndTime: now,
-        canSyncFromRobot: false,
+        lastInteractionTime: now,
       };
 
     case ActionTypes.START_RESET:
       return {
         ...state,
         mode: ControllerMode.RESETTING,
-        headPose: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 },
+        headPose: createZeroHeadPose(),
         bodyYaw: 0,
-        antennas: [0, 0],
+        antennas: createZeroAntennas(),
       };
 
     case ActionTypes.UPDATE_HEAD_POSE:
@@ -154,14 +154,10 @@ function controllerReducer(state: ControllerState, action: ControllerAction): Co
       };
 
     case ActionTypes.SYNC_FROM_ROBOT: {
-      if (!state.canSyncFromRobot || state.mode !== ControllerMode.IDLE) {
-        return state;
-      }
-
-      const timeSinceInteraction = now - state.lastInteractionTime;
-      if (timeSinceInteraction < 30000) {
-        return state;
-      }
+      // Only echo the robot state back into the controller when idle AND after
+      // the grace period. Otherwise we would stomp on the user's interaction.
+      if (state.mode !== ControllerMode.IDLE) return state;
+      if (now - state.lastInteractionTime < TIMING.SYNC_INTERACTION_GRACE) return state;
 
       return {
         ...state,
@@ -170,7 +166,6 @@ function controllerReducer(state: ControllerState, action: ControllerAction): Co
           : state.headPose,
         bodyYaw: action.payload.bodyYaw ?? state.bodyYaw,
         antennas: action.payload.antennas ?? state.antennas,
-        canSyncFromRobot: true,
       };
     }
 
@@ -178,10 +173,10 @@ function controllerReducer(state: ControllerState, action: ControllerAction): Co
       return {
         ...state,
         mode: ControllerMode.IDLE,
-        headPose: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 },
+        headPose: createZeroHeadPose(),
         bodyYaw: 0,
-        antennas: [0, 0],
-        canSyncFromRobot: true,
+        antennas: createZeroAntennas(),
+        lastInteractionTime: 0,
       };
 
     default:
