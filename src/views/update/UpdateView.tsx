@@ -355,7 +355,7 @@ export default function UpdateView({
                 sx={{
                   fontSize: 18,
                   fontWeight: 600,
-                  color: darkMode ? '#f5f5f5' : '#333',
+                  color: palette.textPrimary,
                   mb: 1,
                 }}
               >
@@ -377,7 +377,7 @@ export default function UpdateView({
               <Typography
                 sx={{
                   fontSize: 13,
-                  color: darkMode ? '#aaa' : '#666',
+                  color: palette.textSecondary,
                   lineHeight: 1.6,
                   mb: 2,
                   maxWidth: 400,
@@ -409,15 +409,17 @@ export default function UpdateView({
       >
         <LogConsole
           logs={[]}
-          darkMode={darkMode}
+          darkMode={isDark}
           includeStoreLogs={true}
           compact={true}
           showTimestamp={false}
           lines={2}
           emptyMessage="Waiting for logs..."
           sx={{
-            bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
-            border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,
+            // TODO(style-migration): translucent log-panel backdrops don't map
+            // to a shared surface token; derive them from alpha utilities.
+            bgcolor: isDark ? blackAlpha(0.6) : whiteAlpha(0.7),
+            border: `1px solid ${isDark ? whiteAlpha(0.15) : blackAlpha(0.12)}`,
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
           }}
@@ -446,19 +448,11 @@ export default function UpdateView({
               height: 8,
               borderRadius: '50%',
               bgcolor: isInternetOnline
-                ? darkMode
-                  ? 'rgba(34, 197, 94, 0.6)'
-                  : 'rgba(34, 197, 94, 0.5)'
-                : darkMode
-                  ? 'rgba(239, 68, 68, 0.6)'
-                  : 'rgba(239, 68, 68, 0.5)',
+                ? hexToRgba(STATUS.success, isDark ? 0.6 : 0.5)
+                : hexToRgba(STATUS.error, isDark ? 0.6 : 0.5),
               boxShadow: isInternetOnline
-                ? darkMode
-                  ? '0 0 4px rgba(34, 197, 94, 0.3)'
-                  : '0 0 3px rgba(34, 197, 94, 0.2)'
-                : darkMode
-                  ? '0 0 4px rgba(239, 68, 68, 0.3)'
-                  : '0 0 3px rgba(239, 68, 68, 0.2)',
+                ? `0 0 ${isDark ? 4 : 3}px ${hexToRgba(STATUS.success, isDark ? 0.3 : 0.2)}`
+                : `0 0 ${isDark ? 4 : 3}px ${hexToRgba(STATUS.error, isDark ? 0.3 : 0.2)}`,
               transition: 'all 0.3s ease',
               flexShrink: 0,
             }}
@@ -467,7 +461,7 @@ export default function UpdateView({
             sx={{
               fontSize: 12,
               fontWeight: 400,
-              color: darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
+              color: isDark ? whiteAlpha(0.7) : blackAlpha(0.7),
               whiteSpace: 'nowrap',
               transition: 'color 0.3s ease',
             }}

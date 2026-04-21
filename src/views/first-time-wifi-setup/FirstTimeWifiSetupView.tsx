@@ -49,8 +49,6 @@ type IntervalId = ReturnType<typeof setInterval>;
  */
 export default function FirstTimeWifiSetupView(): React.ReactElement {
   const palette = useAppPalette();
-  // TODO(style-migration): finish migrating remaining darkMode ternaries in this file.
-  const darkMode = palette.isDark;
   const { setShowFirstTimeWifiSetup, setShowBluetoothSupportView } = useAppStore();
   const [activeStep, setActiveStep] = useState<number>(0);
   const [configuredNetwork, setConfiguredNetwork] = useState<string | null>(null);
@@ -505,7 +503,6 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
           {/* ================================================================ */}
           {activeStep === 0 && (
             <Step1PowerOn
-              darkMode={darkMode}
               textPrimary={textPrimary}
               textSecondary={textSecondary}
               countdown={countdown}
@@ -521,7 +518,6 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
           {/* ================================================================ */}
           {activeStep === 1 && (
             <Step2ConnectHotspot
-              darkMode={darkMode}
               textPrimary={textPrimary}
               textSecondary={textSecondary}
               reachyHotspots={reachyHotspots}
@@ -538,7 +534,6 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
             <Step3ConfigureWifi
               key={wifiConfigKey}
               resetKey={wifiConfigKey}
-              darkMode={darkMode}
               textPrimary={textPrimary}
               textSecondary={textSecondary}
               onConnectSuccess={handleWifiConfigured}
@@ -551,7 +546,6 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
           {/* ================================================================ */}
           {activeStep === 3 && (
             <Step4Reconnecting
-              darkMode={darkMode}
               textPrimary={textPrimary}
               textSecondary={textSecondary}
               configuredNetwork={configuredNetwork}
@@ -575,7 +569,6 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
           {/* ================================================================ */}
           {activeStep === 4 && (
             <Step5Success
-              darkMode={darkMode}
               textPrimary={textPrimary}
               textSecondary={textSecondary}
               wifiRobot={wifiRobot}
