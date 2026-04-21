@@ -454,20 +454,16 @@ pub fn run() {
             network::detect_vpn
         ])
         .on_window_event(|window, event| match event {
-            tauri::WindowEvent::CloseRequested { .. } => {
-                if window.label() == "main" {
-                    log::info!("[tauri] Main window close requested - killing daemon");
-                    let state: tauri::State<DaemonState> = window.state();
-                    let _ = transition_status(&state.status, DaemonStatus::Stopping);
-                    kill_daemon(&state);
-                    let _ = transition_status(&state.status, DaemonStatus::Idle);
-                }
+            tauri::WindowEvent::CloseRequested { .. } if window.label() == "main" => {
+                log::info!("[tauri] Main window close requested - killing daemon");
+                let state: tauri::State<DaemonState> = window.state();
+                let _ = transition_status(&state.status, DaemonStatus::Stopping);
+                kill_daemon(&state);
+                let _ = transition_status(&state.status, DaemonStatus::Idle);
             }
-            tauri::WindowEvent::Destroyed => {
-                if window.label() == "main" {
-                    log::info!("[tauri] Main window destroyed - final cleanup");
-                    cleanup_system_daemons();
-                }
+            tauri::WindowEvent::Destroyed if window.label() == "main" => {
+                log::info!("[tauri] Main window destroyed - final cleanup");
+                cleanup_system_daemons();
             }
             _ => {}
         })
