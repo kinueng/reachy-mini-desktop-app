@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import type { WifiRobotCompat } from '../../../hooks/system/useRobotDiscovery';
-import { ACCENT, STATUS, hexToRgba } from '@styles';
+import { ACCENT, STATUS } from '@styles';
 
 interface Step5SuccessProps {
   /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
@@ -37,7 +37,7 @@ export default function Step5Success({
     >
       {isReachyFound ? (
         <>
-          <CheckCircleIcon sx={{ fontSize: 40, color: '#22c55e', mb: 1.5 }} />
+          <CheckCircleIcon sx={{ fontSize: 40, color: STATUS.success, mb: 1.5 }} />
           <Typography sx={{ fontSize: 12, color: textSecondary, mb: 2, lineHeight: 1.6 }}>
             Your Reachy Mini is now connected to{' '}
             <strong style={{ color: textPrimary }}>{configuredNetwork || 'your network'}</strong>.
@@ -56,10 +56,13 @@ export default function Step5Success({
               px: 3,
               py: 0.75,
               borderRadius: '8px',
-              borderColor: '#22c55e',
-              color: '#22c55e',
+              borderColor: STATUS.success,
+              color: STATUS.success,
               '&:hover': {
+                // TODO(style-migration): darker hover tone for success has no
+                // palette token; `#16a34a` matches the legacy shade.
                 borderColor: '#16a34a',
+                // TODO(style-migration): success-tinted surface lacks a token.
                 bgcolor: 'rgba(34, 197, 94, 0.08)',
               },
             }}

@@ -16,7 +16,6 @@ interface Step4ReconnectingProps {
 }
 
 export default function Step4Reconnecting({
-  darkMode: _darkMode,
   textPrimary,
   textSecondary,
   configuredNetwork,

@@ -23,13 +23,13 @@ interface Step3ConfigureWifiProps {
 }
 
 export default function Step3ConfigureWifi({
-  darkMode,
   textPrimary: _textPrimary,
   textSecondary,
   onConnectSuccess,
   onError,
   resetKey,
 }: Step3ConfigureWifiProps): React.ReactElement {
+  const palette = useAppPalette();
   void _textPrimary;
   return (
     <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
