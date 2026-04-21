@@ -20,7 +20,7 @@ const FullscreenOverlay = FullscreenOverlayRaw as unknown as React.ComponentType
 >;
 import LogConsole from '@components/LogConsole';
 import { useActiveRobotContext } from '../../context';
-import { ACCENT, STATUS, accentAlpha } from '@styles/tokens';
+import { ACCENT, RADIUS, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 const LOG_CONSOLE_SX = {
@@ -53,7 +53,7 @@ interface JobInfo {
 interface InstallOverlayProps {
   appInfo: AppInfo | null;
   jobInfo: JobInfo | null | undefined;
-  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat and forwarded to the legacy FullscreenOverlay / LogConsole only. */
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   jobType?: 'install' | 'remove' | 'update' | string;
   resultState?: 'success' | 'failed' | null;
@@ -203,6 +203,12 @@ export default function InstallOverlay({
 
   const isShowingResult = resultState !== null;
 
+  // TODO(style-migration): warning amber tint is not yet in the palette.
+  const warningSurface = 'rgba(245, 158, 11, 0.1)';
+  const warningBorder = 'rgba(245, 158, 11, 0.3)';
+  const errorSurface = 'rgba(239, 68, 68, 0.1)';
+  const errorBorder = 'rgba(239, 68, 68, 0.3)';
+
   return (
     <FullscreenOverlay
       open={!!appInfo}
@@ -241,22 +247,22 @@ export default function InstallOverlay({
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: '60px',
-              bgcolor: isNetworkError ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-              border: `3px solid ${isNetworkError ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+              bgcolor: isNetworkError ? warningSurface : errorSurface,
+              border: `3px solid ${isNetworkError ? warningBorder : errorBorder}`,
             }}
           >
             {isNetworkError ? (
               <WifiOffIcon
                 sx={{
                   fontSize: 64,
-                  color: STATUS.warning,
+                  color: palette.statusWarning,
                 }}
               />
             ) : (
               <ErrorOutlineIcon
                 sx={{
                   fontSize: 64,
-                  color: STATUS.error,
+                  color: palette.statusError,
                 }}
               />
             )}
@@ -271,7 +277,7 @@ export default function InstallOverlay({
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: '24px',
-              bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+              bgcolor: palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.03),
               border: `2px solid ${palette.border}`,
               animation: 'pulse 2s ease-in-out infinite',
               '@keyframes pulse': {
@@ -290,7 +296,7 @@ export default function InstallOverlay({
               sx={{
                 fontSize: 24,
                 fontWeight: 600,
-                color: isNetworkError ? STATUS.warning : STATUS.error,
+                color: isNetworkError ? palette.statusWarning : palette.statusError,
                 mb: 0.5,
                 animation: 'fadeInScale 0.5s ease',
                 '@keyframes fadeInScale': {
@@ -401,14 +407,14 @@ export default function InstallOverlay({
                       px: 1,
                       py: 0.25,
                       borderRadius: '8px',
-                      bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+                      bgcolor: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.03),
                     }}
                   >
                     <Typography
                       sx={{
                         fontSize: 11,
                         fontWeight: 600,
-                        color: palette.textMuted,
+                        color: palette.textSecondary,
                       }}
                     >
                       {appInfo.downloads} downloads
@@ -435,7 +441,7 @@ export default function InstallOverlay({
                   gap: 1,
                   px: 2,
                   py: 1,
-                  borderRadius: '10px',
+                  borderRadius: `${RADIUS.lg}px`,
                   bgcolor: accentAlpha(palette.isDark ? 0.08 : 0.05),
                   border: `1px solid ${accentAlpha(palette.isDark ? 0.2 : 0.15)}`,
                 }}
@@ -460,7 +466,7 @@ export default function InstallOverlay({
                   gap: 0.75,
                   px: 1.5,
                   py: 1,
-                  borderRadius: '10px',
+                  borderRadius: `${RADIUS.lg}px`,
                   bgcolor: accentAlpha(palette.isDark ? 0.08 : 0.05),
                   border: `1px solid ${accentAlpha(palette.isDark ? 0.2 : 0.15)}`,
                 }}
@@ -506,11 +512,11 @@ export default function InstallOverlay({
                 minHeight: 'auto !important',
                 py: 1,
                 px: 1.5,
-                borderRadius: '12px',
-                bgcolor: palette.isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
-                border: `1px solid ${palette.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
+                borderRadius: `${RADIUS.xl}px`,
+                bgcolor: palette.isDark ? blackAlpha(0.2) : blackAlpha(0.02),
+                border: `1px solid ${palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05)}`,
                 '&:hover': {
-                  bgcolor: palette.isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.04)',
+                  bgcolor: palette.isDark ? blackAlpha(0.3) : blackAlpha(0.04),
                 },
                 '&.Mui-expanded': {
                   minHeight: 'auto !important',
@@ -551,11 +557,11 @@ export default function InstallOverlay({
             <AccordionDetails
               sx={{
                 p: 0,
-                border: `1px solid ${palette.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
+                border: `1px solid ${palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05)}`,
                 borderTop: 'none',
-                borderBottomLeftRadius: '12px',
-                borderBottomRightRadius: '12px',
-                bgcolor: palette.isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
+                borderBottomLeftRadius: `${RADIUS.xl}px`,
+                borderBottomRightRadius: `${RADIUS.xl}px`,
+                bgcolor: palette.isDark ? blackAlpha(0.2) : blackAlpha(0.02),
               }}
             >
               <LogConsole

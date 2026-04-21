@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
-import { ACCENT, accentAlpha } from '@styles/tokens';
+import { ACCENT, accentAlpha, blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface VerticalSliderProps {
   label: string;
@@ -9,7 +10,8 @@ interface VerticalSliderProps {
   min?: number;
   max?: number;
   unit?: string;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   disabled?: boolean;
   centered?: boolean;
   smoothedValue?: number | null;
@@ -23,12 +25,12 @@ const VerticalSlider = memo(function VerticalSlider({
   min = -1,
   max = 1,
   unit = 'm',
-  darkMode,
   disabled = false,
   centered = false,
   smoothedValue,
   height = 135,
 }: VerticalSliderProps): React.ReactElement {
+  const palette = useAppPalette();
   const displayValue =
     typeof value === 'number'
       ? value.toFixed(unit === 'deg' ? 1 : 3)
@@ -65,7 +67,7 @@ const VerticalSlider = memo(function VerticalSlider({
             sx={{
               fontSize: 10,
               fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              color: palette.textPrimary,
               letterSpacing: '-0.2px',
             }}
           >
@@ -76,7 +78,7 @@ const VerticalSlider = memo(function VerticalSlider({
               fontSize: 9,
               fontFamily: 'monospace',
               fontWeight: 500,
-              color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+              color: palette.textFaint,
               letterSpacing: '0.02em',
             }}
           >
@@ -90,7 +92,7 @@ const VerticalSlider = memo(function VerticalSlider({
             sx={{
               fontSize: 10,
               fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              color: palette.textPrimary,
               letterSpacing: '-0.2px',
             }}
           >
@@ -101,7 +103,7 @@ const VerticalSlider = memo(function VerticalSlider({
               fontSize: 9,
               fontFamily: 'monospace',
               fontWeight: 500,
-              color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+              color: palette.textFaint,
               letterSpacing: '0.02em',
             }}
           >
@@ -169,7 +171,7 @@ const VerticalSlider = memo(function VerticalSlider({
               '& .MuiSlider-thumb': {
                 width: 12,
                 height: 12,
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                boxShadow: `0 2px 4px ${blackAlpha(0.2)}`,
                 '&:hover': {
                   boxShadow: `0 2px 8px ${accentAlpha(0.4)}`,
                   width: 14,
@@ -188,7 +190,7 @@ const VerticalSlider = memo(function VerticalSlider({
               },
               '& .MuiSlider-rail': {
                 width: 4,
-                opacity: darkMode ? 0.2 : 0.3,
+                opacity: palette.isDark ? 0.2 : 0.3,
               },
             }}
           />

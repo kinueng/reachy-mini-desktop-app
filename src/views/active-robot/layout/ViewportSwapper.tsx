@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useMemo, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Box, IconButton } from '@mui/material';
+import { DURATION, EASING, blackAlpha } from '@styles/tokens';
 
 /**
  * ViewportSwapper Component
@@ -176,7 +177,7 @@ export default function ViewportSwapper({
             height: '100%',
             borderRadius: '12px',
             overflow: 'hidden',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            boxShadow: `0 4px 12px ${blackAlpha(0.15)}`,
             position: 'relative',
             // ✅ Form a local stacking context so any inner `z-index`
             // (e.g. Viewer3D's opaque LoadingSpinner at z:20) stays scoped
@@ -197,16 +198,16 @@ export default function ViewportSwapper({
             width: 20,
             height: 20,
             minWidth: 20,
-            bgcolor: 'rgba(0, 0, 0, 0.15)',
+            bgcolor: blackAlpha(0.15),
             backdropFilter: 'blur(4px)',
             color: '#fff',
             fontSize: '14px',
             padding: 0,
             zIndex: 10,
             opacity: 0,
-            transition: 'all 0.2s ease',
+            transition: `all ${DURATION.base}ms ${EASING.standard}`,
             '&:hover': {
-              bgcolor: 'rgba(0, 0, 0, 0.3)',
+              bgcolor: blackAlpha(0.3),
               transform: 'scale(1.2)',
             },
           }}

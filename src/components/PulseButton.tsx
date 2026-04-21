@@ -1,7 +1,7 @@
 import React, { type ReactNode } from 'react';
 import { Button, type ButtonProps } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
-import { ACCENT, DURATION, EASING, accentAlpha } from '@styles/tokens';
+import { ACCENT, accentAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 /**
@@ -45,10 +45,11 @@ export default function PulseButton({
 }: PulseButtonProps): React.ReactElement {
   const palette = useAppPalette();
   const currentSize = sizeStyles[size] ?? sizeStyles.medium;
+  const isDark = palette.isDark;
 
-  const pulseStartAlpha = palette.isDark ? 0.4 : 0.3;
-  const hoverGlowAlpha = palette.isDark ? 0.2 : 0.15;
-  const disabledAccentAlpha = palette.isDark ? 0.3 : 0.4;
+  const pulseStart = accentAlpha(isDark ? 0.4 : 0.3);
+  const hoverShadow = `0 6px 16px ${accentAlpha(isDark ? 0.2 : 0.15)}`;
+  const disabledAlpha = accentAlpha(isDark ? 0.3 : 0.4);
 
   const sxArray: SxProps<Theme> = [
     {
@@ -58,11 +59,11 @@ export default function PulseButton({
       bgcolor: 'transparent',
       fontWeight: 600,
       textTransform: 'none',
-      transition: `all ${DURATION.base}ms ${EASING.standard}`,
+      transition: 'all 0.2s ease',
       animation: disabled || !pulse ? 'none' : 'pulseHalo 3s ease-in-out infinite',
       '@keyframes pulseHalo': {
         '0%, 100%': {
-          boxShadow: `0 0 0 0 ${accentAlpha(pulseStartAlpha)}`,
+          boxShadow: `0 0 0 0 ${pulseStart}`,
         },
         '50%': {
           boxShadow: `0 0 0 8px ${accentAlpha(0)}`,
@@ -71,12 +72,12 @@ export default function PulseButton({
       '&:hover': {
         bgcolor: accentAlpha(0.1),
         border: `1px solid ${ACCENT.main}`,
-        boxShadow: `0 6px 16px ${accentAlpha(hoverGlowAlpha)}`,
+        boxShadow: hoverShadow,
         animation: 'none',
       },
       '&:disabled': {
-        border: `1px solid ${accentAlpha(disabledAccentAlpha)}`,
-        color: accentAlpha(disabledAccentAlpha),
+        border: `1px solid ${disabledAlpha}`,
+        color: disabledAlpha,
         animation: 'none',
       },
     },

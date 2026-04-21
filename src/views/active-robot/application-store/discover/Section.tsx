@@ -7,14 +7,16 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ReachyBox from '../../../../assets/reachy-update-box.svg';
 import { useActiveRobotContext } from '../../context';
 import hfLogo from '../../../../assets/hf-logo.svg';
-import { ACCENT, STATUS, accentAlpha } from '@styles/tokens';
+import {
+  ACCENT,
+  DURATION,
+  EASING,
+  RADIUS,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
 import { useAppPalette } from '@styles';
-
-// TODO(style-migration): `#fbbf24` / `#f59e0b` amber combo is roughly the status
-// warning color. Kept literal because the palette only exposes a single warning
-// hue and we want to preserve the dark/light pair here.
-const AMBER_DARK = '#fbbf24';
-const AMBER_LIGHT = '#f59e0b';
 
 interface AppLike {
   name: string;
@@ -50,6 +52,14 @@ interface DiscoverAppsSectionProps {
   setSearchQuery: (query: string) => void;
   onOpenCreateTutorial: () => void;
 }
+
+// TODO(style-migration): amber-accent badge colors not in the palette yet.
+const AMBER_DARK = '#fbbf24';
+const AMBER_LIGHT = '#f59e0b';
+const AMBER_BG_DARK = 'rgba(251, 191, 36, 0.08)';
+const AMBER_BG_LIGHT = 'rgba(245, 158, 11, 0.08)';
+const AMBER_BORDER_DARK = 'rgba(251, 191, 36, 0.2)';
+const AMBER_BORDER_LIGHT = 'rgba(245, 158, 11, 0.2)';
 
 export default function DiscoverAppsSection({
   filteredApps,
@@ -148,10 +158,10 @@ export default function DiscoverAppsSection({
           px: 1.5,
           py: 0.75,
           mb: 2,
-          borderRadius: '10px',
+          borderRadius: `${RADIUS.lg}px`,
           bgcolor: palette.isDark ? '#262626' : 'white',
           border: `1px solid ${palette.border}`,
-          transition: 'box-shadow 0.2s ease',
+          transition: `box-shadow ${DURATION.base}ms ${EASING.standard}`,
           '&:focus-within': {
             borderColor: ACCENT.main,
             boxShadow: `0 0 0 3px ${accentAlpha(0.08)}`,
@@ -230,7 +240,7 @@ export default function DiscoverAppsSection({
                   display: 'flex',
                   flexDirection: 'column',
                   p: 2.5,
-                  borderRadius: '14px',
+                  borderRadius: `${RADIUS.xxl}px`,
                   bgcolor: installFailed
                     ? palette.isDark
                       ? 'rgba(239, 68, 68, 0.04)'
@@ -238,10 +248,10 @@ export default function DiscoverAppsSection({
                     : isInstalling
                       ? accentAlpha(palette.isDark ? 0.04 : 0.02)
                       : palette.isDark
-                        ? 'rgba(255, 255, 255, 0.02)'
+                        ? whiteAlpha(0.02)
                         : 'white',
                   border: installFailed
-                    ? `1.5px solid ${STATUS.error}`
+                    ? `1.5px solid ${palette.statusError}`
                     : isInstalling
                       ? `1.5px solid ${accentAlpha(0.3)}`
                       : `1px solid ${palette.border}`,
@@ -272,8 +282,8 @@ export default function DiscoverAppsSection({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      borderRadius: '12px',
-                      bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+                      borderRadius: `${RADIUS.xl}px`,
+                      bgcolor: palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.03),
                       border: `1px solid ${palette.border}`,
                       flexShrink: 0,
                     }}
@@ -346,19 +356,19 @@ export default function DiscoverAppsSection({
                           fontSize: 11,
                           fontWeight: 600,
                           textTransform: 'none',
-                          borderRadius: '8px',
+                          borderRadius: `${RADIUS.md}px`,
                           flexShrink: 0,
                           bgcolor: 'transparent',
                           color: ACCENT.main,
                           border: `1px solid ${ACCENT.main}`,
-                          transition: 'all 0.2s ease',
+                          transition: `all ${DURATION.base}ms ${EASING.standard}`,
                           '&:hover': {
                             bgcolor: accentAlpha(0.08),
                             borderColor: ACCENT.main,
                           },
                           '&:disabled': {
                             bgcolor: 'transparent',
-                            color: palette.textFaint,
+                            color: palette.textDisabled,
                             borderColor: palette.border,
                           },
                         }}
@@ -388,10 +398,8 @@ export default function DiscoverAppsSection({
                             height: 22,
                             px: 1,
                             borderRadius: '11px',
-                            bgcolor: palette.isDark
-                              ? 'rgba(251, 191, 36, 0.08)'
-                              : 'rgba(245, 158, 11, 0.08)',
-                            border: `1px solid ${palette.isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
+                            bgcolor: palette.isDark ? AMBER_BG_DARK : AMBER_BG_LIGHT,
+                            border: `1px solid ${palette.isDark ? AMBER_BORDER_DARK : AMBER_BORDER_LIGHT}`,
                           }}
                         >
                           <Typography
@@ -421,9 +429,7 @@ export default function DiscoverAppsSection({
                           width: 22,
                           height: 22,
                           borderRadius: '11px',
-                          bgcolor: palette.isDark
-                            ? 'rgba(255, 255, 255, 0.06)'
-                            : 'rgba(0, 0, 0, 0.04)',
+                          bgcolor: palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.04),
                           border: `1px solid ${palette.border}`,
                         }}
                       >
@@ -435,7 +441,7 @@ export default function DiscoverAppsSection({
                           aria-hidden="true"
                           focusable="false"
                           role="img"
-                          style={{ color: palette.textMuted }}
+                          style={{ color: palette.textSecondary }}
                         >
                           <path
                             opacity=".5"
@@ -474,7 +480,7 @@ export default function DiscoverAppsSection({
                             color: palette.textMuted,
                             textDecoration: 'none',
                             cursor: 'pointer',
-                            transition: 'all 0.15s ease',
+                            transition: `all ${DURATION.fast}ms ${EASING.standard}`,
                             display: 'flex',
                             alignItems: 'center',
                             gap: 0.3,
@@ -503,11 +509,11 @@ export default function DiscoverAppsSection({
             alignItems: 'center',
             gap: 2,
             p: 2.5,
-            borderRadius: '14px',
+            borderRadius: `${RADIUS.xxl}px`,
             bgcolor: 'transparent',
             border: `1px dashed ${accentAlpha(palette.isDark ? 0.4 : 0.5)}`,
             cursor: 'pointer',
-            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition: `all ${DURATION.medium}ms ${EASING.standard}`,
             position: 'relative',
             overflow: 'hidden',
             '&:hover': {
@@ -528,14 +534,14 @@ export default function DiscoverAppsSection({
             sx={{
               width: 48,
               height: 48,
-              borderRadius: '12px',
+              borderRadius: `${RADIUS.xl}px`,
               bgcolor: accentAlpha(palette.isDark ? 0.08 : 0.05),
               border: theme => `1px solid ${theme.palette.primary.main}40`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              transition: 'all 0.25s ease',
+              transition: `all ${DURATION.medium}ms ${EASING.standard}`,
             }}
           >
             <Box
@@ -580,7 +586,7 @@ export default function DiscoverAppsSection({
               color: 'primary.main',
               fontSize: 18,
               flexShrink: 0,
-              transition: 'transform 0.25s ease',
+              transition: `transform ${DURATION.medium}ms ${EASING.standard}`,
             }}
           >
             →

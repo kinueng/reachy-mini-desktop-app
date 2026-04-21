@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
-import { RADIUS, blackAlpha, whiteAlpha } from '@styles/tokens';
+import { whiteAlpha, blackAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 export interface FPSMeterProps {
@@ -15,6 +15,7 @@ export interface FPSMeterProps {
  */
 export function FPSMeter(_props: FPSMeterProps = {}): React.ReactElement {
   const palette = useAppPalette();
+  const isDark = palette.isDark;
   const [fps, setFps] = useState<number>(0);
   const frameCount = useRef<number>(0);
   const lastTime = useRef<number>(performance.now());
@@ -45,19 +46,20 @@ export function FPSMeter(_props: FPSMeterProps = {}): React.ReactElement {
     };
   }, []);
 
-  // TODO(style-migration): the translucent chrome surface (0.85 opacity) is
-  // specific to the floating HUD and is not captured by `surfaceCard`.
-  const hudBg = palette.isDark ? 'rgba(26, 26, 26, 0.85)' : 'rgba(255, 255, 255, 0.85)';
-  const hudBorder = palette.isDark ? whiteAlpha(0.1) : blackAlpha(0.1);
+  // TODO(style-migration): FPS pill uses a parametric 85% surface tint not
+  // captured by surfaceCard (95%); keep an isDark branch.
+  const bgColor = isDark ? 'rgba(26, 26, 26, 0.85)' : 'rgba(255, 255, 255, 0.85)';
+  const borderColor = isDark ? whiteAlpha(0.1) : blackAlpha(0.1);
+  const textColor = isDark ? whiteAlpha(0.6) : blackAlpha(0.5);
 
   return (
     <Box
       sx={{
         px: 1.25,
         py: 0.75,
-        borderRadius: `${RADIUS.md}px`,
-        bgcolor: hudBg,
-        border: `1px solid ${hudBorder}`,
+        borderRadius: '8px',
+        bgcolor: bgColor,
+        border: `1px solid ${borderColor}`,
         backdropFilter: 'blur(10px)',
         pointerEvents: 'none',
       }}
@@ -66,7 +68,7 @@ export function FPSMeter(_props: FPSMeterProps = {}): React.ReactElement {
         sx={{
           fontSize: 9,
           fontWeight: 500,
-          color: palette.textSecondary,
+          color: textColor,
           fontFamily: 'SF Mono, Monaco, Menlo, monospace',
           letterSpacing: '0.02em',
           lineHeight: 1,
@@ -78,7 +80,8 @@ export function FPSMeter(_props: FPSMeterProps = {}): React.ReactElement {
   );
 }
 
-/** Wrapper kept for backward compatibility with prior usages. */
+/** Wrapper kept for backward compatibility. The inner component now reads the
+ *  theme mode from `useAppPalette()` directly. */
 export default function FPSMeterWrapper(): React.ReactElement {
   return <FPSMeter />;
 }

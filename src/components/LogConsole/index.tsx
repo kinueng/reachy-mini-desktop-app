@@ -13,23 +13,21 @@ import { LogItem } from './LogItem';
 import { useLogConsoleHeight, useFixedItemHeight } from './useLogConsoleHeight';
 import { useVirtualizerScroll } from './useVirtualizerScroll';
 import { CATEGORY_META } from '../../utils/logging/constants';
-import type { LogCategory, LogEntry, LogMode } from '../../types/store';
+import { whiteAlpha, blackAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
-import { blackAlpha, whiteAlpha } from '@styles/tokens';
+import type { LogCategory, LogEntry, LogMode } from '../../types/store';
 
 interface FilterChipProps {
   label: string;
   color: string;
   active: boolean;
   onClick: () => void;
-  isDark: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
 }
 
-function FilterChip({ label, color, active, onClick, isDark }: FilterChipProps) {
-  // TODO(style-migration): chip idle colours (#555/#bbb, #333/#ddd) aren't
-  // covered by semantic tokens yet. Keep them as explicit hex pairs.
-  const inactiveColor = isDark ? '#555' : '#bbb';
-  const inactiveBorder = isDark ? '#333' : '#ddd';
+function FilterChip({ label, color, active, onClick }: FilterChipProps) {
+  const palette = useAppPalette();
 
   return (
     <Box
@@ -43,9 +41,9 @@ function FilterChip({ label, color, active, onClick, isDark }: FilterChipProps) 
         cursor: 'pointer',
         transition: 'all 0.15s',
         userSelect: 'none',
-        color: active ? color : inactiveColor,
+        color: active ? color : palette.statusNeutral,
         bgcolor: active ? `${color}18` : 'transparent',
-        border: `1px solid ${active ? `${color}40` : inactiveBorder}`,
+        border: `1px solid ${active ? `${color}40` : palette.border}`,
         '&:hover': {
           bgcolor: `${color}15`,
           borderColor: `${color}30`,
@@ -60,15 +58,15 @@ function FilterChip({ label, color, active, onClick, isDark }: FilterChipProps) 
 interface ModeToggleProps {
   mode: LogMode;
   onChange: (mode: LogMode) => void;
-  isDark: boolean;
 }
 
-function ModeToggle({ mode, onChange, isDark }: ModeToggleProps) {
-  // TODO(style-migration): mini segmented-control swatches don't cleanly map
-  // to semantic tokens; we branch on `isDark` and use low-alpha overlays.
-  const borderColor = isDark ? '#333' : '#ddd';
+function ModeToggle({ mode, onChange }: ModeToggleProps) {
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
+  // TODO(style-migration): active text (#fff/#111) and active/hover bg tints
+  // are slightly stronger than textPrimary/surfaceSubtle; keep isDark branches
+  // until a dedicated "toggle pill" token pair exists.
   const activeText = isDark ? '#fff' : '#111';
-  const inactiveText = isDark ? '#555' : '#bbb';
   const activeBg = isDark ? whiteAlpha(0.08) : blackAlpha(0.05);
   const hoverBg = isDark ? whiteAlpha(0.05) : blackAlpha(0.03);
 
@@ -78,7 +76,7 @@ function ModeToggle({ mode, onChange, isDark }: ModeToggleProps) {
         display: 'inline-flex',
         borderRadius: '4px',
         overflow: 'hidden',
-        border: `1px solid ${borderColor}`,
+        border: `1px solid ${palette.border}`,
       }}
     >
       {(
@@ -98,7 +96,7 @@ function ModeToggle({ mode, onChange, isDark }: ModeToggleProps) {
             cursor: 'pointer',
             userSelect: 'none',
             transition: 'all 0.15s',
-            color: mode === opt.value ? activeText : inactiveText,
+            color: mode === opt.value ? activeText : palette.textFaint,
             bgcolor: mode === opt.value ? activeBg : 'transparent',
             '&:hover': { bgcolor: hoverBg },
           }}
@@ -294,26 +292,15 @@ function LogConsole({
     }
   }, [normalizedLogs, showTimestamp]);
 
-  // TODO(style-migration): console surfaces, subtle borders and muted headers
-  // aren't captured by the semantic tokens with exact parity (e.g. 0.06
-  // rather than 0.08). Pre-compute all the branch-on-isDark pairs once here
-  // so the JSX below stays free of raw ternaries.
+  // TODO(style-migration): log-console surface uses slightly different greys
+  // (#1a1a1a/#ffffff) than the standard surfaceCard token; keep as isDark
+  // branch until a matching token lands.
   const consoleBg = isDark ? '#1a1a1a' : '#ffffff';
   const consoleBorder = palette.borderStrong;
-  const scrollbarThumb = isDark ? whiteAlpha(0.15) : blackAlpha(0.15);
-  const scrollbarThumbHover = isDark ? whiteAlpha(0.25) : blackAlpha(0.25);
-  const inlineHeaderBorder = isDark ? whiteAlpha(0.06) : blackAlpha(0.06);
-  const inlineMutedLabel = isDark ? '#666' : '#aaa';
-  const inlineHoverBg = isDark ? whiteAlpha(0.1) : blackAlpha(0.06);
-  const fullHeaderBorder = isDark ? whiteAlpha(0.08) : blackAlpha(0.08);
-  const searchBg = isDark ? whiteAlpha(0.05) : blackAlpha(0.03);
-  const searchBorder = isDark ? whiteAlpha(0.08) : blackAlpha(0.08);
-  const searchIconColor = isDark ? '#555' : '#aaa';
-  const searchText = isDark ? '#ccc' : '#333';
-  const copyButtonBg = isDark ? whiteAlpha(0.04) : blackAlpha(0.03);
-  const copyButtonHoverBg = isDark ? whiteAlpha(0.1) : blackAlpha(0.07);
-  const emptyMutedLabel = isDark ? '#666' : '#999';
-  const overlaySpinnerColor = isDark ? whiteAlpha(0.45) : blackAlpha(0.35);
+  const scrollThumb = palette.borderStrong;
+  // TODO(style-migration): scroll-thumb hover uses a stronger 0.25 alpha than
+  // borderStrong (0.15); keep as isDark branch until a dedicated token lands.
+  const scrollThumbHover = isDark ? whiteAlpha(0.25) : blackAlpha(0.25);
 
   const boxSx = useMemo(
     () => ({
@@ -337,11 +324,11 @@ function LogConsole({
       '&::-webkit-scrollbar': { width: 6 },
       '&::-webkit-scrollbar-track': { background: 'transparent' },
       '&::-webkit-scrollbar-thumb': {
-        background: scrollbarThumb,
+        background: scrollThumb,
         borderRadius: 3,
       },
       '&:hover::-webkit-scrollbar-thumb': {
-        background: scrollbarThumbHover,
+        background: scrollThumbHover,
       },
       ...(sx as object),
     }),
@@ -353,13 +340,24 @@ function LogConsole({
       compact,
       consoleBg,
       consoleBorder,
-      scrollbarThumb,
-      scrollbarThumbHover,
+      scrollThumb,
+      scrollThumbHover,
       fontSize,
       normalizedLogs.length,
       sx,
     ]
   );
+
+  // TODO(style-migration): the header label purposely inverts the usual
+  // contrast (#666 in dark, #aaa in light) to stay extra-faded, so it doesn't
+  // map to textMuted/textFaint; keep as isDark branch.
+  const headerLabelColor = isDark ? '#666' : '#aaa';
+  // TODO(style-migration): header borders/hover use bespoke 0.06/0.08/0.1
+  // alphas that fall between palette.border, palette.divider and
+  // palette.borderStrong; keep isDark branches until we pick a closer token.
+  const headerBorder = isDark ? whiteAlpha(0.06) : blackAlpha(0.06);
+  const headerBorderStrong = isDark ? whiteAlpha(0.08) : blackAlpha(0.08);
+  const headerHover = isDark ? whiteAlpha(0.1) : blackAlpha(0.06);
 
   // Inline (small) header
   const renderInlineHeader = () => (
@@ -370,7 +368,7 @@ function LogConsole({
         justifyContent: 'space-between',
         px: 1,
         py: 0.25,
-        borderBottom: `1px solid ${inlineHeaderBorder}`,
+        borderBottom: `1px solid ${headerBorder}`,
         flexShrink: 0,
         minHeight: 24,
       }}
@@ -379,7 +377,7 @@ function LogConsole({
         sx={{
           fontSize: 9,
           fontWeight: 600,
-          color: inlineMutedLabel,
+          color: headerLabelColor,
           textTransform: 'uppercase',
           letterSpacing: '0.5px',
         }}
@@ -394,10 +392,10 @@ function LogConsole({
               width: 20,
               height: 20,
               padding: 0.25,
-              '&:hover': { bgcolor: inlineHoverBg },
+              '&:hover': { bgcolor: headerHover },
             }}
           >
-            <OpenInFullIcon sx={{ fontSize: 10, color: inlineMutedLabel }} />
+            <OpenInFullIcon sx={{ fontSize: 10, color: headerLabelColor }} />
           </IconButton>
         )}
         <IconButton
@@ -406,119 +404,137 @@ function LogConsole({
             width: 20,
             height: 20,
             padding: 0.25,
-            '&:hover': { bgcolor: inlineHoverBg },
+            '&:hover': { bgcolor: headerHover },
           }}
         >
-          <ContentCopyIcon sx={{ fontSize: 10, color: inlineMutedLabel }} />
+          <ContentCopyIcon sx={{ fontSize: 10, color: headerLabelColor }} />
         </IconButton>
       </Box>
     </Box>
   );
 
   // Full-size header: [Logs] [Simple|Dev]  ...dev filters...  [Search] [Copy]
-  const renderFullSizeHeader = () => (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 0.75,
-        px: 1.5,
-        py: 0.75,
-        borderBottom: `1px solid ${fullHeaderBorder}`,
-        flexShrink: 0,
-      }}
-    >
-      <Typography
+  const renderFullSizeHeader = () => {
+    // TODO(style-migration): dev-mode search + copy button use bespoke low
+    // alphas (0.03-0.1) and specific greys (#555/#aaa, #ccc/#333) that don't
+    // map cleanly to palette.border / palette.textPrimary; keep isDark
+    // branches until a matching token set is added.
+    const searchBg = isDark ? whiteAlpha(0.05) : blackAlpha(0.03);
+    const searchBorder = isDark ? whiteAlpha(0.08) : blackAlpha(0.08);
+    const searchIconColor = isDark ? '#555' : '#aaa';
+    const searchInputColor = isDark ? '#ccc' : '#333';
+    const copyBg = isDark ? whiteAlpha(0.04) : blackAlpha(0.03);
+    const copyHover = isDark ? whiteAlpha(0.1) : blackAlpha(0.07);
+
+    return (
+      <Box
         sx={{
-          fontSize: 10,
-          fontWeight: 600,
-          color: inlineMutedLabel,
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.75,
+          px: 1.5,
+          py: 0.75,
+          borderBottom: `1px solid ${headerBorderStrong}`,
+          flexShrink: 0,
         }}
       >
-        Logs
-      </Typography>
-
-      {!forceMode && <ModeToggle mode={logMode} onChange={handleModeChange} isDark={isDark} />}
-
-      {/* Dev-only: category filters + search (hidden when the mode is forced from outside) */}
-      {isDevMode && !forceMode && (
-        <>
-          {Object.entries(CATEGORY_META).map(([key, meta]) => (
-            <FilterChip
-              key={key}
-              label={meta.label}
-              color={meta.color}
-              active={categoryFilters.includes(key as LogCategory)}
-              onClick={() => toggleCategory(key as LogCategory)}
-              isDark={isDark}
-            />
-          ))}
-
-          {/* Search */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.5,
-              bgcolor: searchBg,
-              borderRadius: '5px',
-              px: 0.75,
-              py: 0.2,
-              border: `1px solid ${searchBorder}`,
-              minWidth: 140,
-              maxWidth: 220,
-            }}
-          >
-            <SearchIcon sx={{ fontSize: 12, color: searchIconColor }} />
-            <InputBase
-              value={logSearch}
-              onChange={e => setLogSearch(e.target.value)}
-              placeholder="Search..."
-              sx={{
-                fontSize: 10,
-                color: searchText,
-                fontFamily: 'SF Mono, Monaco, Menlo, monospace',
-                '& input': { p: 0 },
-                '& input::placeholder': { color: searchIconColor, opacity: 1 },
-                flex: 1,
-              }}
-            />
-            {logSearch && (
-              <ClearIcon
-                onClick={() => setLogSearch('')}
-                sx={{
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  color: searchIconColor,
-                  '&:hover': { color: isDark ? '#aaa' : '#555' },
-                }}
-              />
-            )}
-          </Box>
-        </>
-      )}
-
-      <Box sx={{ flex: 1 }} />
-
-      {/* Copy */}
-      <Tooltip title="Copy all logs" arrow placement="top">
-        <IconButton
-          onClick={handleCopyLogs}
+        <Typography
           sx={{
-            width: 24,
-            height: 24,
-            padding: 0.5,
-            bgcolor: copyButtonBg,
-            '&:hover': { bgcolor: copyButtonHoverBg },
+            fontSize: 10,
+            fontWeight: 600,
+            color: headerLabelColor,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
           }}
         >
-          <ContentCopyIcon sx={{ fontSize: 12, color: inlineMutedLabel }} />
-        </IconButton>
-      </Tooltip>
-    </Box>
-  );
+          Logs
+        </Typography>
+
+        {!forceMode && <ModeToggle mode={logMode} onChange={handleModeChange} />}
+
+        {/* Dev-only: category filters + search (hidden when the mode is forced from outside) */}
+        {isDevMode && !forceMode && (
+          <>
+            {Object.entries(CATEGORY_META).map(([key, meta]) => (
+              <FilterChip
+                key={key}
+                label={meta.label}
+                color={meta.color}
+                active={categoryFilters.includes(key as LogCategory)}
+                onClick={() => toggleCategory(key as LogCategory)}
+              />
+            ))}
+
+            {/* Search */}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                bgcolor: searchBg,
+                borderRadius: '5px',
+                px: 0.75,
+                py: 0.2,
+                border: `1px solid ${searchBorder}`,
+                minWidth: 140,
+                maxWidth: 220,
+              }}
+            >
+              <SearchIcon sx={{ fontSize: 12, color: searchIconColor }} />
+              <InputBase
+                value={logSearch}
+                onChange={e => setLogSearch(e.target.value)}
+                placeholder="Search..."
+                sx={{
+                  fontSize: 10,
+                  color: searchInputColor,
+                  fontFamily: 'SF Mono, Monaco, Menlo, monospace',
+                  '& input': { p: 0 },
+                  '& input::placeholder': { color: searchIconColor, opacity: 1 },
+                  flex: 1,
+                }}
+              />
+              {logSearch && (
+                <ClearIcon
+                  onClick={() => setLogSearch('')}
+                  sx={{
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    color: searchIconColor,
+                    '&:hover': { color: isDark ? '#aaa' : '#555' },
+                  }}
+                />
+              )}
+            </Box>
+          </>
+        )}
+
+        <Box sx={{ flex: 1 }} />
+
+        {/* Copy */}
+        <Tooltip title="Copy all logs" arrow placement="top">
+          <IconButton
+            onClick={handleCopyLogs}
+            sx={{
+              width: 24,
+              height: 24,
+              padding: 0.5,
+              bgcolor: copyBg,
+              '&:hover': { bgcolor: copyHover },
+            }}
+          >
+            <ContentCopyIcon sx={{ fontSize: 12, color: headerLabelColor }} />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    );
+  };
+
+  const transitionOverlayBg = consoleBg;
+  // TODO(style-migration): spinner sits between textMuted (0.5/0.4) and
+  // textFaint (0.35/0.3); keep custom alphas until we add a matching token.
+  const overlaySpinnerColor = isDark ? whiteAlpha(0.45) : blackAlpha(0.35);
+  const emptyTextColor = palette.textMuted;
 
   return (
     <Box
@@ -543,7 +559,7 @@ function LogConsole({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: consoleBg,
+            bgcolor: transitionOverlayBg,
             opacity: showOverlay ? 1 : 0,
             pointerEvents: showOverlay ? 'auto' : 'none',
             // Snap in instantly (no enter transition), only fade on the way out.
@@ -568,7 +584,7 @@ function LogConsole({
           <Typography
             sx={{
               fontSize: simpleStyle ? 11 : fontSize,
-              color: emptyMutedLabel,
+              color: emptyTextColor,
               fontFamily: 'inherit',
               textAlign: 'center',
               fontStyle: simpleStyle ? 'italic' : 'normal',
@@ -603,9 +619,9 @@ function LogConsole({
             '&::-webkit-scrollbar': { width: 6 },
             '&::-webkit-scrollbar-track': { background: 'transparent' },
             '&::-webkit-scrollbar-thumb': {
-              background: scrollbarThumb,
+              background: scrollThumb,
               borderRadius: 3,
-              '&:hover': { background: scrollbarThumbHover },
+              '&:hover': { background: scrollThumbHover },
             },
           }}
         >
@@ -630,7 +646,6 @@ function LogConsole({
                     log={log}
                     index={virtualItem.index}
                     totalCount={normalizedLogs.length}
-                    isDark={isDark}
                     fontSize={fontSize}
                     compact={compact}
                     showTimestamp={showTimestamp}

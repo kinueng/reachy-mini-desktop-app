@@ -14,18 +14,15 @@ import { mapRobotToDisplay, mapDisplayToRobot } from '../../../utils/inputMappin
 import antennasIcon from '../../../assets/reachy-antennas-icon.svg';
 import headIcon from '../../../assets/reachy-head-icon.svg';
 import bodyIcon from '../../../assets/reachy-body-icon.svg';
-
-interface ControllerInnerProps {
-  darkMode: boolean;
-  onResetReady?: (resetFn: () => void) => void;
-  onIsAtInitialPosition?: (atInitial: boolean) => void;
-}
+import { useAppPalette } from '@styles';
 
 function ControllerInner({
-  darkMode,
   onResetReady,
   onIsAtInitialPosition,
-}: ControllerInnerProps): React.ReactElement {
+}: {
+  onResetReady?: (resetFn: () => void) => void;
+  onIsAtInitialPosition?: (atInitial: boolean) => void;
+}): React.ReactElement {
   const { isDragging } = useController();
   const { sendCommand, forceSendCommand } = useControllerAPI();
 
@@ -81,9 +78,9 @@ function ControllerInner({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, width: '100%', flex: 1 }}>
       {/* ANTENNAS */}
-      <SectionTitle icon={antennasIcon} label="Antennas" darkMode={darkMode} />
+      <SectionTitle icon={antennasIcon} label="Antennas" />
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-        <ControlCard darkMode={darkMode}>
+        <ControlCard>
           <CircularSlider
             label="Left"
             value={localValues.antennas?.[0] || 0}
@@ -92,10 +89,9 @@ function ControllerInner({
             min={-Math.PI}
             max={Math.PI}
             unit="rad"
-            darkMode={darkMode}
           />
         </ControlCard>
-        <ControlCard darkMode={darkMode} alignRight>
+        <ControlCard alignRight>
           <CircularSlider
             label="Right"
             value={localValues.antennas?.[1] || 0}
@@ -104,17 +100,16 @@ function ControllerInner({
             min={-Math.PI}
             max={Math.PI}
             unit="rad"
-            darkMode={darkMode}
             alignRight
           />
         </ControlCard>
       </Box>
 
       {/* HEAD */}
-      <SectionTitle icon={headIcon} label="Head" darkMode={darkMode} />
+      <SectionTitle icon={headIcon} label="Head" />
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
         {/* Position X/Y/Z */}
-        <ControlCard darkMode={darkMode} padding={1}>
+        <ControlCard padding={1}>
           <Box sx={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
             <Box sx={{ flex: '1 1 auto', display: 'flex', alignItems: 'center' }}>
               <Joystick2D
@@ -142,7 +137,6 @@ function ControllerInner({
                 minY={EXTENDED_ROBOT_RANGES.POSITION.min}
                 maxY={EXTENDED_ROBOT_RANGES.POSITION.max}
                 size={120}
-                darkMode={darkMode}
               />
             </Box>
             <Box sx={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', px: 2.5 }}>
@@ -154,7 +148,6 @@ function ControllerInner({
                 min={-0.05}
                 max={0.05}
                 unit="m"
-                darkMode={darkMode}
                 centered
                 height={120}
               />
@@ -163,7 +156,7 @@ function ControllerInner({
         </ControlCard>
 
         {/* Pitch/Yaw */}
-        <ControlCard darkMode={darkMode} padding={1}>
+        <ControlCard padding={1}>
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
             <Joystick2D
               label="Pitch / Yaw"
@@ -190,7 +183,6 @@ function ControllerInner({
               minY={EXTENDED_ROBOT_RANGES.PITCH.min}
               maxY={EXTENDED_ROBOT_RANGES.PITCH.max}
               size={120}
-              darkMode={darkMode}
               labelAlign="right"
             />
           </Box>
@@ -198,7 +190,7 @@ function ControllerInner({
       </Box>
 
       {/* Roll */}
-      <ControlCard darkMode={darkMode}>
+      <ControlCard>
         <SimpleSlider
           label="Roll"
           value={localValues.headPose.roll}
@@ -206,14 +198,13 @@ function ControllerInner({
           onChange={(roll, continuous) => handleChange({ roll }, continuous)}
           min={-0.5}
           max={0.5}
-          darkMode={darkMode}
           showRollVisualization
         />
       </ControlCard>
 
       {/* BODY */}
-      <SectionTitle icon={bodyIcon} label="Body" darkMode={darkMode} />
-      <ControlCard darkMode={darkMode}>
+      <SectionTitle icon={bodyIcon} label="Body" />
+      <ControlCard>
         <CircularSlider
           label="Yaw"
           value={localValues.bodyYaw}
@@ -222,7 +213,6 @@ function ControllerInner({
           min={(-160 * Math.PI) / 180}
           max={(160 * Math.PI) / 180}
           unit="rad"
-          darkMode={darkMode}
           inverted
           reverse
         />
@@ -233,14 +223,14 @@ function ControllerInner({
 
 interface ControllerProps {
   isActive: boolean;
-  darkMode: boolean;
+  /** @deprecated Theme is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   onResetReady?: (resetFn: () => void) => void;
   onIsAtInitialPosition?: (atInitial: boolean) => void;
 }
 
 export default function Controller({
   isActive,
-  darkMode,
   onResetReady,
   onIsAtInitialPosition,
 }: ControllerProps): React.ReactElement | null {
@@ -248,11 +238,7 @@ export default function Controller({
 
   return (
     <ControllerProvider isActive={isActive}>
-      <ControllerInner
-        darkMode={darkMode}
-        onResetReady={onResetReady}
-        onIsAtInitialPosition={onIsAtInitialPosition}
-      />
+      <ControllerInner onResetReady={onResetReady} onIsAtInitialPosition={onIsAtInitialPosition} />
     </ControllerProvider>
   );
 }
@@ -261,13 +247,8 @@ export default function Controller({
 // UI Components (extracted for readability)
 // =============================================================================
 
-interface SectionTitleProps {
-  icon: string;
-  label: string;
-  darkMode: boolean;
-}
-
-function SectionTitle({ icon, label, darkMode }: SectionTitleProps): React.ReactElement {
+function SectionTitle({ icon, label }: { icon: string; label: string }): React.ReactElement {
+  const palette = useAppPalette();
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: -0.5 }}>
       <Box
@@ -277,15 +258,15 @@ function SectionTitle({ icon, label, darkMode }: SectionTitleProps): React.React
         sx={{
           width: 20,
           height: 20,
-          filter: darkMode ? 'brightness(0) invert(1)' : 'brightness(0) invert(0)',
-          opacity: darkMode ? 0.7 : 0.6,
+          filter: palette.isDark ? 'brightness(0) invert(1)' : 'brightness(0) invert(0)',
+          opacity: palette.isDark ? 0.7 : 0.6,
         }}
       />
       <Typography
         sx={{
           fontSize: '11px',
           fontWeight: 700,
-          color: darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)',
+          color: palette.textSecondary,
           letterSpacing: '0.5px',
           textTransform: 'uppercase',
         }}
@@ -296,27 +277,25 @@ function SectionTitle({ icon, label, darkMode }: SectionTitleProps): React.React
   );
 }
 
-interface ControlCardProps {
-  children: React.ReactNode;
-  darkMode: boolean;
-  alignRight?: boolean;
-  padding?: number;
-}
-
 function ControlCard({
   children,
-  darkMode,
   alignRight = false,
   padding = 0.5,
-}: ControlCardProps): React.ReactElement {
+}: {
+  children: React.ReactNode;
+  alignRight?: boolean;
+  padding?: number;
+}): React.ReactElement {
+  const palette = useAppPalette();
   return (
     <Box
       sx={{
         px: 1,
         py: padding,
         borderRadius: '8px',
-        bgcolor: darkMode ? 'rgba(26, 26, 26, 0.8)' : '#ffffff',
-        border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+        // TODO(style-migration): light-mode uses pure #ffffff here while palette.surfaceCard is 0.95 alpha.
+        bgcolor: palette.isDark ? 'rgba(26, 26, 26, 0.8)' : '#ffffff',
+        border: `1px solid ${palette.border}`,
         ...(alignRight && {
           display: 'flex',
           flexDirection: 'column',

@@ -44,6 +44,7 @@ export default function FullscreenOverlay({
   children,
 }: FullscreenOverlayProps): React.ReactElement {
   const palette = useAppPalette();
+  const isDark = palette.isDark;
   const appWindow = getAppWindow();
 
   const hasAnimatedRef = useRef(false);
@@ -56,7 +57,7 @@ export default function FullscreenOverlay({
 
   const shouldAnimate = open && !hidden && !hasAnimatedRef.current;
   const defaultBackdropOpacity =
-    backdropOpacity !== undefined ? backdropOpacity : palette.isDark ? 0.92 : 0.95;
+    backdropOpacity !== undefined ? backdropOpacity : isDark ? 0.92 : 0.95;
 
   const isCenteredX = centeredX !== undefined ? centeredX : centered;
   const isCenteredY = centeredY !== undefined ? centeredY : centered;
@@ -69,12 +70,15 @@ export default function FullscreenOverlay({
     }
   };
 
-  // TODO(style-migration): the opaque `#121212`/`#ffffff` backdrop with a
-  // user-tunable alpha doesn't map cleanly onto `surfaceBg` (fully opaque).
-  // Keep the raw rgba form, but source the alpha from the prop/palette.
-  const overlayBgColor = palette.isDark
+  // TODO(style-migration): overlay backgrounds use parametric opacity rather
+  // than a fixed token; keep the isDark branch so the blur scrim still blends
+  // cleanly with the app chrome.
+  const overlayBgColor = isDark
     ? `rgba(18, 18, 18, ${defaultBackdropOpacity})`
     : `rgba(255, 255, 255, ${defaultBackdropOpacity})`;
+
+  const scrollbarThumb = isDark ? whiteAlpha(0.15) : blackAlpha(0.15);
+  const scrollbarThumbHover = isDark ? whiteAlpha(0.25) : blackAlpha(0.25);
 
   const scrollbarStyles = {
     '&::-webkit-scrollbar': {
@@ -84,13 +88,16 @@ export default function FullscreenOverlay({
       background: 'transparent',
     },
     '&::-webkit-scrollbar-thumb': {
-      background: palette.borderStrong,
+      background: scrollbarThumb,
       borderRadius: 4,
       '&:hover': {
-        background: palette.isDark ? whiteAlpha(0.25) : blackAlpha(0.25),
+        background: scrollbarThumbHover,
       },
     },
   };
+
+  const closeBtnBg = isDark ? whiteAlpha(0.08) : '#ffffff';
+  const closeBtnHoverBg = isDark ? whiteAlpha(0.12) : '#ffffff';
 
   return (
     <>
@@ -194,14 +201,14 @@ export default function FullscreenOverlay({
               top: 20,
               right: 16,
               color: ACCENT.main,
-              bgcolor: palette.isDark ? whiteAlpha(0.08) : palette.surfaceBg,
+              bgcolor: closeBtnBg,
               border: `1px solid ${ACCENT.main}`,
               opacity: 0.7,
               zIndex: 10000001,
               WebkitAppRegion: 'no-drag',
               '&:hover': {
                 opacity: 1,
-                bgcolor: palette.isDark ? whiteAlpha(0.12) : palette.surfaceBg,
+                bgcolor: closeBtnHoverBg,
               },
             }}
           >

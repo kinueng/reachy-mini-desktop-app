@@ -16,17 +16,16 @@ import CategoryFilters from './components/CategoryFilters';
 import AppCard from './components/AppCard';
 import EmptyState from './components/EmptyState';
 import Footer from './components/Footer';
-import { accentAlpha } from '@styles/tokens';
+import { RADIUS, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
-
-// TODO(style-migration): `#fbbf24` / `#f59e0b` amber pair has no palette token;
-// keep literal pair until a dedicated warning-tone token exists.
-const AMBER_DARK = '#fbbf24';
-const AMBER_LIGHT = '#f59e0b';
 
 const COLUMNS = 2;
 const ESTIMATED_ROW_HEIGHT = 240;
 const ROW_GAP = 20;
+
+// TODO(style-migration): amber warning tones not yet in the palette.
+const AMBER_DARK = '#fbbf24';
+const AMBER_LIGHT = '#f59e0b';
 
 interface AppLike {
   name: string;
@@ -51,7 +50,7 @@ interface DiscoverModalProps {
   open: boolean;
   onClose: () => void;
   filteredApps: AppLike[];
-  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but forwarded to the legacy FullscreenOverlay only. */
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   isBusy: boolean;
   isLoading: boolean;
@@ -178,7 +177,7 @@ export default function DiscoverModal({
               px: 2.5,
               py: 1.5,
               mb: 2,
-              borderRadius: '10px',
+              borderRadius: `${RADIUS.lg}px`,
               backgroundColor: accentAlpha(palette.isDark ? 0.12 : 0.08),
               border: `1px solid ${accentAlpha(palette.isDark ? 0.3 : 0.25)}`,
             }}
@@ -248,14 +247,12 @@ export default function DiscoverModal({
                 fontWeight: 500,
                 px: 3,
                 py: 1,
-                borderRadius: '8px',
+                borderRadius: `${RADIUS.md}px`,
                 borderColor: palette.borderStrong,
                 color: palette.textSecondary,
                 '&:hover': {
                   borderColor: palette.borderStrong,
-                  backgroundColor: palette.isDark
-                    ? 'rgba(255, 255, 255, 0.05)'
-                    : 'rgba(0, 0, 0, 0.03)',
+                  backgroundColor: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.03),
                 },
               }}
             >

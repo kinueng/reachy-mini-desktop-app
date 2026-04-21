@@ -23,10 +23,36 @@ import DiscoverAppsButton from '../discover/Button';
 import ReachiesCarousel from '@components/ReachiesCarousel';
 import { getDaemonHostname } from '../../../../config/daemon';
 import useAppStore from '../../../../store/useAppStore';
-import { ACCENT, STATUS, accentAlpha, blackAlpha } from '@styles/tokens';
+import {
+  ACCENT,
+  DURATION,
+  EASING,
+  RADIUS,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 const APP_STARTING_TIMEOUT = 60000;
+
+// TODO(style-migration): tinted status surfaces (success/error overlays) are not yet in the palette.
+const SUCCESS_BG_DARK = 'rgba(34, 197, 94, 0.05)';
+const SUCCESS_BG_LIGHT = 'rgba(34, 197, 94, 0.03)';
+const SUCCESS_ICON_BG_DARK = 'rgba(34, 197, 94, 0.1)';
+const SUCCESS_ICON_BG_LIGHT = 'rgba(34, 197, 94, 0.08)';
+const SUCCESS_BORDER = 'rgba(34, 197, 94, 0.3)';
+const SUCCESS_GLOW = '0 0 0 1px rgba(34, 197, 94, 0.2)';
+
+const ERROR_BG_DARK = 'rgba(239, 68, 68, 0.06)';
+const ERROR_BG_LIGHT = 'rgba(239, 68, 68, 0.04)';
+const ERROR_STOP_HOVER = 'rgba(239, 68, 68, 0.08)';
+const ERROR_STOP_DISABLED_BORDER = 'rgba(239, 68, 68, 0.5)';
+const ERROR_STOP_DISABLED_BG_DARK = 'rgba(239, 68, 68, 0.05)';
+const ERROR_STOP_DISABLED_BG_LIGHT = 'rgba(239, 68, 68, 0.03)';
+const ERROR_CHIP_BG = 'rgba(239, 68, 68, 0.1)';
+const ERROR_CHIP_HOVER_BG = 'rgba(239, 68, 68, 0.06)';
+const ERROR_GLOW = '0 0 0 1px rgba(239, 68, 68, 0.2)';
 
 interface InstalledApp {
   name: string;
@@ -246,8 +272,6 @@ interface OpenAppButtonProps {
   customAppUrl?: string;
   isStartingOrRunning: boolean;
   isRunning: boolean;
-  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
-  darkMode?: boolean;
   onTimeout?: () => void;
 }
 
@@ -353,18 +377,18 @@ function OpenAppButton({
             fontSize: 11,
             fontWeight: 600,
             textTransform: 'none',
-            borderRadius: '8px',
+            borderRadius: `${RADIUS.md}px`,
             flexShrink: 0,
             bgcolor: 'transparent',
             color: isGhostMode ? palette.textDisabled : ACCENT.main,
             border: `1px solid ${isGhostMode ? palette.border : ACCENT.main}`,
-            transition: 'all 0.2s ease',
+            transition: `all ${DURATION.base}ms ${EASING.standard}`,
             '&:hover': {
               bgcolor: accentAlpha(0.08),
               borderColor: ACCENT.main,
             },
             '&:disabled': {
-              bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
+              bgcolor: palette.isDark ? whiteAlpha(0.02) : blackAlpha(0.02),
               color: palette.textDisabled,
               borderColor: palette.border,
             },
@@ -388,7 +412,7 @@ const openExternalUrl = async (url: string): Promise<void> => {
 
 interface InstalledAppsSectionProps {
   installedApps: InstalledApp[];
-  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat and forwarded to legacy children only. */
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   expandedApp?: string | null;
   setExpandedApp?: (name: string | null) => void;
@@ -462,7 +486,7 @@ export default function InstalledAppsSection({
             py: 3.5,
             borderRadius: '14px',
             bgcolor: 'transparent',
-            border: `1px dashed ${palette.isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)'}`,
+            border: `1px dashed ${palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3)}`,
             gap: 1.5,
             minHeight: '280px',
           }}
@@ -507,21 +531,17 @@ export default function InstalledAppsSection({
               fontWeight: 500,
               color: palette.textMuted,
               textDecoration: 'underline',
-              textDecorationColor: palette.isDark
-                ? 'rgba(255, 255, 255, 0.2)'
-                : 'rgba(0, 0, 0, 0.2)',
+              textDecorationColor: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
               textUnderlineOffset: '2px',
               cursor: 'pointer',
               bgcolor: 'transparent',
               border: 'none',
               p: 0,
               mt: -0.5,
-              transition: 'all 0.2s ease',
+              transition: `all ${DURATION.base}ms ${EASING.standard}`,
               '&:hover': {
                 color: palette.textSecondary,
-                textDecorationColor: palette.isDark
-                  ? 'rgba(255, 255, 255, 0.3)'
-                  : 'rgba(0, 0, 0, 0.3)',
+                textDecorationColor: palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3),
               },
             }}
           >
@@ -569,20 +589,20 @@ export default function InstalledAppsSection({
                   key={app.name}
                   sx={{
                     borderRadius: '14px',
-                    bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.02)' : 'white',
+                    bgcolor: palette.isDark ? whiteAlpha(0.02) : 'white',
                     border: `1px solid ${
                       hasAppError
-                        ? STATUS.error
+                        ? palette.statusError
                         : isCurrentlyRunning
-                          ? STATUS.success
+                          ? palette.statusSuccess
                           : palette.border
                     }`,
-                    transition: 'opacity 0.25s ease, filter 0.25s ease, border-color 0.2s ease',
+                    transition: `opacity ${DURATION.medium}ms ${EASING.standard}, filter ${DURATION.medium}ms ${EASING.standard}, border-color ${DURATION.base}ms ${EASING.standard}`,
                     overflow: 'hidden',
                     boxShadow: hasAppError
-                      ? '0 0 0 1px rgba(239, 68, 68, 0.2)'
+                      ? ERROR_GLOW
                       : isCurrentlyRunning
-                        ? '0 0 0 1px rgba(34, 197, 94, 0.2)'
+                        ? SUCCESS_GLOW
                         : 'none',
                     opacity: isRemoving ? 0.5 : isBusy && !isCurrentlyRunning ? 0.4 : 1,
                     filter: isBusy && !isCurrentlyRunning ? 'grayscale(50%)' : 'none',
@@ -612,12 +632,12 @@ export default function InstalledAppsSection({
                       gap: 1,
                       bgcolor: hasAppError
                         ? palette.isDark
-                          ? 'rgba(239, 68, 68, 0.06)'
-                          : 'rgba(239, 68, 68, 0.04)'
+                          ? ERROR_BG_DARK
+                          : ERROR_BG_LIGHT
                         : isCurrentlyRunning
                           ? palette.isDark
-                            ? 'rgba(34, 197, 94, 0.05)'
-                            : 'rgba(34, 197, 94, 0.03)'
+                            ? SUCCESS_BG_DARK
+                            : SUCCESS_BG_LIGHT
                           : 'transparent',
                     }}
                   >
@@ -640,16 +660,16 @@ export default function InstalledAppsSection({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            borderRadius: '12px',
+                            borderRadius: `${RADIUS.xl}px`,
                             bgcolor: isCurrentlyRunning
                               ? palette.isDark
-                                ? 'rgba(34, 197, 94, 0.1)'
-                                : 'rgba(34, 197, 94, 0.08)'
+                                ? SUCCESS_ICON_BG_DARK
+                                : SUCCESS_ICON_BG_LIGHT
                               : palette.isDark
-                                ? 'rgba(255, 255, 255, 0.04)'
-                                : 'rgba(0, 0, 0, 0.03)',
+                                ? whiteAlpha(0.04)
+                                : blackAlpha(0.03),
                             border: `1px solid ${
-                              isCurrentlyRunning ? 'rgba(34, 197, 94, 0.3)' : palette.border
+                              isCurrentlyRunning ? SUCCESS_BORDER : palette.border
                             }`,
                           }}
                         >
@@ -683,8 +703,8 @@ export default function InstalledAppsSection({
                                 height: 16,
                                 fontSize: 9,
                                 fontWeight: 700,
-                                bgcolor: 'rgba(239, 68, 68, 0.1)',
-                                color: STATUS.error,
+                                bgcolor: ERROR_CHIP_BG,
+                                color: palette.statusError,
                                 '& .MuiChip-label': { px: 0.75 },
                               }}
                             />
@@ -699,7 +719,7 @@ export default function InstalledAppsSection({
                                 sx={{
                                   fontSize: 9,
                                   fontWeight: 500,
-                                  color: STATUS.error,
+                                  color: palette.statusError,
                                   fontFamily: 'monospace',
                                   letterSpacing: '0.2px',
                                   overflow: 'hidden',
@@ -719,7 +739,8 @@ export default function InstalledAppsSection({
                               <Typography
                                 sx={{
                                   fontSize: 9,
-                                  color: jobInfo.type === 'remove' ? STATUS.error : ACCENT.main,
+                                  color:
+                                    jobInfo.type === 'remove' ? palette.statusError : ACCENT.main,
                                   fontWeight: 500,
                                   fontFamily: 'monospace',
                                   letterSpacing: '0.2px',
@@ -764,12 +785,10 @@ export default function InstalledAppsSection({
                           height: 28,
                           display: isMenuOpen ? 'inline-flex' : 'none',
                           color: palette.textMuted,
-                          transition: 'color 0.15s ease, background-color 0.15s ease',
+                          transition: `color ${DURATION.fast}ms ${EASING.standard}, background-color ${DURATION.fast}ms ${EASING.standard}`,
                           '&:hover': {
                             color: palette.textSecondary,
-                            bgcolor: palette.isDark
-                              ? 'rgba(255, 255, 255, 0.08)'
-                              : 'rgba(0, 0, 0, 0.06)',
+                            bgcolor: palette.isDark ? whiteAlpha(0.08) : blackAlpha(0.06),
                           },
                         }}
                       >
@@ -807,8 +826,8 @@ export default function InstalledAppsSection({
                                     height: 32,
                                     color: ACCENT.main,
                                     border: `1px solid ${ACCENT.main}`,
-                                    borderRadius: '8px',
-                                    transition: 'all 0.2s ease',
+                                    borderRadius: `${RADIUS.md}px`,
+                                    transition: `all ${DURATION.base}ms ${EASING.standard}`,
                                     '&:hover': {
                                       bgcolor: accentAlpha(0.1),
                                     },
@@ -850,23 +869,23 @@ export default function InstalledAppsSection({
                               sx={{
                                 width: 32,
                                 height: 32,
-                                color: STATUS.error,
-                                border: `1px solid ${STATUS.error}`,
-                                borderRadius: '8px',
-                                transition: 'all 0.2s ease',
+                                color: palette.statusError,
+                                border: `1px solid ${palette.statusError}`,
+                                borderRadius: `${RADIUS.md}px`,
+                                transition: `all ${DURATION.base}ms ${EASING.standard}`,
                                 '&:disabled': {
-                                  color: STATUS.error,
-                                  borderColor: 'rgba(239, 68, 68, 0.5)',
+                                  color: palette.statusError,
+                                  borderColor: ERROR_STOP_DISABLED_BORDER,
                                   bgcolor: palette.isDark
-                                    ? 'rgba(239, 68, 68, 0.05)'
-                                    : 'rgba(239, 68, 68, 0.03)',
+                                    ? ERROR_STOP_DISABLED_BG_DARK
+                                    : ERROR_STOP_DISABLED_BG_LIGHT,
                                 },
                               }}
                             >
                               <CircularProgress
                                 size={14}
                                 thickness={5}
-                                sx={{ color: STATUS.error }}
+                                sx={{ color: palette.statusError }}
                               />
                             </IconButton>
                           </span>
@@ -883,12 +902,12 @@ export default function InstalledAppsSection({
                             sx={{
                               width: 32,
                               height: 32,
-                              color: STATUS.error,
-                              border: `1px solid ${STATUS.error}`,
-                              borderRadius: '8px',
-                              transition: 'all 0.2s ease',
+                              color: palette.statusError,
+                              border: `1px solid ${palette.statusError}`,
+                              borderRadius: `${RADIUS.md}px`,
+                              transition: `all ${DURATION.base}ms ${EASING.standard}`,
                               '&:hover': {
-                                bgcolor: 'rgba(239, 68, 68, 0.08)',
+                                bgcolor: ERROR_STOP_HOVER,
                               },
                               '&:disabled': {
                                 color: palette.textDisabled,
@@ -910,8 +929,8 @@ export default function InstalledAppsSection({
                                 height: 32,
                                 color: ACCENT.main,
                                 border: `1px solid ${ACCENT.main}`,
-                                borderRadius: '8px',
-                                transition: 'all 0.2s ease',
+                                borderRadius: `${RADIUS.md}px`,
+                                transition: `all ${DURATION.base}ms ${EASING.standard}`,
                                 '&:disabled': {
                                   color: ACCENT.main,
                                   borderColor: accentAlpha(0.5),
@@ -943,20 +962,18 @@ export default function InstalledAppsSection({
                             fontSize: 11,
                             fontWeight: 600,
                             textTransform: 'none',
-                            borderRadius: '8px',
+                            borderRadius: `${RADIUS.md}px`,
                             flexShrink: 0,
                             bgcolor: 'transparent',
                             color: ACCENT.main,
                             border: `1px solid ${ACCENT.main}`,
-                            transition: 'all 0.2s ease',
+                            transition: `all ${DURATION.base}ms ${EASING.standard}`,
                             '&:hover': {
                               bgcolor: accentAlpha(0.08),
                               borderColor: ACCENT.main,
                             },
                             '&:disabled': {
-                              bgcolor: palette.isDark
-                                ? 'rgba(255, 255, 255, 0.02)'
-                                : 'rgba(0, 0, 0, 0.02)',
+                              bgcolor: palette.isDark ? whiteAlpha(0.02) : blackAlpha(0.02),
                               color: palette.textDisabled,
                               borderColor: palette.border,
                             },
@@ -982,10 +999,8 @@ export default function InstalledAppsSection({
                   sx: {
                     bgcolor: palette.isDark ? '#1a1a1a' : '#fff',
                     border: `1px solid ${palette.border}`,
-                    borderRadius: '10px',
-                    boxShadow: palette.isDark
-                      ? `0 8px 24px ${blackAlpha(0.5)}`
-                      : `0 8px 24px ${blackAlpha(0.12)}`,
+                    borderRadius: `${RADIUS.lg}px`,
+                    boxShadow: palette.shadowMd,
                     minWidth: 180,
                     py: 0.5,
                   },
@@ -1018,9 +1033,7 @@ export default function InstalledAppsSection({
                         py: 1,
                         color: palette.textSecondary,
                         '&:hover': {
-                          bgcolor: palette.isDark
-                            ? 'rgba(255, 255, 255, 0.06)'
-                            : 'rgba(0, 0, 0, 0.04)',
+                          bgcolor: palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.04),
                         },
                       }}
                     >
@@ -1043,9 +1056,9 @@ export default function InstalledAppsSection({
                     sx={{
                       fontSize: 12,
                       py: 1,
-                      color: STATUS.error,
+                      color: palette.statusError,
                       '&:hover': {
-                        bgcolor: 'rgba(239, 68, 68, 0.06)',
+                        bgcolor: ERROR_CHIP_HOVER_BG,
                       },
                       '&.Mui-disabled': {
                         color: palette.textDisabled,
@@ -1054,9 +1067,9 @@ export default function InstalledAppsSection({
                   >
                     <ListItemIcon>
                       {isRemoving ? (
-                        <CircularProgress size={15} sx={{ color: STATUS.error }} />
+                        <CircularProgress size={15} sx={{ color: palette.statusError }} />
                       ) : (
-                        <DeleteOutlineIcon sx={{ fontSize: 15, color: STATUS.error }} />
+                        <DeleteOutlineIcon sx={{ fontSize: 15, color: palette.statusError }} />
                       )}
                     </ListItemIcon>
                     <ListItemText
@@ -1077,9 +1090,9 @@ export default function InstalledAppsSection({
                 gap: 1.5,
                 px: 2,
                 py: 1.5,
-                borderRadius: '12px',
+                borderRadius: `${RADIUS.xl}px`,
                 bgcolor: 'transparent',
-                border: `1px dashed ${palette.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'}`,
+                border: `1px dashed ${palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2)}`,
                 mt: 1,
               }}
             >
@@ -1093,20 +1106,16 @@ export default function InstalledAppsSection({
                   fontWeight: 500,
                   color: palette.textMuted,
                   textDecoration: 'underline',
-                  textDecorationColor: palette.isDark
-                    ? 'rgba(255, 255, 255, 0.2)'
-                    : 'rgba(0, 0, 0, 0.2)',
+                  textDecorationColor: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
                   textUnderlineOffset: '2px',
                   cursor: 'pointer',
                   bgcolor: 'transparent',
                   border: 'none',
                   p: 0,
-                  transition: 'color 0.2s ease, textDecorationColor 0.2s ease',
+                  transition: `color ${DURATION.base}ms ${EASING.standard}, textDecorationColor ${DURATION.base}ms ${EASING.standard}`,
                   '&:hover': {
                     color: palette.textSecondary,
-                    textDecorationColor: palette.isDark
-                      ? 'rgba(255, 255, 255, 0.3)'
-                      : 'rgba(0, 0, 0, 0.3)',
+                    textDecorationColor: palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3),
                   },
                 }}
               >

@@ -90,9 +90,9 @@ export interface RobotViewer3DProps {
 // Helpers
 // ============================================================================
 
-function resolveBackground(backgroundColor: string, darkMode: boolean): string {
+function resolveBackground(backgroundColor: string, isDark: boolean): string {
   if (backgroundColor === 'transparent') return 'transparent';
-  if (backgroundColor === '#e0e0e0') return darkMode ? '#1a1a1a' : '#e0e0e0';
+  if (backgroundColor === '#e0e0e0') return isDark ? '#1a1a1a' : '#e0e0e0';
   return backgroundColor;
 }
 
@@ -142,10 +142,9 @@ export default function RobotViewer3D({
   const isTransparent = initialMode === 'xray';
 
   const palette = useAppPalette();
-  const darkMode = palette.isDark;
   const isBusy = useAppStore(selectIsBusy);
 
-  const effectiveBackgroundColor = resolveBackground(backgroundColor, darkMode);
+  const effectiveBackgroundColor = resolveBackground(backgroundColor, palette.isDark);
   const canvasIsTransparent = effectiveBackgroundColor === 'transparent';
 
   const shouldConnectWebSocket = isActive || (forceLoad && headJoints !== null);
@@ -262,7 +261,7 @@ export default function RobotViewer3D({
           useCinematicCamera={useCinematicCamera}
           errorFocusMesh={errorFocusMesh}
           hideEffects={hideEffects}
-          darkMode={darkMode}
+          darkMode={palette.isDark}
           allowZeroPose={allowZeroPose}
           dataVersion={robotState.dataVersion}
         />
@@ -270,17 +269,17 @@ export default function RobotViewer3D({
 
       <LoadingSpinner
         visible={showSpinner}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         backgroundColor={canvasIsTransparent ? undefined : effectiveBackgroundColor}
       />
 
       {!hideControls && (
-        <SettingsButton onClick={openSettings} disabled={isBusy} darkMode={darkMode} />
+        <SettingsButton onClick={openSettings} disabled={isBusy} darkMode={palette.isDark} />
       )}
 
       {!hideControls && import.meta.env.DEV && (
         <Box sx={{ position: 'absolute', bottom: 50, left: 12, zIndex: 11 }}>
-          <FPSMeter darkMode={darkMode} />
+          <FPSMeter darkMode={palette.isDark} />
         </Box>
       )}
 
@@ -291,11 +290,15 @@ export default function RobotViewer3D({
           isMoving={isMoving}
           robotStatus={robotStatus}
           busyReason={busyReason}
-          darkMode={darkMode}
+          darkMode={palette.isDark}
         />
       )}
 
-      <SettingsOverlay open={showSettingsOverlay} onClose={closeSettings} darkMode={darkMode} />
+      <SettingsOverlay
+        open={showSettingsOverlay}
+        onClose={closeSettings}
+        darkMode={palette.isDark}
+      />
     </Box>
   );
 }

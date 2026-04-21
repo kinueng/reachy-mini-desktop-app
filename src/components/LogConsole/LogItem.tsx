@@ -2,8 +2,9 @@ import React, { useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { TEXT_SELECT_STYLES } from './constants';
 import { CATEGORY_META } from '../../utils/logging/constants';
+import { ACCENT, whiteAlpha, blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 import type { LogEntry, LogMode, LogCategory } from '../../types/store';
-import { ACCENT } from '@styles/tokens';
 
 const WRAP_STYLES = {
   whiteSpace: 'pre-wrap',
@@ -11,10 +12,6 @@ const WRAP_STYLES = {
   minWidth: 0,
 } as const;
 
-// TODO(style-migration): these semantic level colours (error / warning /
-// success / default body text) need dedicated palette tokens. Until then,
-// keep the explicit dark / light hex pairs here and branch on the palette's
-// `isDark` flag upstream.
 const getLogColor = (log: LogEntry, isDark: boolean): string => {
   const { level, category } = log;
   const msg = log.message || '';
@@ -29,6 +26,8 @@ const getLogColor = (log: LogEntry, isDark: boolean): string => {
     (level as string) === 'warning' || msg.includes('WARNING') || msg.includes('[WARNING]');
   const isSuccess = (level as string) === 'success' || msg.includes('✓');
 
+  // TODO(style-migration): severity text colors here use log-console-specific
+  // shades that don't match STATUS tokens; keep the isDark branches.
   if (isError) return isDark ? '#ff5555' : '#cc0000';
   if (isWarning) return isDark ? '#fbbf24' : '#d97706';
   if (isSuccess) return isDark ? '#55ff55' : '#00aa00';
@@ -43,12 +42,8 @@ export interface LogItemProps {
   log: LogEntry | null | undefined;
   index: number;
   totalCount: number;
-  /**
-   * The resolved dark-mode flag from the palette. Kept as a prop instead of
-   * re-reading `useAppPalette` inside this hot render path so the virtualized
-   * list only reads the store once in the parent.
-   */
-  isDark: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   fontSize: number;
   compact: boolean;
   showTimestamp: boolean;
@@ -65,13 +60,14 @@ export const LogItem = React.memo(
     log,
     index,
     totalCount,
-    isDark,
     fontSize,
     compact,
     showTimestamp,
     simpleStyle,
     logMode,
   }: LogItemProps) => {
+    const palette = useAppPalette();
+    const isDark = palette.isDark;
     const itemSpacing = compact ? 1.6 : 2.4;
 
     const memoizedValues = useMemo(() => {
@@ -88,13 +84,12 @@ export const LogItem = React.memo(
 
     const { displayMessage, color } = memoizedValues;
 
-    // TODO(style-migration): these body / timestamp text colours are specific
-    // enough that we keep them as explicit hex / rgba branches on `isDark`
-    // rather than forcing a semantic token today.
-    const simpleBodyColor = isDark ? '#d1d5db' : '#666';
-    const devBodyColor = isDark ? '#d1d5db' : '#555';
-    const simpleTimestampColor = isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)';
-    const devTimestampColor = isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)';
+    // TODO(style-migration): message text shades (#d1d5db/#666 and #d1d5db/#555)
+    // are specific to log rendering and don't map cleanly to palette.text*.
+    const simpleMessageColor = isDark ? '#d1d5db' : '#666';
+    const devMessageColor = isDark ? '#d1d5db' : '#555';
+    const simpleTimestampColor = isDark ? whiteAlpha(0.35) : blackAlpha(0.35);
+    const devTimestampColor = isDark ? whiteAlpha(0.5) : blackAlpha(0.5);
 
     // Simple style (inline in small console, minimal)
     if (simpleStyle) {
@@ -121,7 +116,7 @@ export const LogItem = React.memo(
             sx={{
               fontSize,
               fontFamily: 'monospace',
-              color: simpleBodyColor,
+              color: simpleMessageColor,
               lineHeight: 1.6,
               flex: 1,
               ...WRAP_STYLES,
@@ -159,7 +154,7 @@ export const LogItem = React.memo(
             sx={{
               fontSize,
               fontFamily: 'inherit',
-              color: devBodyColor,
+              color: devMessageColor,
               lineHeight: 1.6,
               flex: 1,
               ...WRAP_STYLES,

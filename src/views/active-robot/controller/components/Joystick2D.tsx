@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { telemetry } from '../../../../utils/telemetry';
-import { ACCENT, accentAlpha } from '@styles/tokens';
+import { ACCENT, DURATION, EASING, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 interface Joystick2DProps {
@@ -40,8 +40,6 @@ const Joystick2D = memo(function Joystick2D({
   labelAlign = 'left',
 }: Joystick2DProps): React.ReactElement {
   const palette = useAppPalette();
-  // TODO(style-migration): finish migrating remaining darkMode ternaries.
-  const darkMode = palette.isDark;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [localStickX, setLocalStickX] = useState<number>(size / 2);
@@ -235,7 +233,7 @@ const Joystick2D = memo(function Joystick2D({
           sx={{
             fontSize: 10,
             fontWeight: 700,
-            color: darkMode ? '#f5f5f5' : '#333',
+            color: palette.textPrimary,
             letterSpacing: '-0.2px',
           }}
         >
@@ -246,7 +244,7 @@ const Joystick2D = memo(function Joystick2D({
             fontSize: 9,
             fontFamily: 'monospace',
             fontWeight: 500,
-            color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+            color: palette.textFaint,
             letterSpacing: '0.02em',
           }}
         >
@@ -259,13 +257,13 @@ const Joystick2D = memo(function Joystick2D({
           width: size,
           height: size,
           overflow: 'hidden',
-          border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+          border: `1px solid ${palette.border}`,
           borderRadius: '10px',
           cursor: disabled ? 'not-allowed' : isDragging ? 'grabbing' : 'grab',
           opacity: disabled ? 0.5 : 1,
           position: 'relative',
           userSelect: 'none',
-          transition: 'all 0.2s ease',
+          transition: `all ${DURATION.base}ms ${EASING.standard}`,
           '&:hover': {
             borderColor: accentAlpha(0.5),
           },
@@ -282,7 +280,7 @@ const Joystick2D = memo(function Joystick2D({
               <path
                 d="M 10 0 L 0 0 0 10"
                 fill="none"
-                stroke={darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'}
+                stroke={palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.06)}
                 strokeWidth="0.5"
               />
             </pattern>
@@ -357,7 +355,8 @@ const Joystick2D = memo(function Joystick2D({
             cy={localStickY}
             r={stickRadius}
             fill={ACCENT.main}
-            stroke={darkMode ? 'rgba(26, 26, 26, 0.8)' : '#fff'}
+            // TODO(style-migration): stick outline uses custom dark tone (#1a1a1a @ 0.8) and pure white; no palette equivalent.
+            stroke={palette.isDark ? 'rgba(26, 26, 26, 0.8)' : '#fff'}
             strokeWidth={2}
           />
         </svg>

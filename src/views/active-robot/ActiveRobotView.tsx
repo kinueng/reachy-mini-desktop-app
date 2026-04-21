@@ -67,6 +67,8 @@ import useAppStore from '../../store/useAppStore';
 import type { FullAppState } from '../../store/useStore';
 import type { DaemonLogSource } from '../../hooks/useDaemonLogStream';
 import { useShallow } from 'zustand/react/shallow';
+import { whiteAlpha, blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface ActiveRobotViewProps {
   isActive: boolean;
@@ -99,12 +101,12 @@ function ActiveRobotView({
   daemonVersion,
   usbPortName: _usbPortName,
 }: ActiveRobotViewProps): React.ReactElement {
+  const palette = useAppPalette();
   // Get dependencies from context
   const { robotState, actions } = useActiveRobotContext();
 
   // Extract state from context
   const {
-    darkMode,
     isDaemonCrashed,
     robotStatus,
     busyReason,
@@ -373,7 +375,8 @@ function ActiveRobotView({
         sx={{
           width: '100vw',
           height: '100vh',
-          background: darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(250, 250, 252, 0.85)',
+          // TODO(style-migration): root viewport scrim uses 0.95/0.85 alpha; palette.surfaceBg is opaque/translucent differently.
+          background: palette.isDark ? 'rgba(26, 26, 26, 0.95)' : 'rgba(250, 250, 252, 0.85)',
           backdropFilter: 'blur(40px)',
           WebkitBackdropFilter: 'blur(40px)',
           overflow: 'hidden',
@@ -384,7 +387,7 @@ function ActiveRobotView({
         <FullscreenOverlay
           open={isDaemonCrashed}
           onClose={() => {}}
-          darkMode={darkMode}
+          darkMode={palette.isDark}
           zIndex={9999}
           backdropBlur={20}
         >
@@ -405,7 +408,7 @@ function ActiveRobotView({
                 height: 180,
                 mx: 'auto',
                 mb: 3,
-                opacity: darkMode ? 0.9 : 1,
+                opacity: palette.isDark ? 0.9 : 1,
               }}
             />
 
@@ -414,7 +417,7 @@ function ActiveRobotView({
               sx={{
                 fontSize: 18,
                 fontWeight: 700,
-                color: darkMode ? '#f5f5f5' : '#1a1a1a',
+                color: palette.textPrimary,
                 mb: 1,
                 letterSpacing: '0.2px',
               }}
@@ -426,7 +429,7 @@ function ActiveRobotView({
             <Typography
               sx={{
                 fontSize: 12,
-                color: darkMode ? '#999' : '#666',
+                color: palette.textMuted,
                 mb: 3.5,
                 lineHeight: 1.6,
               }}
@@ -463,7 +466,8 @@ function ActiveRobotView({
               left: 0,
               right: 0,
               bottom: 0,
-              bgcolor: darkMode ? 'rgba(26, 26, 26, 0.98)' : 'rgba(250, 250, 252, 0.98)',
+              // TODO(style-migration): loading scrim uses 0.98 alpha; palette.surfaceBg has a different opacity.
+              bgcolor: palette.isDark ? 'rgba(26, 26, 26, 0.98)' : 'rgba(250, 250, 252, 0.98)',
               backdropFilter: 'blur(20px)',
               zIndex: 9998,
               display: 'flex',
@@ -477,14 +481,15 @@ function ActiveRobotView({
               size={32}
               thickness={3}
               sx={{
-                color: darkMode ? '#fff' : '#1a1a1a',
+                // TODO(style-migration): loading spinner uses pure #fff/#1a1a1a; no direct palette token.
+                color: palette.isDark ? '#fff' : '#1a1a1a',
                 opacity: 0.7,
               }}
             />
             <Typography
               sx={{
                 fontSize: 13,
-                color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)',
+                color: palette.textMuted,
                 fontWeight: 500,
                 letterSpacing: '0.3px',
               }}
@@ -520,11 +525,12 @@ function ActiveRobotView({
               position: 'relative',
               zIndex: 1,
               height: '100%',
-              bgcolor: darkMode ? 'rgba(20, 20, 20, 0.6)' : 'rgba(245, 245, 247, 0.7)',
-              borderRight: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`,
-              boxShadow: darkMode
-                ? '2px 0 8px -2px rgba(0, 0, 0, 0.3)'
-                : '2px 0 8px -2px rgba(0, 0, 0, 0.1)',
+              // TODO(style-migration): left-column scrim uses 0.6/0.7 alpha; no direct palette surface token match.
+              bgcolor: palette.isDark ? 'rgba(20, 20, 20, 0.6)' : 'rgba(245, 245, 247, 0.7)',
+              borderRight: `1px solid ${palette.border}`,
+              boxShadow: palette.isDark
+                ? `2px 0 8px -2px ${blackAlpha(0.3)}`
+                : `2px 0 8px -2px ${blackAlpha(0.1)}`,
               '&::-webkit-scrollbar': {
                 width: '6px',
               },
@@ -532,11 +538,11 @@ function ActiveRobotView({
                 background: 'transparent',
               },
               '&::-webkit-scrollbar-thumb': {
-                background: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                background: palette.isDark ? whiteAlpha(0.1) : blackAlpha(0.1),
                 borderRadius: '3px',
               },
               '&:hover::-webkit-scrollbar-thumb': {
-                background: darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)',
+                background: palette.isDark ? whiteAlpha(0.15) : blackAlpha(0.15),
               },
             }}
           >
@@ -568,16 +574,11 @@ function ActiveRobotView({
               />
 
               {/* Power Button - top left corner (sleep + disable motors + kill daemon) */}
-              <PowerButton
-                onStopDaemon={stopDaemon}
-                isStopping={isStopping}
-                isBusy={isBusyState}
-                darkMode={darkMode}
-              />
+              <PowerButton onStopDaemon={stopDaemon} isStopping={isStopping} isBusy={isBusyState} />
             </Box>
 
             {/* Robot Header - Title, version, status, mode */}
-            <RobotHeader daemonVersion={daemonVersion} darkMode={darkMode} />
+            <RobotHeader daemonVersion={daemonVersion} />
 
             {/* Audio Controls - Stable wrapper to ensure correct sizing */}
             <Box sx={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
@@ -593,7 +594,6 @@ function ActiveRobotView({
                 onMicrophoneVolumeChange={handleMicrophoneVolumeChange}
                 onSpeakerMute={handleSpeakerMute}
                 onMicrophoneMute={handleMicrophoneMute}
-                darkMode={darkMode}
                 disabled={isBusyState && !isAppRunning}
                 isSleeping={false}
               />
@@ -615,7 +615,7 @@ function ActiveRobotView({
               >
                 <LogConsole
                   logs={logs}
-                  darkMode={darkMode}
+                  darkMode={palette.isDark}
                   maxHeight={120}
                   compact={true}
                   onExpand={() => setLogsFullscreenOpen(true)}
@@ -649,7 +649,6 @@ function ActiveRobotView({
               isReady={isReadyState}
               isActive={isActive}
               isBusy={isBusyState}
-              darkMode={darkMode}
             />
           </Box>
         </Box>
@@ -658,7 +657,7 @@ function ActiveRobotView({
         <FullscreenOverlay
           open={logsFullscreenOpen}
           onClose={() => setLogsFullscreenOpen(false)}
-          darkMode={darkMode}
+          darkMode={palette.isDark}
           debugName="LogsFullscreen"
           showCloseButton={true}
           centeredY={false}
@@ -678,7 +677,7 @@ function ActiveRobotView({
               }}
             >
               <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-                <LogConsole logs={logs} darkMode={darkMode} height="100%" fullSize={true} />
+                <LogConsole logs={logs} darkMode={palette.isDark} height="100%" fullSize={true} />
               </Box>
             </Box>
           )}

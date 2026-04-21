@@ -39,8 +39,6 @@ export default function UpdateView({
 }: UpdateViewProps) {
   const palette = useAppPalette();
   const isDark = palette.isDark;
-  // TODO(style-migration): finish migrating remaining darkMode ternaries in this file.
-  const darkMode = palette.isDark;
   const { skipUpdate } = useAppStore();
   const [minDisplayTimeElapsed, setMinDisplayTimeElapsed] = useState<boolean>(false);
   const checkStartTimeRef = useRef<number>(Date.now());

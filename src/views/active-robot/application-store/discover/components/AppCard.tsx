@@ -7,14 +7,17 @@ import VerifiedIcon from '@mui/icons-material/Verified';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import { ACCENT, STATUS, accentAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
 import { useActiveRobotContext } from '../../../context';
-
-// TODO(style-migration): `#8b5cf6` (private purple) and `#6366f1` (web indigo)
-// have no palette tokens yet. Keep literals here until tokens are introduced.
-const PRIVATE_COLOR = '#8b5cf6';
-const WEB_COLOR = '#6366f1';
+import {
+  ACCENT,
+  DURATION,
+  EASING,
+  RADIUS,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface AppLike {
   name: string;
@@ -51,6 +54,19 @@ interface AppCardProps {
   searchQuery?: string;
   index?: number;
 }
+
+// TODO(style-migration): purple/indigo/blue accents are not in the palette yet.
+const PRIVATE_COLOR = '#8b5cf6';
+const PRIVATE_BG_DARK = 'rgba(139, 92, 246, 0.15)';
+const PRIVATE_BG_LIGHT = 'rgba(139, 92, 246, 0.1)';
+const WEB_COLOR = '#6366f1';
+const WEB_BG_DARK = 'rgba(99, 102, 241, 0.15)';
+const WEB_BG_LIGHT = 'rgba(99, 102, 241, 0.1)';
+const WEB_HOVER_BG = 'rgba(99, 102, 241, 0.08)';
+const OFFICIAL_AVATAR_BG = 'rgba(59, 130, 246, 0.15)';
+const ERROR_BORDER = 'rgba(239, 68, 68, 0.4)';
+const ERROR_BORDER_HOVER = 'rgba(239, 68, 68, 0.6)';
+const ERROR_HOVER_BG = 'rgba(239, 68, 68, 0.08)';
 
 function AppCard({
   app,
@@ -89,26 +105,26 @@ function AppCard({
         width: 'calc((100% - 20px) / 2)',
         minWidth: 0,
         flexShrink: 0,
-        borderRadius: '16px',
+        borderRadius: `${RADIUS.xxl}px`,
         position: 'relative',
         overflow: 'hidden',
         bgcolor: palette.isDark ? '#1a1a1a' : '#ffffff',
         border: installFailed
-          ? '1px solid rgba(239, 68, 68, 0.4)'
+          ? `1px solid ${ERROR_BORDER}`
           : isInstalling
             ? `1px solid ${accentAlpha(0.4)}`
-            : `1px solid ${palette.isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
+            : `1px solid ${palette.borderStrong}`,
         cursor: 'pointer',
-        transition: 'transform 0.2s ease, border-color 0.2s ease',
+        transition: `transform ${DURATION.base}ms ${EASING.standard}, border-color ${DURATION.base}ms ${EASING.standard}`,
         '&:hover': {
           transform: 'translateY(-2px)',
           borderColor: installFailed
-            ? 'rgba(239, 68, 68, 0.6)'
+            ? ERROR_BORDER_HOVER
             : isInstalling
               ? accentAlpha(0.6)
               : palette.isDark
-                ? 'rgba(255, 255, 255, 0.18)'
-                : 'rgba(0, 0, 0, 0.18)',
+                ? whiteAlpha(0.18)
+                : blackAlpha(0.18),
         },
       }}
       onClick={
@@ -145,10 +161,10 @@ function AppCard({
                     width: 20,
                     height: 20,
                     bgcolor: isOfficial
-                      ? 'rgba(59, 130, 246, 0.15)'
+                      ? OFFICIAL_AVATAR_BG
                       : palette.isDark
-                        ? 'rgba(255, 255, 255, 0.1)'
-                        : 'rgba(0, 0, 0, 0.08)',
+                        ? whiteAlpha(0.1)
+                        : blackAlpha(0.08),
                     fontSize: 10,
                     fontWeight: 600,
                     color: isOfficial ? ACCENT.main : palette.textPrimary,
@@ -195,7 +211,7 @@ function AppCard({
                 label="Private"
                 size="small"
                 sx={{
-                  bgcolor: palette.isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)',
+                  bgcolor: palette.isDark ? PRIVATE_BG_DARK : PRIVATE_BG_LIGHT,
                   color: PRIVATE_COLOR,
                   fontWeight: 600,
                   fontSize: 9,
@@ -211,7 +227,7 @@ function AppCard({
                 label="Web"
                 size="small"
                 sx={{
-                  bgcolor: palette.isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+                  bgcolor: palette.isDark ? WEB_BG_DARK : WEB_BG_LIGHT,
                   color: WEB_COLOR,
                   fontWeight: 600,
                   fontSize: 9,
@@ -369,36 +385,34 @@ function AppCard({
               fontSize: 12,
               fontWeight: 600,
               textTransform: 'none',
-              borderRadius: '10px',
+              borderRadius: `${RADIUS.lg}px`,
               bgcolor: 'transparent',
               color: isInstalled
-                ? palette.isDark
-                  ? 'rgba(255, 255, 255, 0.5)'
-                  : 'rgba(0, 0, 0, 0.5)'
+                ? palette.textMuted
                 : installFailed
-                  ? STATUS.error
+                  ? palette.statusError
                   : ACCENT.main,
               border: isInstalled
                 ? `1px solid ${palette.borderStrong}`
                 : installFailed
-                  ? `1px solid ${STATUS.error}`
+                  ? `1px solid ${palette.statusError}`
                   : `1px solid ${ACCENT.main}`,
-              transition: 'all 0.2s ease',
+              transition: `all ${DURATION.base}ms ${EASING.standard}`,
               '&:hover': {
                 bgcolor: isInstalled
                   ? 'transparent'
                   : installFailed
-                    ? 'rgba(239, 68, 68, 0.08)'
+                    ? ERROR_HOVER_BG
                     : accentAlpha(0.08),
                 borderColor: isInstalled
                   ? palette.borderStrong
                   : installFailed
-                    ? STATUS.error
+                    ? palette.statusError
                     : ACCENT.main,
               },
               '&:disabled': {
                 bgcolor: 'transparent',
-                color: palette.textFaint,
+                color: palette.textDisabled,
                 borderColor: palette.border,
               },
             }}
@@ -431,13 +445,13 @@ function AppCard({
               fontSize: 12,
               fontWeight: 600,
               textTransform: 'none',
-              borderRadius: '10px',
+              borderRadius: `${RADIUS.lg}px`,
               bgcolor: 'transparent',
               color: WEB_COLOR,
               border: `1px solid ${WEB_COLOR}`,
-              transition: 'all 0.2s ease',
+              transition: `all ${DURATION.base}ms ${EASING.standard}`,
               '&:hover': {
-                bgcolor: 'rgba(99, 102, 241, 0.08)',
+                bgcolor: WEB_HOVER_BG,
                 borderColor: WEB_COLOR,
               },
             }}

@@ -121,7 +121,7 @@ function Scene({
   allowZeroPose,
   dataVersion = 0,
 }: SceneProps): React.ReactElement {
-  const { isDark: darkMode } = useAppPalette();
+  const { isDark } = useAppPalette();
   const [outlineMeshes, setOutlineMeshes] = useState<THREE.Mesh[]>([]);
   const [robotRef, setRobotRef] = useState<URDFLinkedObject | null>(null);
 
@@ -149,22 +149,22 @@ function Scene({
     lastHasPassiveJointsRef.current = hasPassiveJoints;
   }, [headJoints, passiveJoints, headPose]);
 
-  const xrayOpacity = darkMode ? XRAY_OPACITY_DARK : XRAY_OPACITY_LIGHT;
-  const fogColor = darkMode ? FOG_COLOR_DARK : FOG_COLOR_LIGHT;
+  const xrayOpacity = isDark ? XRAY_OPACITY_DARK : XRAY_OPACITY_LIGHT;
+  const fogColor = isDark ? FOG_COLOR_DARK : FOG_COLOR_LIGHT;
 
   const gridHelper = useMemo(() => {
-    const palette = darkMode ? GRID_COLORS.dark : GRID_COLORS.light;
-    const grid = new THREE.GridHelper(2, 20, palette.major, palette.minor);
+    const gridColors = isDark ? GRID_COLORS.dark : GRID_COLORS.light;
+    const grid = new THREE.GridHelper(2, 20, gridColors.major, gridColors.minor);
     const gridMat = grid.material as THREE.Material & {
       opacity: number;
       transparent: boolean;
       fog: boolean;
     };
-    gridMat.opacity = palette.opacity;
+    gridMat.opacity = gridColors.opacity;
     gridMat.transparent = true;
     gridMat.fog = true;
     return grid;
-  }, [darkMode]);
+  }, [isDark]);
 
   const errorMeshes = useMemo(
     () => findErrorMeshes(errorFocusMesh, robotRef, outlineMeshes),

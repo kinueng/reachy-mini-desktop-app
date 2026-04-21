@@ -1,8 +1,8 @@
 import React, { useMemo, memo, useRef } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
-import { telemetry } from '../../../../utils/telemetry';
-import { ACCENT, accentAlpha } from '@styles/tokens';
+import { ACCENT, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
+import { telemetry } from '../../../../utils/telemetry';
 
 interface SimpleSliderProps {
   label: string;
@@ -32,8 +32,6 @@ const SimpleSlider = memo(function SimpleSlider({
   smoothedValue,
 }: SimpleSliderProps): React.ReactElement {
   const palette = useAppPalette();
-  // TODO(style-migration): finish migrating remaining darkMode ternaries.
-  const darkMode = palette.isDark;
   const hasTrackedUsageRef = useRef<boolean>(false);
 
   const displayValue =
@@ -91,6 +89,11 @@ const SimpleSlider = memo(function SimpleSlider({
     };
   }, [value, min, max, showRollVisualization]);
 
+  const trackBgStroke = palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.04);
+  const trackBgStrokeMid = palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.06);
+  const trackBgStrokeHalo = palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05);
+  const progressStroke = palette.isDark ? whiteAlpha(0.5) : blackAlpha(0.5);
+
   return (
     <Box
       sx={{
@@ -120,7 +123,7 @@ const SimpleSlider = memo(function SimpleSlider({
             sx={{
               fontSize: 10,
               fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              color: palette.textPrimary,
               letterSpacing: '-0.2px',
             }}
           >
@@ -131,7 +134,7 @@ const SimpleSlider = memo(function SimpleSlider({
               fontSize: 9,
               fontFamily: 'monospace',
               fontWeight: 500,
-              color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+              color: palette.textFaint,
               letterSpacing: '0.02em',
             }}
           >
@@ -145,7 +148,7 @@ const SimpleSlider = memo(function SimpleSlider({
             sx={{
               fontSize: 10,
               fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              color: palette.textPrimary,
               letterSpacing: '-0.2px',
             }}
           >
@@ -156,7 +159,7 @@ const SimpleSlider = memo(function SimpleSlider({
               fontSize: 9,
               fontFamily: 'monospace',
               fontWeight: 500,
-              color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+              color: palette.textFaint,
               letterSpacing: '0.02em',
             }}
           >
@@ -215,7 +218,7 @@ const SimpleSlider = memo(function SimpleSlider({
               <path
                 d={`M ${rollVisualization.startX} ${rollVisualization.startY} Q ${rollVisualization.controlX} ${rollVisualization.controlY} ${rollVisualization.endX} ${rollVisualization.endY}`}
                 fill="none"
-                stroke={darkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)'}
+                stroke={trackBgStroke}
                 strokeWidth={rollVisualization.strokeWidth}
                 strokeLinecap="round"
                 style={{
@@ -226,7 +229,7 @@ const SimpleSlider = memo(function SimpleSlider({
               <path
                 d={`M ${rollVisualization.startX} ${rollVisualization.startY} Q ${rollVisualization.controlX} ${rollVisualization.controlY} ${rollVisualization.endX} ${rollVisualization.endY}`}
                 fill="none"
-                stroke={darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'}
+                stroke={trackBgStrokeMid}
                 strokeWidth={rollVisualization.strokeWidth}
                 strokeLinecap="round"
               />
@@ -234,7 +237,7 @@ const SimpleSlider = memo(function SimpleSlider({
               <path
                 d={`M ${rollVisualization.startX} ${rollVisualization.startY - rollVisualization.strokeWidth / 2 - 0.5} Q ${rollVisualization.controlX} ${rollVisualization.controlY - rollVisualization.strokeWidth / 2 - 0.5} ${rollVisualization.endX} ${rollVisualization.endY - rollVisualization.strokeWidth / 2 - 0.5}`}
                 fill="none"
-                stroke={darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}
+                stroke={trackBgStrokeHalo}
                 strokeWidth={1}
                 strokeLinecap="round"
               />
@@ -242,7 +245,7 @@ const SimpleSlider = memo(function SimpleSlider({
               <path
                 d={`M ${rollVisualization.startX} ${rollVisualization.startY} Q ${rollVisualization.controlX} ${rollVisualization.controlY} ${rollVisualization.endX} ${rollVisualization.endY}`}
                 fill="none"
-                stroke={darkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)'}
+                stroke={progressStroke}
                 strokeWidth={rollVisualization.innerStrokeWidth}
                 strokeLinecap="round"
                 strokeDasharray={rollVisualization.approximateLength}
@@ -308,7 +311,7 @@ const SimpleSlider = memo(function SimpleSlider({
               },
               '& .MuiSlider-rail': {
                 height: 3,
-                opacity: darkMode ? 0.2 : 0.3,
+                opacity: palette.isDark ? 0.2 : 0.3,
               },
             }}
           />

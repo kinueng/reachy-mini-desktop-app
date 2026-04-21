@@ -15,6 +15,8 @@ import { Modal as DiscoverModal } from '../../application-store/discover';
 import { CreateAppTutorial as CreateAppTutorialModal } from '../../application-store/modals';
 import { Overlay as InstallOverlay } from '../../application-store/installation';
 import type { ToastSeverity } from '../../../../types/store';
+import { DURATION, EASING, whiteAlpha, blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface HfUserInfo {
   username: string;
@@ -27,6 +29,7 @@ export interface ApplicationsSectionProps {
   hasQuickActions?: boolean | unknown;
   isActive?: boolean;
   isBusy?: boolean;
+  /** @deprecated Theme is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   hfUser?: HfUserInfo | null;
   onLogout?: (() => void) | null;
@@ -40,17 +43,15 @@ export default function ApplicationsSection({
   showToast,
   onLoadingChange,
   hasQuickActions = false,
-  isActive = false,
-  isBusy = false,
-  darkMode = false,
+  isActive,
+  isBusy,
   hfUser = null,
   onLogout = null,
 }: ApplicationsSectionProps): React.ReactElement {
+  const palette = useAppPalette();
   const { robotState, actions } = useActiveRobotContext();
 
-  // Get values from context with prop fallbacks
   const {
-    darkMode: contextDarkMode,
     isActive: contextIsActive,
     installingAppName,
     installJobType,
@@ -58,9 +59,11 @@ export default function ApplicationsSection({
     installStartTime,
   } = robotState;
 
-  const effectiveDarkMode = darkMode !== undefined ? darkMode : contextDarkMode;
   const effectiveIsActive = isActive !== undefined ? isActive : contextIsActive;
   const effectiveIsBusy = isBusy !== undefined ? isBusy : actions.isBusy();
+  // Downstream components that still accept a `darkMode` prop live outside this
+  // migration scope. Mirror `palette.isDark` to them until they are migrated.
+  const downstreamDarkMode = palette.isDark;
 
   // State
   const [officialOnly, setOfficialOnly] = useState<boolean>(false);
@@ -234,6 +237,13 @@ export default function ApplicationsSection({
     privateOnly
   );
 
+  // TODO(style-migration): avatar fallback bg and user badge shades don't have dedicated palette tokens yet.
+  const avatarFallbackBg = palette.isDark ? '#444' : '#ddd';
+  const userBadgeBg = palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.03);
+  const userBadgeBgHover = palette.isDark ? whiteAlpha(0.07) : blackAlpha(0.05);
+  const userBadgeBorder = palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.06);
+  const logoutHoverBg = palette.isDark ? whiteAlpha(0.08) : blackAlpha(0.06);
+
   return (
     <>
       <Box>
@@ -251,7 +261,7 @@ export default function ApplicationsSection({
                 sx={{
                   fontSize: 20,
                   fontWeight: 700,
-                  color: effectiveDarkMode ? '#f5f5f5' : '#333',
+                  color: palette.textPrimary,
                   letterSpacing: '-0.3px',
                 }}
               >
@@ -262,7 +272,7 @@ export default function ApplicationsSection({
                   sx={{
                     fontSize: 11,
                     fontWeight: 700,
-                    color: effectiveDarkMode ? '#666' : '#999',
+                    color: palette.textMuted,
                   }}
                 >
                   {installedApps.length}
@@ -276,14 +286,14 @@ export default function ApplicationsSection({
                 <InfoOutlinedIcon
                   sx={{
                     fontSize: 14,
-                    color: effectiveDarkMode ? '#666' : '#999',
+                    color: palette.textMuted,
                     opacity: 0.6,
                     cursor: 'help',
                   }}
                 />
               </Tooltip>
 
-              {/* HF User Badge — pushed to the right */}
+              {/* HF User Badge - pushed to the right */}
               {hfUser && (
                 <Box
                   sx={{
@@ -295,15 +305,11 @@ export default function ApplicationsSection({
                     pl: 0.75,
                     pr: 0.25,
                     borderRadius: '20px',
-                    bgcolor: effectiveDarkMode
-                      ? 'rgba(255, 255, 255, 0.04)'
-                      : 'rgba(0, 0, 0, 0.03)',
-                    border: `1px solid ${effectiveDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'}`,
-                    transition: 'background 0.15s ease',
+                    bgcolor: userBadgeBg,
+                    border: `1px solid ${userBadgeBorder}`,
+                    transition: `background ${DURATION.fast}ms ${EASING.standard}`,
                     '&:hover': {
-                      bgcolor: effectiveDarkMode
-                        ? 'rgba(255, 255, 255, 0.07)'
-                        : 'rgba(0, 0, 0, 0.05)',
+                      bgcolor: userBadgeBgHover,
                     },
                   }}
                 >
@@ -314,7 +320,7 @@ export default function ApplicationsSection({
                       width: 20,
                       height: 20,
                       fontSize: 11,
-                      bgcolor: effectiveDarkMode ? '#444' : '#ddd',
+                      bgcolor: avatarFallbackBg,
                     }}
                   >
                     {hfUser.username?.[0]?.toUpperCase() || '?'}
@@ -323,7 +329,7 @@ export default function ApplicationsSection({
                     sx={{
                       fontSize: 11,
                       fontWeight: 600,
-                      color: effectiveDarkMode ? '#ccc' : '#555',
+                      color: palette.textSecondary,
                       maxWidth: 90,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -340,12 +346,10 @@ export default function ApplicationsSection({
                         sx={{
                           width: 20,
                           height: 20,
-                          color: effectiveDarkMode ? '#666' : '#aaa',
+                          color: palette.textMuted,
                           '&:hover': {
-                            color: effectiveDarkMode ? '#bbb' : '#666',
-                            bgcolor: effectiveDarkMode
-                              ? 'rgba(255, 255, 255, 0.08)'
-                              : 'rgba(0, 0, 0, 0.06)',
+                            color: palette.textSecondary,
+                            bgcolor: logoutHoverBg,
                           },
                         }}
                       >
@@ -359,7 +363,7 @@ export default function ApplicationsSection({
             <Typography
               sx={{
                 fontSize: 12,
-                color: effectiveDarkMode ? '#888' : '#999',
+                color: palette.textMuted,
                 fontWeight: 500,
               }}
             >
@@ -371,7 +375,7 @@ export default function ApplicationsSection({
           <InstalledAppsSection
             /* TODO(ts): `InstalledAppsSection` (outside scope) expects canonical `InstalledApp[]`; local shape is broader. */
             installedApps={installedApps as never}
-            darkMode={effectiveDarkMode}
+            darkMode={downstreamDarkMode}
             expandedApp={expandedApp}
             setExpandedApp={setExpandedApp}
             startingApp={startingApp}
@@ -400,7 +404,7 @@ export default function ApplicationsSection({
         hidden={!!(installingAppName && installingApp)}
         /* TODO(ts): `DiscoverModal` and `useAppFiltering` re-define `AppLike` with incompatible shapes outside this agent's scope. */
         filteredApps={filteredApps as never}
-        darkMode={effectiveDarkMode}
+        darkMode={downstreamDarkMode}
         isBusy={effectiveIsBusy}
         isLoading={isLoading}
         error={appsError}
@@ -426,7 +430,7 @@ export default function ApplicationsSection({
       <CreateAppTutorialModal
         open={createAppTutorialModalOpen}
         onClose={closeModal}
-        darkMode={effectiveDarkMode}
+        darkMode={downstreamDarkMode}
       />
 
       {installingAppName && installingApp && (
@@ -436,7 +440,7 @@ export default function ApplicationsSection({
           jobInfo={
             installingJob || { type: installJobType || 'install', status: 'starting', logs: [] }
           }
-          darkMode={effectiveDarkMode}
+          darkMode={downstreamDarkMode}
           jobType={installJobType || 'install'}
           /* TODO(ts): `installResult` uses `'error' | 'success' | null` in `types/store.ts` while `InstallOverlay` (outside scope) expects `'failed' | 'success'`. */
           resultState={

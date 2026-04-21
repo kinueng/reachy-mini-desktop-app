@@ -123,7 +123,7 @@ export default function ControllerSection({
             sx={{
               color: ACCENT.main,
               '&:hover': {
-                bgcolor: palette.isDark ? accentAlpha(0.1) : accentAlpha(0.05),
+                bgcolor: accentAlpha(palette.isDark ? 0.1 : 0.05),
               },
             }}
           >
@@ -197,7 +197,7 @@ export default function ControllerSection({
                   color: palette.textMuted,
                   '&:hover': {
                     color: ACCENT.main,
-                    bgcolor: palette.isDark ? accentAlpha(0.1) : accentAlpha(0.05),
+                    bgcolor: accentAlpha(palette.isDark ? 0.1 : 0.05),
                   },
                 }}
               >

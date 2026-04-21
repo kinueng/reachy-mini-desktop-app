@@ -10,7 +10,7 @@ import DoAIndicator from './DoAIndicator';
 import { useDoA } from '../../../hooks/audio/useDoA';
 import { useWebRTCStreamContext } from '../../../contexts/WebRTCStreamContext';
 import useAudioAnalyser from '../../../hooks/media/useAudioAnalyser';
-import { ACCENT, accentAlpha } from '@styles/tokens';
+import { ACCENT, accentAlpha, whiteAlpha, blackAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 export interface AudioControlsProps {
@@ -51,8 +51,6 @@ function AudioControls({
   isSleeping = false,
 }: AudioControlsProps): React.ReactElement {
   const palette = useAppPalette();
-  // TODO(style-migration): finish migrating remaining darkMode ternaries.
-  const darkMode = palette.isDark;
   const isMicActive = microphoneVolume > 0 && !disabled;
 
   // Get WebRTC context - available when daemon exposes WebRTC (WiFi + USB/Lite)
@@ -67,8 +65,9 @@ function AudioControls({
   const cardStyle = {
     height: 64,
     borderRadius: '14px',
-    bgcolor: darkMode ? '#1a1a1a' : '#ffffff',
-    border: darkMode ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(0, 0, 0, 0.15)',
+    // TODO(style-migration): card bg uses opaque #1a1a1a / #ffffff here; palette.surfaceCard is 0.95 alpha.
+    bgcolor: palette.isDark ? '#1a1a1a' : '#ffffff',
+    border: `1px solid ${palette.isDark ? whiteAlpha(0.15) : blackAlpha(0.15)}`,
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
@@ -82,7 +81,8 @@ function AudioControls({
       width: 12,
       height: 12,
       backgroundColor: ACCENT.main,
-      border: `1.5px solid ${darkMode ? '#1a1a1a' : '#fff'}`,
+      // TODO(style-migration): thumb border mirrors the card bg (#1a1a1a/#fff) rather than a semantic token.
+      border: `1.5px solid ${palette.isDark ? '#1a1a1a' : '#fff'}`,
       boxShadow: 'none',
       '&:hover': { boxShadow: `0 0 0 6px ${accentAlpha(0.12)}` },
       '&.Mui-focusVisible': { boxShadow: `0 0 0 6px ${accentAlpha(0.16)}` },
@@ -94,7 +94,7 @@ function AudioControls({
       height: 1.5,
     },
     '& .MuiSlider-rail': {
-      backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
+      backgroundColor: palette.isDark ? whiteAlpha(0.12) : blackAlpha(0.12),
       height: 1.5,
       opacity: 1,
     },
@@ -103,7 +103,7 @@ function AudioControls({
   const deviceTextStyle = {
     fontSize: 9,
     fontWeight: 500,
-    color: darkMode ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)',
+    color: palette.isDark ? whiteAlpha(0.4) : blackAlpha(0.4),
     fontFamily: 'SF Mono, Monaco, Menlo, monospace',
     letterSpacing: '0.02em',
     overflow: 'hidden',
@@ -114,7 +114,7 @@ function AudioControls({
   const platformTextStyle = {
     fontSize: 8,
     fontWeight: 400,
-    color: darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+    color: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
     fontFamily: 'SF Mono, Monaco, Menlo, monospace',
     letterSpacing: '0.02em',
   };
@@ -151,7 +151,7 @@ function AudioControls({
             sx={{
               fontSize: 11,
               fontWeight: 600,
-              color: darkMode ? '#888' : '#999',
+              color: palette.textMuted,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
             }}
@@ -160,7 +160,7 @@ function AudioControls({
           </Typography>
           <Tooltip title={tooltip} arrow placement="top">
             <InfoOutlinedIcon
-              sx={{ fontSize: 12, color: darkMode ? '#666' : '#999', opacity: 0.6, cursor: 'help' }}
+              sx={{ fontSize: 12, color: palette.textMuted, opacity: 0.6, cursor: 'help' }}
             />
           </Tooltip>
         </Box>
@@ -209,18 +209,18 @@ function AudioControls({
                 padding: 0,
                 flexShrink: 0,
                 color: isActive
-                  ? darkMode
-                    ? 'rgba(255, 255, 255, 0.6)'
-                    : 'rgba(0, 0, 0, 0.6)'
-                  : darkMode
-                    ? 'rgba(255, 255, 255, 0.3)'
-                    : 'rgba(0, 0, 0, 0.3)',
+                  ? palette.isDark
+                    ? whiteAlpha(0.6)
+                    : blackAlpha(0.6)
+                  : palette.isDark
+                    ? whiteAlpha(0.3)
+                    : blackAlpha(0.3),
                 '&:hover': {
                   color: isActive
                     ? ACCENT.main
-                    : darkMode
-                      ? 'rgba(255, 255, 255, 0.5)'
-                      : 'rgba(0, 0, 0, 0.5)',
+                    : palette.isDark
+                      ? whiteAlpha(0.5)
+                      : blackAlpha(0.5),
                   bgcolor: 'transparent',
                 },
               }}
@@ -264,7 +264,7 @@ function AudioControls({
           >
             <AudioLevelBars
               isActive={isActive}
-              color={darkMode ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.3)'}
+              color={palette.isDark ? whiteAlpha(0.35) : blackAlpha(0.3)}
               barCount={8}
               externalLevel={externalAudioLevel}
             />
@@ -307,12 +307,7 @@ function AudioControls({
         onMicrophoneVolumeChange || (val => onMicrophoneChange(val > 0)),
         // DoA indicator when WebRTC is available AND robot is awake
         isWebRTCAvailable && !isSleeping ? (
-          <DoAIndicator
-            angle={angle}
-            isTalking={isTalking}
-            isAvailable={isAvailable}
-            darkMode={darkMode}
-          />
+          <DoAIndicator angle={angle} isTalking={isTalking} isAvailable={isAvailable} />
         ) : null,
         // Audio waveform when WebRTC is available AND robot is awake
         isWebRTCAvailable && !isSleeping ? microphoneLevel : null

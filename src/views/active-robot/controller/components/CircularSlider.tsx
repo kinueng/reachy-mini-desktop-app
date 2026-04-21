@@ -1,6 +1,6 @@
 import React, { useMemo, memo } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
-import { ACCENT, accentAlpha } from '@styles/tokens';
+import { ACCENT, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 interface CircularSliderProps {
@@ -33,8 +33,6 @@ const CircularSlider = memo(function CircularSlider({
   smoothedValue,
 }: CircularSliderProps): React.ReactElement {
   const palette = useAppPalette();
-  // TODO(style-migration): finish migrating remaining darkMode ternaries.
-  const darkMode = palette.isDark;
   const ARC_START = 0.01;
   const ARC_END = 0.74;
   const ARC_SPAN = ARC_END - ARC_START;
@@ -96,6 +94,11 @@ const CircularSlider = memo(function CircularSlider({
         ? '0.0'
         : '0.000';
 
+  const trackBgStroke = palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.04);
+  const trackBgStrokeMid = palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.06);
+  const trackBgStrokeHalo = palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05);
+  const progressStroke = palette.isDark ? whiteAlpha(0.5) : blackAlpha(0.5);
+
   return (
     <Box
       sx={{
@@ -133,7 +136,7 @@ const CircularSlider = memo(function CircularSlider({
                 fontSize: 9,
                 fontFamily: 'monospace',
                 fontWeight: 500,
-                color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+                color: palette.textFaint,
                 letterSpacing: '0.02em',
                 textAlign: 'right',
               }}
@@ -145,7 +148,7 @@ const CircularSlider = memo(function CircularSlider({
               sx={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: darkMode ? '#f5f5f5' : '#333',
+                color: palette.textPrimary,
                 letterSpacing: '-0.2px',
                 textAlign: 'right',
               }}
@@ -159,7 +162,7 @@ const CircularSlider = memo(function CircularSlider({
               sx={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: darkMode ? '#f5f5f5' : '#333',
+                color: palette.textPrimary,
                 letterSpacing: '-0.2px',
               }}
             >
@@ -170,7 +173,7 @@ const CircularSlider = memo(function CircularSlider({
                 fontSize: 9,
                 fontFamily: 'monospace',
                 fontWeight: 500,
-                color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+                color: palette.textFaint,
                 letterSpacing: '0.02em',
               }}
             >
@@ -226,7 +229,7 @@ const CircularSlider = memo(function CircularSlider({
             </defs>
 
             <circle
-              stroke={darkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)'}
+              stroke={trackBgStroke}
               strokeLinecap="round"
               fill="none"
               strokeWidth={strokeWidth}
@@ -241,7 +244,7 @@ const CircularSlider = memo(function CircularSlider({
             />
 
             <circle
-              stroke={darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'}
+              stroke={trackBgStrokeMid}
               strokeLinecap="round"
               fill="none"
               strokeWidth={strokeWidth}
@@ -253,7 +256,7 @@ const CircularSlider = memo(function CircularSlider({
             />
 
             <circle
-              stroke={darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}
+              stroke={trackBgStrokeHalo}
               strokeLinecap="round"
               fill="none"
               strokeWidth={1}
@@ -265,7 +268,7 @@ const CircularSlider = memo(function CircularSlider({
             />
 
             <circle
-              stroke={darkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)'}
+              stroke={progressStroke}
               strokeLinecap="round"
               fill="none"
               strokeWidth={innerStrokeWidth}
@@ -338,7 +341,7 @@ const CircularSlider = memo(function CircularSlider({
               },
               '& .MuiSlider-rail': {
                 height: 3,
-                opacity: darkMode ? 0.2 : 0.3,
+                opacity: palette.isDark ? 0.2 : 0.3,
               },
             }}
           />
