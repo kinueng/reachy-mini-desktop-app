@@ -1,6 +1,16 @@
 import { useMemo, type ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
+import {
+  ACCENT,
+  STATUS,
+  RADIUS,
+  DURATION,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+  transition,
+} from '@styles/tokens';
 
 // 🎨 AUTOMATIC MODE DETECTION
 // VITE_WEB_MODE=true → Web-only dashboard (served by daemon)
@@ -62,21 +72,21 @@ function ThemeWrapper({ children }: { children: ReactNode }) {
         palette: {
           mode: darkMode ? 'dark' : 'light',
           primary: {
-            main: '#FF9500',
-            light: '#FFB340',
-            dark: '#E08500',
+            main: ACCENT.main,
+            light: ACCENT.light,
+            dark: ACCENT.dark,
             contrastText: '#fff',
           },
           secondary: {
             main: '#764ba2',
           },
           success: {
-            main: '#22c55e',
+            main: STATUS.success,
           },
           error: {
-            main: '#ef4444',
+            main: STATUS.error,
           },
-          divider: darkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.18)',
+          divider: darkMode ? whiteAlpha(0.12) : blackAlpha(0.18),
         },
         components: {
           MuiButton: {
@@ -85,19 +95,17 @@ function ThemeWrapper({ children }: { children: ReactNode }) {
             },
             styleOverrides: {
               root: {
-                // ✅ Assure que les transitions fonctionnent correctement
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: transition('all', DURATION.slow),
                 textTransform: 'none',
                 fontWeight: 600,
-                borderRadius: '10px',
+                borderRadius: RADIUS.lg,
               },
               outlined: {
-                // ✅ Style primary outlined par défaut
-                borderColor: '#FF9500',
-                color: '#FF9500',
+                borderColor: ACCENT.main,
+                color: ACCENT.main,
                 '&:hover': {
-                  borderColor: '#E08500',
-                  backgroundColor: 'rgba(255, 149, 0, 0.08)',
+                  borderColor: ACCENT.dark,
+                  backgroundColor: accentAlpha(0.08),
                 },
               },
             },
@@ -105,16 +113,13 @@ function ThemeWrapper({ children }: { children: ReactNode }) {
           MuiCircularProgress: {
             styleOverrides: {
               root: {
-                // ✅ Ensure SVG displays correctly
                 display: 'block',
               },
               svg: {
-                // ✅ Ensure SVG is not clipped
                 display: 'block',
                 overflow: 'visible',
               },
               circle: {
-                // ✅ Ensure circle is visible
                 strokeLinecap: 'round',
               },
             },
@@ -122,20 +127,20 @@ function ThemeWrapper({ children }: { children: ReactNode }) {
           MuiTooltip: {
             styleOverrides: {
               tooltip: {
-                backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.95)' : 'rgba(0, 0, 0, 0.9)',
+                backgroundColor: darkMode ? whiteAlpha(0.95) : blackAlpha(0.9),
                 color: darkMode ? '#1d1d1f' : '#fff',
                 fontSize: '11px',
                 fontWeight: 500,
                 padding: '10px 14px',
-                borderRadius: '8px',
+                borderRadius: RADIUS.md,
                 boxShadow: darkMode
-                  ? '0 4px 12px rgba(0, 0, 0, 0.25)'
-                  : '0 4px 12px rgba(0, 0, 0, 0.15)',
+                  ? `0 4px 12px ${blackAlpha(0.25)}`
+                  : `0 4px 12px ${blackAlpha(0.15)}`,
                 maxWidth: '300px',
                 lineHeight: 1.6,
               },
               arrow: {
-                color: darkMode ? 'rgba(255, 255, 255, 0.95)' : 'rgba(0, 0, 0, 0.9)',
+                color: darkMode ? whiteAlpha(0.95) : blackAlpha(0.9),
               },
             },
           },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ACCENT_ORANGE } from './theme';
+import { ACCENT } from '@styles/tokens';
 
 /**
  * Dot positions for each dice face, expressed as [col, row] pairs on a 3x3
@@ -56,7 +56,7 @@ export interface DiceIconProps {
 export const DiceIcon = React.memo(function DiceIcon({
   value = 6,
   size = 32,
-  color = ACCENT_ORANGE,
+  color = ACCENT.main,
   isShaking = false,
 }: DiceIconProps) {
   const dotSize = size * 0.16;

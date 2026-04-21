@@ -19,7 +19,8 @@ import {
 import diceRollSound from '@assets/sounds/dice.mp3';
 import tickSound from '@assets/sounds/bite.mp3';
 import { DiceIcon } from './DiceIcon';
-import { ACCENT_ORANGE, accentRgba } from './theme';
+import { ACCENT, DURATION, EASING, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 /** Visual sizing for the wheel layout. */
 const WHEEL_SIZE = 380;
@@ -78,6 +79,7 @@ function actionFor(name: string): EmojiGridAction {
 
 export interface EmotionWheelProps {
   onAction?: (action: EmojiGridAction) => void;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   disabled?: boolean;
   isBusy?: boolean;
@@ -98,16 +100,10 @@ export interface EmotionWheelHandle {
  *   so parent-driven execution state stays in sync without a dedicated reset effect.
  */
 export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(function EmotionWheel(
-  {
-    onAction,
-    darkMode = false,
-    disabled = false,
-    isBusy = false,
-    activeActionName = null,
-    isExecuting = false,
-  },
+  { onAction, disabled = false, isBusy = false, activeActionName = null, isExecuting = false },
   ref
 ) {
+  const palette = useAppPalette();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [pressedIndex, setPressedIndex] = useState<number | null>(null);
   const [centerHovered, setCenterHovered] = useState<boolean>(false);
@@ -292,8 +288,8 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
     return null;
   }, [isSpinning, spinIndex, activeActionName]);
 
-  const borderColor = accentRgba(darkMode ? 0.4 : 0.5);
-  const segmentBorder = accentRgba(darkMode ? 0.25 : 0.3);
+  const borderColor = palette.accentBorderStrong;
+  const segmentBorder = palette.accentBorder;
 
   return (
     <div
@@ -327,12 +323,12 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
           inset: 0,
           borderRadius: '50%',
           border: `1px solid ${borderColor}`,
-          background: darkMode
+          background: palette.isDark
             ? 'radial-gradient(circle at center, rgba(30,30,30,0.6) 0%, rgba(20,20,20,0.9) 100%)'
             : 'radial-gradient(circle at center, rgba(255,255,255,0.8) 0%, rgba(245,245,245,0.95) 100%)',
-          boxShadow: darkMode
-            ? '0 8px 32px rgba(0,0,0,0.25), inset 0 0 60px rgba(255,149,0,0.025)'
-            : '0 8px 32px rgba(0,0,0,0.05), inset 0 0 60px rgba(255,149,0,0.015)',
+          boxShadow: palette.isDark
+            ? `${palette.shadowLg}, inset 0 0 60px ${accentAlpha(0.025)}`
+            : `${palette.shadowLg}, inset 0 0 60px ${accentAlpha(0.015)}`,
         }}
       />
 
@@ -370,7 +366,7 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
               key={`slice-${emotion}`}
               d={path}
               fill="transparent"
-              stroke={isPressed ? ACCENT_ORANGE : showHighlight ? ACCENT_ORANGE : 'transparent'}
+              stroke={isPressed ? ACCENT.main : showHighlight ? ACCENT.main : 'transparent'}
               strokeWidth={showHighlight || isPressed ? 2 : 0}
               style={{
                 cursor: disabled || isSpinning ? 'default' : 'pointer',
@@ -438,7 +434,7 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
               pointerEvents: 'none',
               opacity: isGhosted ? 0.4 : 1,
               filter: showHighlight
-                ? `drop-shadow(0 2px 8px ${accentRgba(0.5)}) saturate(1.2)`
+                ? `drop-shadow(0 2px 8px ${accentAlpha(0.5)}) saturate(1.2)`
                 : isGhosted
                   ? 'saturate(0.5) grayscale(0.3)'
                   : 'saturate(0.85)',
@@ -452,7 +448,7 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
             }}
           >
             {showSpinner ? (
-              <CircularProgress size={24} thickness={3} sx={{ color: ACCENT_ORANGE }} />
+              <CircularProgress size={24} thickness={3} sx={{ color: ACCENT.main }} />
             ) : (
               emoji
             )}
@@ -474,8 +470,8 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
           width: CENTER_SIZE,
           height: CENTER_SIZE,
           borderRadius: '50%',
-          border: `1px solid ${isSpinning ? ACCENT_ORANGE : centerHovered ? accentRgba(0.7) : borderColor}`,
-          background: darkMode ? 'rgba(25,25,25,0.95)' : 'rgba(255,255,255,0.95)',
+          border: `1px solid ${isSpinning ? ACCENT.main : centerHovered ? accentAlpha(0.7) : borderColor}`,
+          background: palette.surfaceCard,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -483,13 +479,8 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
           gap: 10,
           cursor: disabled || isSpinning ? 'default' : 'pointer',
           opacity: disabled ? 0.5 : 1,
-          boxShadow:
-            centerHovered || isSpinning
-              ? `0 6px 24px ${accentRgba(0.35)}`
-              : darkMode
-                ? '0 4px 20px rgba(0,0,0,0.4)'
-                : '0 4px 20px rgba(0,0,0,0.08)',
-          transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          boxShadow: centerHovered || isSpinning ? palette.accentGlow : palette.shadowMd,
+          transition: `all ${DURATION.base}ms ${EASING.spring}`,
           zIndex: 5,
         }}
       >
@@ -515,7 +506,7 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
           style={{
             fontSize: 9,
             fontWeight: 500,
-            color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)',
+            color: palette.textFaint,
             textTransform: 'uppercase',
             letterSpacing: '0.12em',
             transform: 'translateY(-8px)',

@@ -33,6 +33,7 @@ export default defineConfig({
       '@config': path.resolve(__dirname, './src/config'),
       '@constants': path.resolve(__dirname, './src/constants'),
       '@assets': path.resolve(__dirname, './src/assets'),
+      '@styles': path.resolve(__dirname, './src/styles'),
     },
   },
   build: {
