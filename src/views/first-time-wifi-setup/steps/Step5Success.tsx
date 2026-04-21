@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import type { WifiRobotCompat } from '../../../hooks/system/useRobotDiscovery';
-import { ACCENT, STATUS } from '@styles';
+import { ACCENT, STATUS, hexToRgba } from '@styles';
 
 interface Step5SuccessProps {
   /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */

@@ -20,6 +20,7 @@ import CellTowerIcon from '@mui/icons-material/CellTower';
 import type { BleDevice } from '@mnlphlp/plugin-blec';
 import useAppStore from '../../store/useAppStore';
 import useBluetooth from '../../hooks/bluetooth/useBluetooth';
+import { STATUS, blackAlpha, whiteAlpha, hexToRgba, useAppPalette } from '@styles';
 // TODO(ts): FullscreenOverlay.jsx has JSDoc that confuses TS prop inference
 // (parses as `boolean`). Cast until the component itself is migrated.
 

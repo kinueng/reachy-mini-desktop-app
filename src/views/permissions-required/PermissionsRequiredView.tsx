@@ -177,8 +177,6 @@ export default function PermissionsRequiredView({
   isRestarting: externalIsRestarting,
 }: PermissionsRequiredViewProps) {
   const palette = useAppPalette();
-  // TODO(style-migration): finish migrating remaining darkMode ternaries in this file.
-  const darkMode = palette.isDark;
   const {
     cameraGranted,
     microphoneGranted,
