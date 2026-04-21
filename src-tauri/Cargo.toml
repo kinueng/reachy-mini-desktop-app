@@ -46,7 +46,6 @@ futures-util = "0.3"
 lazy_static = "1.4"
 # Network discovery
 mdns-sd = "0.19"
-default-net = "0.22"
 dirs = "6.0.0"
 
 # Local patch for btleplug CoreBluetooth panic
