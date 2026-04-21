@@ -127,20 +127,14 @@ export default function Step2ConnectHotspot({
                 mb: 2,
                 p: 1.5,
                 borderRadius: '8px',
-                // TODO(style-migration): status error surface/border don't
-                // have dedicated palette tokens yet; inlining the red overlay.
-                bgcolor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-                border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)'}`,
+                bgcolor: palette.statusErrorSurface,
+                border: `1px solid ${palette.statusErrorBorder}`,
               }}
             >
               <Typography
                 sx={{
                   fontSize: 12,
-                  // TODO(style-migration): status-text tones (`#fca5a5` light
-                  // / `#dc2626` dark) don't live in the palette yet; inlining
-                  // the two literals while we wait for a `statusErrorText`
-                  // token so the semantics stay clear.
-                  color: isDark ? '#fca5a5' : '#dc2626',
+                  color: palette.statusErrorText,
                   lineHeight: 1.5,
                 }}
               >

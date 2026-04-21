@@ -2,22 +2,30 @@
 
 > Read [`_shared-context.md`](./_shared-context.md) first.
 
-## Scope (6 files, ~18 ternaries)
+## Scope (7 files)
 
-- `src/components/FPSMeter.tsx` (3)
-- `src/components/FullscreenOverlay.tsx` (5)
-- `src/components/DevPlayground.tsx` (5)
+Active migration:
+
+- `src/components/Toast/Toast.tsx` (4 - status surfaces usage; use
+  `palette.status{Success,Error,Warning,Info}Surface|Border|Text`)
 - `src/components/viewer3d/Scene.tsx` (3)
 - `src/components/viewer3d/Viewer3D.tsx` (1)
 
+Already at 0 (run `./scripts/style-migration-status.sh` to confirm - just
+do a final pass on these to remove any stale `@deprecated darkMode` props if
+the agent left them behind):
+
+- `src/components/FPSMeter.tsx`
+- `src/components/FullscreenOverlay.tsx`
+- `src/components/DevPlayground.tsx`
+- `src/components/AppTopBar.tsx`
+
 Also run a sanity pass on these already-cleaned files (should stay at 0):
 
-- `src/components/AppTopBar.tsx`
 - `src/components/viewer3d/settings/SettingsCacheCard.tsx`
 - `src/components/viewer3d/settings/SettingsResetCard.tsx`
 - `src/components/viewer3d/settings/SettingsDaemonCard.tsx`
 - `src/components/viewer3d/settings/ChangeWifiOverlay.tsx`
-- `src/components/Toast/Toast.tsx`
 
 ## Goal
 

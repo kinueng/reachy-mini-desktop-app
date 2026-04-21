@@ -101,7 +101,8 @@ bucket "Bucket 6 - Shared components + cleanup" \
   src/components/DevPlayground.tsx \
   src/components/viewer3d/Scene.tsx \
   src/components/viewer3d/Viewer3D.tsx \
-  src/components/AppTopBar.tsx
+  src/components/AppTopBar.tsx \
+  src/components/Toast/Toast.tsx
 
 # Out of scope (informational).
 printf "\n${BOLD}${CYAN}Out of scope (explicitly deferred)${RESET}\n"
@@ -146,6 +147,7 @@ src/components/DevPlayground.tsx
 src/components/viewer3d/Scene.tsx
 src/components/viewer3d/Viewer3D.tsx
 src/components/AppTopBar.tsx
+src/components/Toast/Toast.tsx
 src/utils/viewer3d/applyRobotMaterials.ts
 EOF
 )

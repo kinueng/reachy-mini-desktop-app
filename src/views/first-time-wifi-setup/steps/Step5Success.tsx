@@ -62,8 +62,7 @@ export default function Step5Success({
                 // TODO(style-migration): darker hover tone for success has no
                 // palette token; `#16a34a` matches the legacy shade.
                 borderColor: '#16a34a',
-                // TODO(style-migration): success-tinted surface lacks a token.
-                bgcolor: 'rgba(34, 197, 94, 0.08)',
+                bgcolor: hexToRgba(STATUS.success, 0.08),
               },
             }}
           >

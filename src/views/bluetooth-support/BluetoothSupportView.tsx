@@ -55,9 +55,9 @@ interface BleCommand {
   danger?: boolean;
 }
 
-// BLE commands — protocol from bluetooth_service.py:
-//  "PING" / "STATUS" → no auth needed
-//  "CMD_xxx" → requires prior PIN_xxxxx auth
+// TODO(style-migration): `color` on commands is metadata and not currently
+// rendered. Keeping hex literals for now since they are not mapped by the
+// shared palette; `#6366f1` is an indigo accent and `#ef4444` is `STATUS.error`.
 const COMMANDS: BleCommand[] = [
   { id: 'ping', label: 'Ping', icon: CellTowerIcon, color: '#6366f1', noAuth: true },
   {
@@ -79,7 +79,7 @@ const COMMANDS: BleCommand[] = [
     id: 'software_reset',
     label: 'Software Reset',
     icon: DeleteForeverIcon,
-    color: '#ef4444',
+    color: STATUS.error,
     danger: true,
     script: 'SOFTWARE_RESET',
   },
@@ -92,7 +92,11 @@ const COMMANDS: BleCommand[] = [
  * 3. Send commands and view responses
  */
 export default function BluetoothSupportView(): React.ReactElement {
-  const { darkMode, setShowBluetoothSupportView, setShowFirstTimeWifiSetup, blePin, setBlePin } =
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
+  // TODO(style-migration): finish migrating remaining darkMode ternaries in this file.
+  const darkMode = palette.isDark;
+  const { setShowBluetoothSupportView, setShowFirstTimeWifiSetup, blePin, setBlePin } =
     useAppStore();
   const {
     bleStatus,
@@ -119,10 +123,10 @@ export default function BluetoothSupportView(): React.ReactElement {
   const [hotspotPending, setHotspotPending] = useState<boolean>(false);
   const [hotspotCountdown, setHotspotCountdown] = useState<number>(0);
 
-  const textPrimary = darkMode ? '#f5f5f5' : '#333';
-  const textSecondary = darkMode ? '#888' : '#666';
-  const bgCard = darkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)';
-  const borderColor = darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+  const textPrimary = palette.textPrimary;
+  const textSecondary = palette.textSecondary;
+  const bgCard = isDark ? whiteAlpha(0.03) : blackAlpha(0.02);
+  const borderColor = isDark ? whiteAlpha(0.08) : blackAlpha(0.08);
 
   const addLog = useCallback((message: string, level: LogLevel = 'info') => {
     setActivityLog(prev => [...prev, { message, timestamp: Date.now(), level }]);
@@ -296,7 +300,7 @@ export default function BluetoothSupportView(): React.ReactElement {
     <FullscreenOverlay
       open={true}
       onClose={handleClose}
-      darkMode={darkMode}
+      darkMode={isDark}
       showCloseButton={true}
       centered={true}
       backdropBlur={40}
@@ -339,13 +343,13 @@ export default function BluetoothSupportView(): React.ReactElement {
                       color: textSecondary,
                       mt: 0.5,
                       '&.Mui-active': { color: 'primary.main', fontWeight: 600 },
-                      '&.Mui-completed': { color: '#22c55e' },
+                      '&.Mui-completed': { color: STATUS.success },
                     },
                     '& .MuiStepIcon-root': {
                       fontSize: 20,
-                      color: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                      color: isDark ? whiteAlpha(0.1) : blackAlpha(0.1),
                       '&.Mui-active': { color: 'primary.main' },
-                      '&.Mui-completed': { color: '#22c55e' },
+                      '&.Mui-completed': { color: STATUS.success },
                     },
                   }}
                 >
@@ -416,7 +420,7 @@ export default function BluetoothSupportView(): React.ReactElement {
               {/* Adapter warning */}
               {adapterWarning && (
                 <Typography
-                  sx={{ fontSize: 11, color: '#ef4444', textAlign: 'center', lineHeight: 1.5 }}
+                  sx={{ fontSize: 11, color: STATUS.error, textAlign: 'center', lineHeight: 1.5 }}
                 >
                   {adapterWarning}
                 </Typography>
@@ -508,9 +512,9 @@ export default function BluetoothSupportView(): React.ReactElement {
                                 bgcolor:
                                   bar <= signalBars
                                     ? 'primary.main'
-                                    : darkMode
-                                      ? 'rgba(255,255,255,0.15)'
-                                      : 'rgba(0,0,0,0.12)',
+                                    : isDark
+                                      ? whiteAlpha(0.15)
+                                      : blackAlpha(0.12),
                               }}
                             />
                           ))}
@@ -625,7 +629,7 @@ export default function BluetoothSupportView(): React.ReactElement {
               {/* Connected device header */}
               {connectedDevice && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <BluetoothConnectedIcon sx={{ fontSize: 12, color: '#22c55e' }} />
+                  <BluetoothConnectedIcon sx={{ fontSize: 12, color: STATUS.success }} />
                   <Typography sx={{ fontSize: 10, color: textSecondary }}>
                     Connected —{' '}
                     <Box component="span" sx={{ fontFamily: 'monospace' }}>
@@ -674,9 +678,12 @@ export default function BluetoothSupportView(): React.ReactElement {
                           borderRadius: '8px',
                           justifyContent: 'flex-start',
                           ...(isDanger && {
-                            borderColor: 'rgba(239,68,68,0.4)',
-                            color: '#ef4444',
-                            '&:hover': { borderColor: '#ef4444', bgcolor: 'rgba(239,68,68,0.06)' },
+                            borderColor: hexToRgba(STATUS.error, 0.4),
+                            color: STATUS.error,
+                            '&:hover': {
+                              borderColor: STATUS.error,
+                              bgcolor: hexToRgba(STATUS.error, 0.06),
+                            },
                             '&.Mui-disabled': { borderColor: borderColor, color: textSecondary },
                           }),
                         }}
@@ -695,7 +702,7 @@ export default function BluetoothSupportView(): React.ReactElement {
               <LogConsole
                 logs={activityLog}
                 includeStoreLogs={false}
-                darkMode={darkMode}
+                darkMode={isDark}
                 compact
                 maxHeight={120}
                 emptyMessage="Send a command to see responses here..."
@@ -706,7 +713,7 @@ export default function BluetoothSupportView(): React.ReactElement {
                 onClick={journalActive ? handleJournalStop : handleJournalStart}
                 sx={{
                   fontSize: 11,
-                  color: journalActive ? '#22c55e' : 'primary.main',
+                  color: journalActive ? STATUS.success : 'primary.main',
                   textAlign: 'center',
                   textDecoration: 'underline',
                   cursor: bleStatus === 'connected' ? 'pointer' : 'default',
