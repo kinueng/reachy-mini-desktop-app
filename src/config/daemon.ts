@@ -3,6 +3,7 @@
  */
 
 import { logApiCall, logPermission, logTimeout, logError, logSuccess } from '../utils/logging';
+import { LOG_LIMITS } from '../utils/logging/constants';
 import { useStore } from '../store';
 
 // `tauriFetch` is intentionally NOT used here - it has a known bug where the
@@ -51,15 +52,23 @@ export const DAEMON_CONFIG = {
   },
 
   STARTUP: {
-    TIMEOUT_NORMAL: 30000,
+    TIMEOUT_NORMAL: 90000,
     TIMEOUT_SIMULATION: 90000,
+    // First-run Python bootstrap (uv download, Python install, venv creation,
+    // codesigning, GStreamer registry scan, import warmup) can legitimately
+    // take several minutes. While the sidecar emits `[bootstrap]` lines we
+    // switch to this larger cap to avoid false-positive startup timeouts.
+    TIMEOUT_BOOTSTRAP: 600000,
     ACTIVITY_RESET_DELAY: 15000,
   },
 
+  // Re-exports the canonical caps from `utils/logging/constants.LOG_LIMITS` so
+  // callers that already depend on `DAEMON_CONFIG` don't have to reach into the
+  // logging package. Never duplicate numbers here - update `LOG_LIMITS` instead.
   LOGS: {
-    MAX_FRONTEND: 500,
-    MAX_APP: 1000,
-    MAX_DISPLAY: 10000,
+    MAX_FRONTEND: LOG_LIMITS.FRONTEND,
+    MAX_APP: LOG_LIMITS.APP,
+    MAX_DISPLAY: LOG_LIMITS.DISPLAY,
   },
 
   ANIMATIONS: {
@@ -104,12 +113,30 @@ export const DAEMON_CONFIG = {
     REFRESH_DELAY: 500,
   },
 
-  // Hardware scan configuration (StartingView / HardwareScanView).
+  // Detection of a pre-existing ("external") daemon running on localhost:8000.
+  // Used by the connection screen to propose a one-click shortcut. The probe
+  // has three validation layers (Rust ownership, HTTP status, robot endpoint)
+  // to avoid false positives from zombie daemons or unrelated services.
+  EXTERNAL_PROBE: {
+    // Polling cadence while the window is visible.
+    POLL_INTERVAL: 3000,
+    // Per-HTTP-request timeout. Must stay comfortably under POLL_INTERVAL.
+    HTTP_TIMEOUT: 1000,
+    // Grace period after we last saw OUR own daemon in a non-stopped state.
+    // Prevents treating a dying Tauri-spawned daemon as "external" during its
+    // shutdown window (the process usually needs 1-3s to exit cleanly).
+    SHUTDOWN_GRACE_MS: 5000,
+    // Successful consecutive probes required before flipping to `available`.
+    // Downgrades to `unavailable` are immediate (no hysteresis on the "gone" side).
+    REQUIRED_CONSECUTIVE: 2,
+  },
+
+  // Hardware scan configuration (StartingView / StartupScanView).
   HARDWARE_SCAN: {
     CHECK_INTERVAL: 500,
 
     // Time-based limits (preferred over attempts: more reliable with request guards).
-    DAEMON_TIMEOUT_SECONDS: 30,
+    DAEMON_TIMEOUT_SECONDS: 90,
     MOVEMENT_TIMEOUT_SECONDS: 15,
     // Legacy attempt-based fallbacks (kept for backwards compatibility).
     DAEMON_MAX_ATTEMPTS: 240,

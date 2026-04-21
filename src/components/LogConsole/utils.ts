@@ -1,41 +1,13 @@
 import type { LogEntry } from '../../types/store';
 import type { LogLevel } from '../../types/api';
-
-// Shared formatter - created once, reused for every timestamp
-let _formatter: Intl.DateTimeFormat | null;
-try {
-  _formatter = new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
-} catch {
-  _formatter = null;
-}
+import { formatClockTimeFlexible } from '../../utils/logging/formatClockTime';
 
 /**
- * Format timestamp to HH:mm:ss string.
- * Uses a cached Intl.DateTimeFormat for performance.
+ * Format timestamp to `HH:mm:ss`, passing through strings that already look
+ * like a formatted time. Thin re-export of {@link formatClockTimeFlexible}
+ * kept for backward compatibility with existing imports.
  */
-export const formatTimestamp = (timestamp: unknown): string => {
-  if (typeof timestamp === 'string' && timestamp.length === 8 && timestamp[2] === ':') {
-    return timestamp;
-  }
-
-  let ms: number;
-  if (typeof timestamp === 'number' && timestamp > 1000000000000 && timestamp < 2000000000000) {
-    ms = timestamp;
-  } else {
-    ms = Date.now();
-  }
-
-  if (_formatter) {
-    return _formatter.format(ms);
-  }
-  // Fallback
-  return new Date(ms).toISOString().substring(11, 19);
-};
+export const formatTimestamp = formatClockTimeFlexible;
 
 /**
  * Normalize a log entry to a consistent format.
@@ -51,6 +23,7 @@ export const normalizeLog = (log: unknown): LogEntry => {
       timestampNumeric?: unknown;
       level?: LogLevel;
       appName?: string;
+      userFacing?: boolean;
     };
     const message = typeof rec.message === 'string' ? rec.message : String(rec.message);
 
@@ -73,6 +46,7 @@ export const normalizeLog = (log: unknown): LogEntry => {
       level: rec.level || 'info',
       appName: rec.appName || undefined,
       timestampNumeric: tsNum || Date.now(),
+      ...(rec.userFacing === true ? { userFacing: true } : {}),
     };
   }
 

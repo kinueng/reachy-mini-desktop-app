@@ -67,8 +67,6 @@ export interface RobotSliceState {
 
   activeEffect: string | null;
   effectTimestamp: number;
-
-  robotBlacklist: Record<string, number>;
 }
 
 export interface RobotSliceActions {
@@ -121,11 +119,6 @@ export interface RobotSliceActions {
 
   triggerEffect: (effectType: string) => void;
   stopEffect: () => void;
-
-  blacklistRobot: (host: string, durationMs?: number) => void;
-  isRobotBlacklisted: (host: string) => boolean;
-  cleanupBlacklist: () => void;
-  clearBlacklist: () => void;
 }
 
 export type RobotSlice = RobotSliceState & RobotSliceActions;
@@ -262,6 +255,13 @@ export interface LogEntry {
   category?: LogCategory;
   level: LogLevel;
   appName?: string;
+  /**
+   * Optional hint: when true, the entry is considered user-facing and bypasses
+   * the simple-mode allowlist in `LogConsole`. Emitted via `logger.event()` or
+   * `useLogger().event()`. The legacy pattern-based allowlist remains in place
+   * as a fallback for entries that don't carry this flag.
+   */
+  userFacing?: boolean;
 }
 
 export interface LogsSliceState {
@@ -273,9 +273,25 @@ export interface LogsSliceState {
   logCategoryFilters: LogCategory[];
 }
 
+export interface AddFrontendLogOptions {
+  /** If true, the entry is flagged as user-facing (visible in simple mode). */
+  userFacing?: boolean;
+}
+
 export interface LogsSliceActions {
   setLogs: (newLogs: LogEntry[]) => void;
-  addFrontendLog: (message: string, level?: LogLevel, category?: LogCategory) => void;
+  /**
+   * Append daemon entries (produced by streaming sources like the remote WS
+   * streamer). Consumers that replace the full buffer (e.g. Rust ring-buffer
+   * polling) should use {@link setLogs} instead.
+   */
+  appendLogs: (entries: LogEntry[]) => void;
+  addFrontendLog: (
+    message: string,
+    level?: LogLevel,
+    category?: LogCategory,
+    options?: AddFrontendLogOptions
+  ) => void;
   addAppLog: (message: string, appName?: string, level?: LogLevel) => void;
   clearAppLogs: (appName?: string) => void;
   clearAllLogs: () => void;

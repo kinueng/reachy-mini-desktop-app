@@ -38,7 +38,7 @@ interface DaemonStatusPayload {
  *
  * NOT responsible for:
  * - Fetching robot state data (that's useRobotStateWebSocket's job)
- * - Transitioning to ready (that's HardwareScanView's job)
+ * - Transitioning to ready (that's StartupScanView's job)
  *
  * ⚠️ SKIP during installations (daemon may be overloaded)
  * ⚠️ SKIP during wake/sleep transitions (daemon may be busy with animation)

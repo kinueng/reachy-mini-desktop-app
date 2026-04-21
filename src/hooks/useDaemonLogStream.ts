@@ -1,129 +1,67 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef } from 'react';
 import useAppStore from '../store/useAppStore';
+import {
+  categorizeDaemonLine,
+  parseDaemonLogLevel,
+  connectDaemonLogWebSocket,
+  formatClockTime,
+} from '../utils/logging';
+import type { DaemonLogSocketHandle } from '../utils/logging';
+import type { LogEntry } from '../types/store';
 
 /**
- * Streams daemon logs from the remote robot via WebSocket.
- * Only active when at least one category is enabled and in WiFi mode.
+ * Opens a resilient WebSocket to the remote robot's daemon `/logs/ws/daemon`
+ * endpoint (WiFi mode only) and streams each line into the shared
+ * `state.logs` buffer via `appendLogs`.
  *
- * Returns an array of normalized log objects compatible with `LogConsole`,
- * filtered by the enabled categories.
+ * Returning nothing is intentional: every consumer (LogConsole, the
+ * standalone LogViewerWindow, etc.) reads from the store so the connection is
+ * opened exactly once per session even when multiple surfaces display logs.
+ *
+ * The hook is a no-op outside WiFi mode and when `enabledCategories` is empty,
+ * which lets callers throttle the WS (e.g. skip it entirely in simple-only
+ * surfaces that never display daemon logs).
  */
 
 export type DaemonLogSource = 'api' | 'app' | 'daemon';
-export type DaemonLogLevel = 'info' | 'warning' | 'error';
 
-export interface DaemonLogEntry {
-  message: string;
-  timestamp: string;
-  timestampNumeric: number;
-  source: DaemonLogSource;
-  level: DaemonLogLevel;
-}
-
-type TimeoutId = ReturnType<typeof setTimeout>;
-
-const MAX_REMOTE_LOGS = 2000;
-
-function categorize(line: string): DaemonLogSource {
-  if (line.includes('uvicorn.access') || line.includes('uvicorn.error')) return 'api';
-  if (line.includes('reachy_mini.apps') || line.includes('_app.') || line.includes('[app]'))
-    return 'app';
-  return 'daemon';
-}
-
-function parseLevel(line: string): DaemonLogLevel {
-  if (line.includes(' - ERROR - ') || line.includes(' ERROR ')) return 'error';
-  if (line.includes(' - WARNING - ') || line.includes(' WARNING ')) return 'warning';
-  return 'info';
-}
-
-export default function useDaemonLogStream(enabledCategories: DaemonLogSource[]): DaemonLogEntry[] {
-  const [allLogs, setAllLogs] = useState<DaemonLogEntry[]>([]);
-  const { connectionMode, remoteHost } = useAppStore();
-  const wsRef = useRef<WebSocket | null>(null);
+export default function useDaemonLogStream(enabledCategories: DaemonLogSource[]): void {
+  const connectionMode = useAppStore(s => s.connectionMode);
+  const remoteHost = useAppStore(s => s.remoteHost);
+  const appendLogs = useAppStore(s => s.appendLogs);
+  const socketRef = useRef<DaemonLogSocketHandle | null>(null);
 
   const shouldConnect = enabledCategories.length > 0 && connectionMode === 'wifi' && !!remoteHost;
 
-  // WebSocket — connects once, stores ALL logs regardless of filter.
   useEffect(() => {
     if (!shouldConnect) {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
+      if (socketRef.current) {
+        socketRef.current.dispose();
+        socketRef.current = null;
       }
-      setAllLogs([]);
       return undefined;
     }
 
-    let stopped = false;
-    let reconnectTimer: TimeoutId | undefined;
-
-    const connect = (): void => {
-      if (stopped) return;
-      // `remoteHost` is guaranteed non-null by `shouldConnect` above.
-      const cleanHost = (remoteHost as string).replace(/^https?:\/\//, '');
-      const wsUrl = `ws://${cleanHost}:8000/logs/ws/daemon`;
-      try {
-        const ws = new WebSocket(wsUrl);
-        ws.onmessage = (event: MessageEvent<string>) => {
-          if (!event.data || !event.data.trim()) return;
-          const line = event.data;
-          const cat = categorize(line);
-          const level = parseLevel(line);
-          const now = Date.now();
-          setAllLogs(prev => {
-            const next: DaemonLogEntry[] = [
-              ...prev,
-              {
-                message: line,
-                timestamp: new Date(now).toLocaleTimeString('en-US', {
-                  hour12: false,
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                }),
-                timestampNumeric: now,
-                source: cat,
-                level,
-              },
-            ];
-            return next.length > MAX_REMOTE_LOGS ? next.slice(-MAX_REMOTE_LOGS) : next;
-          });
+    const handle = connectDaemonLogWebSocket({
+      host: remoteHost as string,
+      onMessage: line => {
+        const now = Date.now();
+        const entry: LogEntry = {
+          message: line,
+          source: 'daemon',
+          category: categorizeDaemonLine(line) === 'app' ? 'app' : 'daemon',
+          level: parseDaemonLogLevel(line),
+          timestamp: formatClockTime(now),
+          timestampNumeric: now,
         };
-        ws.onclose = () => {
-          wsRef.current = null;
-          if (!stopped) {
-            reconnectTimer = setTimeout(connect, 3000);
-          }
-        };
-        ws.onerror = () => {};
-        wsRef.current = ws;
-      } catch {
-        if (!stopped) {
-          reconnectTimer = setTimeout(connect, 3000);
-        }
-      }
-    };
-
-    connect();
+        appendLogs([entry]);
+      },
+    });
+    socketRef.current = handle;
 
     return () => {
-      stopped = true;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-      }
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
+      handle.dispose();
+      socketRef.current = null;
     };
-  }, [shouldConnect, remoteHost]);
-
-  // Filter logs by enabled categories (cheap, no WebSocket reconnect).
-  const filteredLogs = useMemo<DaemonLogEntry[]>(
-    () => allLogs.filter(log => enabledCategories.includes(log.source)),
-    [allLogs, enabledCategories]
-  );
-
-  return filteredLogs;
+  }, [shouldConnect, remoteHost, appendLogs]);
 }

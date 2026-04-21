@@ -1,6 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { shouldFilterLog } from '../../utils/logging/logFilters';
+import { LOG_LIMITS } from '../../utils/logging/constants';
+
+const MAX_STARTUP_LOGS = LOG_LIMITS.STARTUP;
 
 type LogLevel = 'info' | 'warn' | 'error';
 
@@ -62,7 +65,7 @@ export function useDaemonStartupLogs(isStarting: boolean): UseDaemonStartupLogsR
         level,
         timestamp: Date.now(),
       };
-      logsRef.current = [...logsRef.current, newLog].slice(-50);
+      logsRef.current = [...logsRef.current, newLog].slice(-MAX_STARTUP_LOGS);
       setStartupLogs([...logsRef.current]);
       setLastMessage(cleanLine);
     };

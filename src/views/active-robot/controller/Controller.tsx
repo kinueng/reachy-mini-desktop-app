@@ -8,7 +8,8 @@ import { useControllerAPI } from './hooks/useControllerAPI';
 import { useControllerInput } from './hooks/useControllerInput';
 import { logInfo } from '../../../utils/logging';
 import { Joystick2D, VerticalSlider, SimpleSlider, CircularSlider } from './components';
-import { EXTENDED_ROBOT_RANGES } from '../../../utils/inputConstants';
+import { EXTENDED_ROBOT_RANGES, INPUT_THRESHOLDS } from '../../../utils/inputConstants';
+import { isHeadPoseZero, areAntennasZero, isZero } from '../../../utils/inputHelpers';
 import { mapRobotToDisplay, mapDisplayToRobot } from '../../../utils/inputMappings';
 import antennasIcon from '../../../assets/reachy-antennas-icon.svg';
 import headIcon from '../../../assets/reachy-head-icon.svg';
@@ -61,13 +62,12 @@ function ControllerInner({
 
   const isAtInitialPosition = useMemo<boolean>(() => {
     const { headPose, antennas, bodyYaw } = localValues;
-    const threshold = 0.0001;
-
-    const headAtZero = Object.values(headPose).every(v => Math.abs(v) < threshold);
-    const antennasAtZero = antennas.every(v => Math.abs(v) < threshold);
-    const bodyYawAtZero = Math.abs(bodyYaw) < threshold;
-
-    return headAtZero && antennasAtZero && bodyYawAtZero;
+    const tolerance = INPUT_THRESHOLDS.INITIAL_POSITION;
+    return (
+      isHeadPoseZero(headPose, tolerance) &&
+      areAntennasZero(antennas, tolerance) &&
+      isZero(bodyYaw, tolerance)
+    );
   }, [localValues]);
 
   useEffect(() => {

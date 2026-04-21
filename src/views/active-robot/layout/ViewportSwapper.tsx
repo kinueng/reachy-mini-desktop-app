@@ -178,6 +178,11 @@ export default function ViewportSwapper({
             overflow: 'hidden',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
             position: 'relative',
+            // ✅ Form a local stacking context so any inner `z-index`
+            // (e.g. Viewer3D's opaque LoadingSpinner at z:20) stays scoped
+            // to this 140x105 box and cannot paint on top of the main
+            // viewport during a swap/remount transition.
+            isolation: 'isolate',
           }}
         />
 

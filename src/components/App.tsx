@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 
-import { useDaemon, useDaemonHealthCheck, useDaemonReconciliation } from '../hooks/daemon';
+import {
+  useDaemon,
+  useDaemonHealthCheck,
+  useDaemonReconciliation,
+  useDaemonLifecycle,
+} from '../hooks/daemon';
 import useLogViewerBridge from '../hooks/useLogViewerBridge';
 import {
   telemetry,
@@ -48,6 +53,13 @@ function App(): React.ReactElement {
   }, []);
 
   useDaemonReconciliation();
+
+  // 🔗 Daemon lifecycle: MUST be mounted exactly once.
+  // Owns all sidecar listeners, event-bus handlers, daemon-status polling,
+  // and the bootstrap-aware startup timeout. This replaces the lifecycle
+  // effects that used to live inside `useDaemon()` (which is now consumed
+  // as a pure actions/state hook from multiple places).
+  useDaemonLifecycle();
 
   const {
     daemonVersion,
@@ -252,7 +264,7 @@ function App(): React.ReactElement {
 
   // 🚀 Unified WebSocket for ALL robot state
   // Streams at 20Hz: head_pose, head_joints, body_yaw, antennas, passive_joints, control_mode, doa
-  // 🎯 Start early when shouldStreamRobotState=true (HardwareScanView sets this when daemon is ready)
+  // 🎯 Start early when shouldStreamRobotState=true (StartupScanView sets this when daemon is ready)
   useRobotStateWebSocket(isActive || shouldStreamRobotState);
 
   // 🎯 Real-time active moves tracking (WebSocket /api/move/ws/updates)

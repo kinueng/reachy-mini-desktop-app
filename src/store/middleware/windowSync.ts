@@ -37,7 +37,13 @@ export const windowSyncMiddleware =
       'isInstalling',
       'robotStateFull',
       'activeMoves',
+      // Log streams consumed by the standalone LogViewerWindow.
+      // `logs` is the local daemon ring buffer (Rust-polled) and is replaced
+      // wholesale once per poll; the slice's reference-equality guard in
+      // `setLogs` ensures we only re-emit when the tail actually changes.
+      'logs',
       'frontendLogs',
+      'appLogs',
     ];
 
     const initWindowSync = async (): Promise<void> => {
@@ -46,7 +52,7 @@ export const windowSyncMiddleware =
       initPromise = (async () => {
         try {
           const { getCurrentWindow } = await import('@tauri-apps/api/window');
-          const { emit } = await import('@tauri-apps/api/event');
+          const { emit, listen } = await import('@tauri-apps/api/event');
           const currentWindow = await getCurrentWindow();
           isMainWindow = currentWindow.label === 'main';
 
@@ -60,6 +66,19 @@ export const windowSyncMiddleware =
                 // Silently fail if not in Tauri or event system not available
               }
             };
+
+            // Snapshot handshake: secondary windows emit `store-snapshot-request`
+            // on mount so they can hydrate without waiting for the next change.
+            // We reply with a full snapshot of the relevant keys via the usual
+            // `store-update` channel.
+            await listen('store-snapshot-request', () => {
+              const state = get() as unknown as Record<string, unknown>;
+              const snapshot: Updates = {};
+              for (const key of relevantKeys) {
+                if (key in state) snapshot[key] = state[key];
+              }
+              emitStoreUpdate?.(snapshot);
+            });
           }
         } catch {
           // Not in Tauri environment, skip sync

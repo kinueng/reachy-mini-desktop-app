@@ -175,6 +175,11 @@ export const LogItem = React.memo(
       color: '#888',
     };
 
+    // Make the badge height match the message line height exactly so the
+    // overall item height stays in sync with the virtualizer's `estimateSize`.
+    const messageLineHeight = compact ? 1.4 : 1.6;
+    const badgeHeight = fontSize * messageLineHeight;
+
     return (
       <Box
         sx={{
@@ -193,15 +198,18 @@ export const LogItem = React.memo(
             fontWeight: 700,
             fontFamily: 'inherit',
             px: 0.6,
-            py: 0.1,
+            height: `${badgeHeight}px`,
+            boxSizing: 'border-box',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             borderRadius: '3px',
             bgcolor: `${catMeta.color}18`,
             color: catMeta.color,
             border: `1px solid ${catMeta.color}30`,
             whiteSpace: 'nowrap',
             flexShrink: 0,
-            lineHeight: 1.6,
-            mt: '1px',
+            lineHeight: 1,
             textTransform: 'uppercase',
             letterSpacing: '0.3px',
             minWidth: 40,

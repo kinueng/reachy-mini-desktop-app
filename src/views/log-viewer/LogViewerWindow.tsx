@@ -1,95 +1,123 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Box, Typography, ToggleButton, ToggleButtonGroup, IconButton } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import VerticalAlignBottomIcon from '@mui/icons-material/VerticalAlignBottom';
+import { useShallow } from 'zustand/react/shallow';
+import useAppStore from '../../store/useAppStore';
+import { useWindowSync } from '../windows/hooks/useWindowSync';
+import { normalizeLog } from '../../components/LogConsole/utils';
+import type { AppState, LogEntry as StoreLogEntry } from '../../types/store';
+import {
+  VIEWER_CATEGORY_META,
+  LOG_LIMITS,
+  categorizeDaemonLine,
+  parseDaemonLogLevel,
+  formatClockTime,
+  type ViewerCategory,
+  type ViewerEntryCategory,
+} from '../../utils/logging';
+import type { LogLevel } from '../../types/api';
 
-/**
- * Log categories derived from Python logger names:
- *   - daemon: reachy_mini.*, print() output, or anything without a recognized prefix
- *   - api:    uvicorn.access, uvicorn.error
- *   - app:    reachy_mini.apps.*, or lines from running app processes
- */
-type LogCategory = 'all' | 'daemon' | 'api' | 'app';
-type LogLevel = 'error' | 'warning' | 'debug' | 'info';
-
-interface CategoryMeta {
-  label: string;
-  color: string;
-}
-
-interface LogEntry {
+interface ViewerLogEntry {
   line: string;
-  cat: Exclude<LogCategory, 'all'>;
+  cat: ViewerEntryCategory;
   level: LogLevel;
   time: string;
+  /** Sort key. Milliseconds since epoch when known, otherwise ingestion time. */
+  ts: number;
 }
 
-const CATEGORIES: Record<LogCategory, CategoryMeta> = {
-  all: { label: 'All', color: '#888' },
-  daemon: { label: 'Daemon', color: '#60a5fa' },
-  api: { label: 'API', color: '#34d399' },
-  app: { label: 'App', color: '#c084fc' },
-};
-
-const MAX_LOGS = 2000;
-
-// Lines to filter out entirely (system noise from journalctl)
-function categorize(line: string): Exclude<LogCategory, 'all'> {
-  const lower = line.toLowerCase();
-  // uvicorn access/error logs → API
-  if (lower.includes('uvicorn.access') || lower.includes('uvicorn.error')) return 'api';
-  // App manager or running app logs
-  if (lower.includes('reachy_mini.apps') || lower.includes('_app.') || lower.includes('[app]'))
-    return 'app';
-  // Everything else is daemon (including bare prints with no logger prefix)
-  return 'daemon';
-}
-
-function parseLevel(line: string): LogLevel {
-  if (line.includes(' - ERROR - ') || line.includes(' ERROR ')) return 'error';
-  if (line.includes(' - WARNING - ') || line.includes(' WARNING ')) return 'warning';
-  if (line.includes(' - DEBUG - ')) return 'debug';
-  return 'info';
-}
+const MAX_LOGS = LOG_LIMITS.VIEWER;
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
   error: '#ef4444',
   warning: '#f59e0b',
   debug: '#666',
+  success: '#22c55e',
   info: '#d4d4d4',
 };
 
-const CAT_BADGE_COLORS: Record<Exclude<LogCategory, 'all'>, string> = {
+const CAT_BADGE_BG: Record<ViewerEntryCategory, string> = {
   daemon: 'rgba(96, 165, 250, 0.15)',
   api: 'rgba(52, 211, 153, 0.15)',
   app: 'rgba(192, 132, 252, 0.15)',
+  frontend: 'rgba(93, 179, 255, 0.15)',
 };
 
-const CAT_TEXT_COLORS: Record<Exclude<LogCategory, 'all'>, string> = {
-  daemon: '#60a5fa',
-  api: '#34d399',
-  app: '#c084fc',
+const CAT_BADGE_FG: Record<ViewerEntryCategory, string> = {
+  daemon: VIEWER_CATEGORY_META.daemon.color,
+  api: VIEWER_CATEGORY_META.api.color,
+  app: VIEWER_CATEGORY_META.app.color,
+  frontend: VIEWER_CATEGORY_META.frontend.color,
 };
 
-function formatTime(): string {
-  const now = new Date();
-  return now.toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-}
+const daemonEntryToViewer = (raw: unknown): ViewerLogEntry => {
+  const normalized = normalizeLog(raw);
+  const ts = normalized.timestampNumeric || Date.now();
+  return {
+    line: normalized.message,
+    cat: categorizeDaemonLine(normalized.message),
+    level: parseDaemonLogLevel(normalized.message),
+    time: normalized.timestamp || formatClockTime(ts),
+    ts,
+  };
+};
+
+const frontendEntryToViewer = (entry: StoreLogEntry): ViewerLogEntry => {
+  const ts = entry.timestampNumeric || Date.now();
+  return {
+    line: entry.message,
+    cat: 'frontend',
+    level: entry.level ?? 'info',
+    time: entry.timestamp || formatClockTime(ts),
+    ts,
+  };
+};
+
+const appEntryToViewer = (entry: StoreLogEntry): ViewerLogEntry => {
+  const ts = entry.timestampNumeric || Date.now();
+  const prefix = entry.appName ? `[${entry.appName}] ` : '';
+  return {
+    line: `${prefix}${entry.message}`,
+    cat: 'app',
+    level: entry.level ?? 'info',
+    time: entry.timestamp || formatClockTime(ts),
+    ts,
+  };
+};
+
+const selectLogSources = (
+  state: AppState
+): {
+  daemonLogs: AppState['logs'];
+  frontendLogs: AppState['frontendLogs'];
+  appLogs: AppState['appLogs'];
+} => ({
+  daemonLogs: state.logs,
+  frontendLogs: state.frontendLogs,
+  appLogs: state.appLogs,
+});
 
 export default function LogViewerWindow(): React.ReactElement {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [filters, setFilters] = useState<LogCategory[]>(['all']);
+  // Hydrate the local (secondary-window) store from the main window. The
+  // main window emits changes for `logs` (daemon, including remote WiFi lines
+  // now that `useDaemonLogStream` pushes them into the shared buffer),
+  // `frontendLogs`, and `appLogs` via the `windowSync` middleware; on mount we
+  // also request a one-shot snapshot so the viewer doesn't start empty if
+  // opened mid-session.
+  useWindowSync();
+
+  const { daemonLogs, frontendLogs, appLogs } = useAppStore(useShallow(selectLogSources));
+
+  const [filters, setFilters] = useState<ViewerCategory[]>(['all']);
   const [autoScroll, setAutoScroll] = useState<boolean>(true);
+  // Local "clear" baseline: entries whose `ts` is <= this value are hidden.
+  // We don't mutate the store (the main-window console stays intact).
+  const [clearBeforeTs, setClearBeforeTs] = useState<number>(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Handle filter toggle
   const handleFilter = useCallback(
-    (_: React.MouseEvent<HTMLElement>, newFilters: LogCategory[] | null) => {
+    (_: React.MouseEvent<HTMLElement>, newFilters: ViewerCategory[] | null) => {
       if (!newFilters || newFilters.length === 0) return;
       // If 'all' is being added, select only 'all'
       if (newFilters.includes('all') && !filters.includes('all')) {
@@ -103,96 +131,36 @@ export default function LogViewerWindow(): React.ReactElement {
     [filters]
   );
 
-  const addLog = useCallback((line: string) => {
-    const cat = categorize(line);
-    const level = parseLevel(line);
-    const time = formatTime();
-    setLogs(prev => {
-      const next = [...prev, { line, cat, level, time }];
-      return next.length > MAX_LOGS ? next.slice(-MAX_LOGS) : next;
-    });
+  const allLogs = useMemo(() => {
+    const merged: ViewerLogEntry[] = [];
+    for (const entry of daemonLogs) merged.push(daemonEntryToViewer(entry));
+    for (const entry of frontendLogs) merged.push(frontendEntryToViewer(entry));
+    for (const entry of appLogs) merged.push(appEntryToViewer(entry));
+    merged.sort((a, b) => a.ts - b.ts);
+    const filtered = clearBeforeTs > 0 ? merged.filter(e => e.ts > clearBeforeTs) : merged;
+    return filtered.length > MAX_LOGS ? filtered.slice(-MAX_LOGS) : filtered;
+  }, [daemonLogs, frontendLogs, appLogs, clearBeforeTs]);
+
+  const visibleLogs = useMemo(
+    () =>
+      filters.includes('all')
+        ? allLogs
+        : allLogs.filter(l => filters.includes(l.cat as ViewerCategory)),
+    [allLogs, filters]
+  );
+
+  // Local clear: hide all entries up to "now" in this viewer only. The
+  // main-window console keeps its history untouched.
+  const handleClear = useCallback(() => {
+    setClearBeforeTs(Date.now());
   }, []);
-
-  // Read connection info from URL params (passed by the opener)
-  const urlParams = new URLSearchParams(window.location.search);
-  const connectionMode = urlParams.get('mode');
-  const remoteHost = urlParams.get('host');
-
-  // Source 1: Sidecar events (lite/USB mode — Tauri events are cross-window)
-  useEffect(() => {
-    let unlistenStderr: (() => void) | undefined;
-    let unlistenStdout: (() => void) | undefined;
-    const setup = async (): Promise<void> => {
-      try {
-        const { listen: tauriListen } = await import('@tauri-apps/api/event');
-        unlistenStderr = await tauriListen<string>('sidecar-stderr', event => {
-          if (event.payload) addLog(event.payload);
-        });
-        unlistenStdout = await tauriListen<string>('sidecar-stdout', event => {
-          if (event.payload) addLog(event.payload);
-        });
-      } catch {
-        // Not in Tauri
-      }
-    };
-    setup();
-    return () => {
-      if (unlistenStderr) unlistenStderr();
-      if (unlistenStdout) unlistenStdout();
-    };
-  }, [addLog]);
-
-  // Source 2: Direct WebSocket to daemon (wireless mode)
-  useEffect(() => {
-    if (connectionMode !== 'wifi' || !remoteHost) return undefined;
-
-    let ws: WebSocket | null = null;
-    let stopped = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const connectWs = (): void => {
-      if (stopped) return;
-      const cleanHost = remoteHost.replace(/^https?:\/\//, '');
-      const wsUrl = `ws://${cleanHost}:8000/logs/ws/daemon`;
-      try {
-        ws = new WebSocket(wsUrl);
-        ws.onmessage = event => {
-          if (event.data && typeof event.data === 'string' && event.data.trim()) {
-            addLog(event.data);
-          }
-        };
-        ws.onclose = () => {
-          ws = null;
-          if (!stopped) {
-            reconnectTimer = setTimeout(connectWs, 3000);
-          }
-        };
-        ws.onerror = () => {};
-      } catch {
-        if (!stopped) {
-          reconnectTimer = setTimeout(connectWs, 3000);
-        }
-      }
-    };
-
-    connectWs();
-
-    return () => {
-      stopped = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (ws) {
-        ws.close();
-        ws = null;
-      }
-    };
-  }, [addLog, connectionMode, remoteHost]);
 
   // Auto-scroll
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [logs, autoScroll]);
+  }, [visibleLogs, autoScroll]);
 
   // Detect manual scroll
   const handleScroll = useCallback(() => {
@@ -201,11 +169,6 @@ export default function LogViewerWindow(): React.ReactElement {
     const atBottom = scrollHeight - scrollTop - clientHeight < 40;
     setAutoScroll(atBottom);
   }, []);
-
-  // Filter logs
-  const visibleLogs = filters.includes('all')
-    ? logs
-    : logs.filter(l => filters.includes(l.cat as LogCategory));
 
   return (
     <Box
@@ -236,40 +199,43 @@ export default function LogViewerWindow(): React.ReactElement {
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, WebkitAppRegion: 'no-drag' }}>
           <ToggleButtonGroup size="small" value={filters} onChange={handleFilter}>
-            {(Object.entries(CATEGORIES) as [LogCategory, CategoryMeta][]).map(
-              ([key, { label, color }]) => (
-                <ToggleButton
-                  key={key}
-                  value={key}
-                  sx={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    px: 1.5,
-                    py: 0.25,
-                    color: '#8b949e',
-                    borderColor: '#30363d',
-                    '&.Mui-selected': {
-                      color: color,
-                      bgcolor: `${color}18`,
-                      borderColor: `${color}40`,
-                      '&:hover': {
-                        bgcolor: `${color}25`,
-                      },
-                    },
+            {(
+              Object.entries(VIEWER_CATEGORY_META) as [
+                ViewerCategory,
+                { label: string; color: string },
+              ][]
+            ).map(([key, { label, color }]) => (
+              <ToggleButton
+                key={key}
+                value={key}
+                sx={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  px: 1.5,
+                  py: 0.25,
+                  color: '#8b949e',
+                  borderColor: '#30363d',
+                  '&.Mui-selected': {
+                    color: color,
+                    bgcolor: `${color}18`,
+                    borderColor: `${color}40`,
                     '&:hover': {
-                      bgcolor: 'rgba(255,255,255,0.04)',
+                      bgcolor: `${color}25`,
                     },
-                  }}
-                >
-                  {label}
-                </ToggleButton>
-              )
-            )}
+                  },
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.04)',
+                  },
+                }}
+              >
+                {label}
+              </ToggleButton>
+            ))}
           </ToggleButtonGroup>
 
           <Typography sx={{ fontSize: 11, color: '#484f58', ml: 1 }}>
-            {visibleLogs.length} / {logs.length}
+            {visibleLogs.length} / {allLogs.length}
           </Typography>
         </Box>
 
@@ -291,7 +257,7 @@ export default function LogViewerWindow(): React.ReactElement {
           </IconButton>
           <IconButton
             size="small"
-            onClick={() => setLogs([])}
+            onClick={handleClear}
             sx={{
               color: '#484f58',
               '&:hover': { bgcolor: 'rgba(255,255,255,0.06)', color: '#ef4444' },
@@ -344,7 +310,7 @@ export default function LogViewerWindow(): React.ReactElement {
                 px: 1.5,
                 py: '2px',
                 '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
-                borderLeft: `2px solid ${CAT_TEXT_COLORS[entry.cat] || '#444'}22`,
+                borderLeft: `2px solid ${CAT_BADGE_FG[entry.cat] || '#444'}22`,
               }}
             >
               {/* Timestamp */}
@@ -368,8 +334,8 @@ export default function LogViewerWindow(): React.ReactElement {
                 sx={{
                   fontSize: 9,
                   fontWeight: 700,
-                  color: CAT_TEXT_COLORS[entry.cat],
-                  bgcolor: CAT_BADGE_COLORS[entry.cat],
+                  color: CAT_BADGE_FG[entry.cat],
+                  bgcolor: CAT_BADGE_BG[entry.cat],
                   px: 0.75,
                   py: '1px',
                   borderRadius: '3px',

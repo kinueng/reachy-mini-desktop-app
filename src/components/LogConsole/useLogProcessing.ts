@@ -31,10 +31,21 @@ const SIMPLE_ALLOWLIST: RegExp[] = [
   /^daemon (started|stopped|updated|restarted)/i,
   /^(update completed|update likely completed)/i,
   /^simulation mode/i,
+  // First-run Python environment setup: the StartupScanView renders a
+  // LogConsole during bootstrap so the user sees what's happening instead of
+  // staring at a blank spinner. Matches both top-level bootstrap markers
+  // (`[bootstrap] Installing ...`) and streamed subprocess output
+  // (`[bootstrap] [prewarm:.venv] ...`). Keep anchored with `^` to avoid
+  // picking up unrelated mentions of the word "bootstrap" elsewhere.
+  /^\[bootstrap\]/i,
 ];
 
 const isSimpleModeVisible = (log: LogEntry): boolean => {
   if (log.level === 'error') return true;
+  // Explicit user-facing tag (via `logger.event()` / `useLogger().event()`)
+  // always wins over the regex allowlist below. The allowlist remains as a
+  // fallback so legacy call sites keep behaving exactly as before.
+  if (log.userFacing === true) return true;
   const msg = log.message || '';
   return SIMPLE_ALLOWLIST.some(p => p.test(msg));
 };

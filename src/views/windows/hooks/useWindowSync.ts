@@ -29,7 +29,7 @@ export function useWindowSync(): void {
           return;
         }
 
-        const { listen } = await import('@tauri-apps/api/event');
+        const { listen, emit } = await import('@tauri-apps/api/event');
 
         // Listen to general store updates from main window
         const unlistenGeneral = await listen<Partial<AppState>>('store-update', event => {
@@ -45,6 +45,11 @@ export function useWindowSync(): void {
           }
         });
         unlistenFunctions.push(unlistenGeneral);
+
+        // Request an initial snapshot so we don't wait for the next change
+        // to populate. The middleware running in the main window replies via
+        // the same `store-update` channel. Safe to fire-and-forget.
+        void emit('store-snapshot-request');
       } catch (error) {
         console.error('❌ Failed to setup window sync listeners:', error);
       }

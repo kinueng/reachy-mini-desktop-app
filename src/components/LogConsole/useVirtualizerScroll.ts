@@ -9,6 +9,15 @@ type VirtualizerWithScrollElement = Virtualizer<HTMLElement, Element> & {
 export interface UseVirtualizerScrollParams {
   virtualizer: Virtualizer<HTMLElement, Element> | null | undefined;
   totalCount: number;
+  /**
+   * Current `virtualizer.getTotalSize()` value. Passed in from the component
+   * so we re-trigger auto-scroll whenever the virtualizer re-measures an
+   * item (e.g. a multi-line log that was initially estimated as one line).
+   * Without this, the first `scrollToBottom` lands on the *estimated* max
+   * offset, and subsequent `measureElement` callbacks grow the total size
+   * without pinning the viewport back to the bottom.
+   */
+  totalSize?: number;
   enabled?: boolean;
   compact?: boolean;
   simpleStyle?: boolean;
@@ -30,12 +39,14 @@ export interface UseVirtualizerScrollResult {
 export const useVirtualizerScroll = ({
   virtualizer,
   totalCount,
+  totalSize = 0,
   enabled = true,
   compact = false,
   simpleStyle = false,
   scrollElementRef = null,
 }: UseVirtualizerScrollParams): UseVirtualizerScrollResult => {
   const prevLogCountRef = useRef<number>(totalCount);
+  const prevTotalSizeRef = useRef<number>(totalSize);
   const isAutoScrollEnabledRef = useRef<boolean>(true); // Start with auto-scroll enabled
   const isScrollingProgrammaticallyRef = useRef<boolean>(false); // Track if we're scrolling programmatically
   const lastScrollTopRef = useRef<number>(0); // Track last scroll position to detect direction
@@ -326,6 +337,29 @@ export const useVirtualizerScroll = ({
 
     prevLogCountRef.current = totalCount;
   }, [totalCount, enabled, scrollToBottom, virtualizer]);
+
+  /**
+   * Follow-up pin to bottom when the virtualizer's total size grows without
+   * the item count changing. This happens on every multi-line log: the item
+   * is first rendered at its estimated single-line height, then the inner
+   * `measureElement` callback remeasures it and the total size jumps up. If
+   * we don't re-scroll here, the viewport stays anchored at the (now stale)
+   * offset computed from the estimated size and the user sees the bottom
+   * row clipped.
+   */
+  useEffect(() => {
+    if (!enabled || !virtualizer) {
+      prevTotalSizeRef.current = totalSize;
+      return;
+    }
+    const prev = prevTotalSizeRef.current;
+    prevTotalSizeRef.current = totalSize;
+    if (totalSize > prev && isAutoScrollEnabledRef.current) {
+      requestAnimationFrame(() => {
+        scrollToBottom(false);
+      });
+    }
+  }, [totalSize, enabled, virtualizer, scrollToBottom]);
 
   /**
    * Cleanup on unmount

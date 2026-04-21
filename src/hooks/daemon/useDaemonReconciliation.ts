@@ -32,7 +32,7 @@ interface DaemonStatusResult {
  * - On mount, call `get_daemon_status` (Rust command).
  * - If daemon status is "Running" AND JS store says "disconnected",
  *   restore connectionMode + robotStatus so the view router jumps
- *   directly to HardwareScanView (which will sync WebSocket data
+ *   directly to StartupScanView (which will sync WebSocket data
  *   and then transition to the active view).
  */
 export function useDaemonReconciliation(): void {
@@ -63,12 +63,29 @@ export function useDaemonReconciliation(): void {
           enableSimulationMode();
         }
 
+        // In WiFi mode the Rust-side local_proxy preserved the target host
+        // across the webview reload. Recover it so features that read
+        // `remoteHost` directly (daemon log stream, settings display) work
+        // after reconciliation. Best-effort - if the command is missing the
+        // user keeps a degraded-but-functional WiFi session.
+        let restoredRemoteHost: string | null = null;
+        if (rustMode === 'wifi') {
+          try {
+            const target = (await invoke('get_local_proxy_target')) as string | null;
+            if (target) {
+              restoredRemoteHost = target;
+            }
+          } catch {
+            // Command not available or state empty - continue with null.
+          }
+        }
+
         // Restore the store to "starting" so the view router shows
-        // HardwareScanView, which handles WebSocket sync + WASM
+        // StartupScanView, which handles WebSocket sync + WASM
         // passive_joints before transitioning to the active view.
         useAppStore.setState({
           connectionMode: rustMode,
-          remoteHost: null,
+          remoteHost: restoredRemoteHost,
           isUsbConnected: rustMode !== 'wifi',
           robotStatus: ROBOT_STATUS.STARTING,
           busyReason: null,

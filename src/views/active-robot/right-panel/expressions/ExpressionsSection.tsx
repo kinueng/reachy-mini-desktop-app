@@ -3,70 +3,79 @@ import { Box, IconButton, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { EmotionWheel, EmojiPicker } from '@components/emoji-grid';
 import type { EmotionWheelHandle } from '@components/emoji-grid/EmotionWheel';
+import { ACCENT_ORANGE, accentRgba } from '@components/emoji-grid/theme';
 import {
   CHOREOGRAPHY_DATASETS,
+  EMOTION_EFFECT_DURATION_MS,
+  EMOTION_EFFECT_MAP,
   EMOTIONS,
   DANCES,
-  EMOTION_EMOJIS,
-  DANCE_EMOJIS,
-  type QuickAction,
+  type EmojiGridAction,
 } from '@constants/choreographies';
 import { useRobotCommands } from '@hooks/robot';
 import { useActiveRobotContext } from '../../context';
 import { useLogger } from '@/utils/logging';
 import { telemetry } from '@/utils/telemetry';
 
-// Constants
+/** Debounce the `isBusy` flag to avoid UI flicker between transient states. */
 const BUSY_DEBOUNCE_MS = 150;
-const EFFECT_DURATION_MS = 4000;
 
-// Debounce pour le reset de l'action active (évite le clignotement)
+/** Debounce clearing the active action so the spinner doesn't flash between
+ *  the "command running" and "moving" busy reasons. */
 const ACTIVE_ACTION_RESET_DEBOUNCE_MS = 100;
 
-// Effect mapping for 3D visual effects
-const EFFECT_MAP: Record<string, string | null> = {
-  goto_sleep: 'sleep',
-  wake_up: null,
-  loving1: 'love',
-  sad1: 'sad',
-  surprised1: 'surprised',
-};
+type View = 'wheel' | 'library';
+type TimeoutId = ReturnType<typeof setTimeout>;
 
 export interface ExpressionsSectionProps {
   isBusy?: boolean;
   darkMode?: boolean;
 }
 
-type TimeoutId = ReturnType<typeof setTimeout>;
-
 /**
- * Expressions Section V2 - Emotion Wheel + Library view
- * Displays a curated wheel of 12 emotions, with access to full library
+ * Expressions Section - Emotion Wheel + Library view.
+ * Displays either a curated wheel of emotions or the full library grid.
  */
 export default function ExpressionsSection({
   isBusy: _isBusyProp = false,
   darkMode = false,
 }: ExpressionsSectionProps): React.ReactElement {
-  // View state: 'wheel' or 'library' - library is default
-  const [currentView, setCurrentView] = useState<'wheel' | 'library'>('library');
-
-  // Space key animation state
+  const [currentView, setCurrentView] = useState<View>('library');
   const [spacePressed, setSpacePressed] = useState<boolean>(false);
   const wheelRef = useRef<EmotionWheelHandle | null>(null);
 
+  const { robotState, actions } = useActiveRobotContext();
+  const { robotStatus, isCommandRunning, isAppRunning, isInstalling, busyReason } = robotState;
+  const { setRightPanelView, triggerEffect, stopEffect } = actions;
+
+  const isReady = robotStatus === 'ready';
+  const isExecuting = isCommandRunning || busyReason === 'moving';
+
+  const [activeActionName, setActiveActionName] = useState<string | null>(null);
+  const activeActionResetTimeoutRef = useRef<TimeoutId | null>(null);
+
+  const rawIsBusy = robotStatus === 'busy' || isCommandRunning || isAppRunning || isInstalling;
+  const [debouncedIsBusy, setDebouncedIsBusy] = useState<boolean>(rawIsBusy);
+  const debounceTimeoutRef = useRef<TimeoutId | null>(null);
+
+  const { playRecordedMove } = useRobotCommands();
+  const logger = useLogger();
+
+  const effectTimeoutRef = useRef<TimeoutId | null>(null);
+
+  // Space key triggers a random emotion spin while on the wheel view.
   useEffect(() => {
+    if (currentView !== 'wheel') return;
+
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.code === 'Space' && !e.repeat && currentView === 'wheel') {
+      if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         setSpacePressed(true);
-        // Trigger random via ref
         wheelRef.current?.triggerRandom?.();
       }
     };
     const handleKeyUp = (e: KeyboardEvent): void => {
-      if (e.code === 'Space') {
-        setSpacePressed(false);
-      }
+      if (e.code === 'Space') setSpacePressed(false);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -77,23 +86,7 @@ export default function ExpressionsSection({
     };
   }, [currentView]);
 
-  // Get state and actions from context
-  const { robotState, actions } = useActiveRobotContext();
-  const { robotStatus, isCommandRunning, isAppRunning, isInstalling, busyReason } = robotState;
-  const { setRightPanelView, triggerEffect, stopEffect } = actions;
-
-  // Only enabled when robot is ready (not sleeping, not busy)
-  const isReady = robotStatus === 'ready';
-
-  // Track active action for spinner display
-  const [activeActionName, setActiveActionName] = useState<string | null>(null);
-  const activeActionResetTimeoutRef = useRef<TimeoutId | null>(null);
-
-  // Debounce isBusy
-  const rawIsBusy = robotStatus === 'busy' || isCommandRunning || isAppRunning || isInstalling;
-  const [debouncedIsBusy, setDebouncedIsBusy] = useState<boolean>(rawIsBusy);
-  const debounceTimeoutRef = useRef<TimeoutId | null>(null);
-
+  // Debounce isBusy to smooth out transient state changes.
   useEffect(() => {
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
@@ -108,61 +101,40 @@ export default function ExpressionsSection({
     }
 
     return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
+      if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
     };
   }, [rawIsBusy, debouncedIsBusy]);
 
-  const { playRecordedMove } = useRobotCommands();
-  const logger = useLogger();
-
-  const effectTimeoutRef = useRef<TimeoutId | null>(null);
-
   const handleAction = useCallback(
-    (action: QuickAction): void => {
-      // Track which action is being executed
-      setActiveActionName(action.name);
+    (action: EmojiGridAction): void => {
+      // Ignore taps while the robot is busy. This guard used to live in a
+      // dedicated `handleWheelAction` wrapper - it's simpler here.
+      if (debouncedIsBusy) return;
 
-      // Get emoji based on type
-      let emoji: string | null = null;
-      if (action.type === 'emotion') {
-        emoji = (EMOTION_EMOJIS as Record<string, string | undefined>)[action.name] || null;
-      } else if (action.type === 'dance') {
-        emoji = (DANCE_EMOJIS as Record<string, string | undefined>)[action.name] || null;
-      }
-      void emoji;
+      setActiveActionName(action.name);
 
       const prefix = action.type === 'dance' ? 'Playing dance' : 'Playing emotion';
       logger.userAction(`${prefix}: ${action.label}`);
-
-      // 📊 Telemetry
       telemetry.expressionPlayed({ name: action.name, type: action.type });
 
-      // Play the move based on type
-      if (action.type === 'dance') {
-        playRecordedMove(CHOREOGRAPHY_DATASETS.DANCES, action.name);
-      } else {
-        playRecordedMove(CHOREOGRAPHY_DATASETS.EMOTIONS, action.name);
-      }
+      const dataset =
+        action.type === 'dance' ? CHOREOGRAPHY_DATASETS.DANCES : CHOREOGRAPHY_DATASETS.EMOTIONS;
+      playRecordedMove(dataset, action.name);
 
-      const effectType = EFFECT_MAP[action.name];
+      const effectType = EMOTION_EFFECT_MAP[action.name];
       if (effectType) {
         triggerEffect(effectType);
-
-        if (effectTimeoutRef.current) {
-          clearTimeout(effectTimeoutRef.current);
-        }
-
+        if (effectTimeoutRef.current) clearTimeout(effectTimeoutRef.current);
         effectTimeoutRef.current = setTimeout(() => {
           stopEffect();
           effectTimeoutRef.current = null;
-        }, EFFECT_DURATION_MS);
+        }, EMOTION_EFFECT_DURATION_MS);
       }
     },
-    [playRecordedMove, triggerEffect, stopEffect, logger]
+    [debouncedIsBusy, playRecordedMove, triggerEffect, stopEffect, logger]
   );
 
+  // Flush the effect timeout on unmount.
   useEffect(() => {
     return () => {
       if (effectTimeoutRef.current) {
@@ -172,17 +144,14 @@ export default function ExpressionsSection({
     };
   }, []);
 
-  // Reset active action when robot is no longer busy
+  // Reset the active action once the robot leaves all busy reasons.
   useEffect(() => {
-    // Clear any pending reset timeout
     if (activeActionResetTimeoutRef.current) {
       clearTimeout(activeActionResetTimeoutRef.current);
       activeActionResetTimeoutRef.current = null;
     }
 
-    // Reset active action when robot becomes ready again
-    if (!isCommandRunning && busyReason !== 'moving' && activeActionName) {
-      // Small debounce to avoid flicker between command and moving states
+    if (!isExecuting && activeActionName) {
       activeActionResetTimeoutRef.current = setTimeout(() => {
         setActiveActionName(null);
       }, ACTIVE_ACTION_RESET_DEBOUNCE_MS);
@@ -193,31 +162,16 @@ export default function ExpressionsSection({
         clearTimeout(activeActionResetTimeoutRef.current);
       }
     };
-  }, [isCommandRunning, busyReason, activeActionName]);
+  }, [isExecuting, activeActionName]);
 
-  const handleWheelAction = useCallback(
-    (action: QuickAction): void => {
-      if (debouncedIsBusy) return;
-      handleAction(action);
-    },
-    [debouncedIsBusy, handleAction]
-  );
-
-  // Check if an action is currently executing
-  const isExecuting = isCommandRunning || busyReason === 'moving';
-
-  const handleBack = (): void => {
-    // Block navigation if an action is in progress
+  const handleBack = useCallback((): void => {
     if (isExecuting) return;
-
     if (currentView === 'wheel') {
-      // Go back to library
       setCurrentView('library');
     } else {
-      // Close the panel
       setRightPanelView(null);
     }
-  };
+  }, [isExecuting, currentView, setRightPanelView]);
 
   return (
     <Box
@@ -230,15 +184,7 @@ export default function ExpressionsSection({
         position: 'relative',
       }}
     >
-      {/* Header with back button */}
-      <Box
-        sx={{
-          px: 2,
-          pt: 1.5,
-          pb: 1,
-          bgcolor: 'transparent',
-        }}
-      >
+      <Box sx={{ px: 2, pt: 1.5, pb: 1, bgcolor: 'transparent' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <IconButton
             onClick={handleBack}
@@ -249,14 +195,14 @@ export default function ExpressionsSection({
                 ? darkMode
                   ? 'rgba(255,255,255,0.3)'
                   : 'rgba(0,0,0,0.2)'
-                : '#FF9500',
+                : ACCENT_ORANGE,
               cursor: isExecuting ? 'not-allowed' : 'pointer',
               '&:hover': {
                 bgcolor: isExecuting
                   ? 'transparent'
                   : darkMode
-                    ? 'rgba(255, 149, 0, 0.1)'
-                    : 'rgba(255, 149, 0, 0.05)',
+                    ? accentRgba(0.1)
+                    : accentRgba(0.05),
               },
               '&.Mui-disabled': {
                 color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)',
@@ -278,10 +224,8 @@ export default function ExpressionsSection({
         </Box>
       </Box>
 
-      {/* Content based on current view */}
       {currentView === 'wheel' ? (
         <>
-          {/* Centered Emotion Wheel */}
           <Box
             sx={{
               flex: 1,
@@ -294,18 +238,15 @@ export default function ExpressionsSection({
           >
             <EmotionWheel
               ref={wheelRef}
-              onAction={
-                handleWheelAction as (action: { name: string; type: string; label: string }) => void
-              }
+              onAction={handleAction}
               darkMode={darkMode}
               disabled={debouncedIsBusy || !isReady}
               isBusy={debouncedIsBusy}
               activeActionName={activeActionName}
-              isExecuting={isCommandRunning || busyReason === 'moving'}
+              isExecuting={isExecuting}
             />
           </Box>
 
-          {/* Footer - Keyboard shortcut hint */}
           <Box
             sx={{
               position: 'absolute',
@@ -333,10 +274,10 @@ export default function ExpressionsSection({
                   py: 0.25,
                   borderRadius: 1,
                   border: spacePressed
-                    ? '1px solid #FF9500'
+                    ? `1px solid ${ACCENT_ORANGE}`
                     : `1px solid ${darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'}`,
-                  bgcolor: spacePressed ? 'rgba(255,149,0,0.15)' : 'transparent',
-                  color: spacePressed ? '#FF9500' : 'inherit',
+                  bgcolor: spacePressed ? accentRgba(0.15) : 'transparent',
+                  color: spacePressed ? ACCENT_ORANGE : 'inherit',
                   fontFamily: 'monospace',
                   fontSize: 8,
                   textTransform: 'uppercase',
@@ -352,58 +293,16 @@ export default function ExpressionsSection({
           </Box>
         </>
       ) : (
-        /* Library view - full emoji picker */
-        <Box
-          sx={{
-            flex: 1,
-            overflow: 'auto',
-            px: 2,
-            py: 2,
-            pb: 2,
-          }}
-        >
+        <Box sx={{ flex: 1, overflow: 'auto', px: 2, py: 2, pb: 2 }}>
           <EmojiPicker
-            emotions={EMOTIONS as unknown as string[]}
-            dances={DANCES as unknown as string[]}
-            onAction={handleWheelAction as (action: unknown) => void}
+            emotions={EMOTIONS}
+            dances={DANCES}
+            onAction={handleAction}
             darkMode={darkMode}
             disabled={debouncedIsBusy || !isReady}
             activeActionName={activeActionName}
-            isExecuting={isCommandRunning || busyReason === 'moving'}
+            isExecuting={isExecuting}
           />
-
-          {/* Footer link to wheel - disabled for now */}
-          {/* <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'center',
-              pt: 3,
-              pb: 1,
-            }}
-          >
-            <Box
-              component="button"
-              onClick={handleOpenWheel}
-              sx={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                color: darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)',
-                fontSize: 11,
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
-                textDecoration: 'underline',
-                transition: 'all 0.2s ease',
-                whiteSpace: 'nowrap',
-                '&:hover': {
-                  color: '#FF9500',
-                },
-              }}
-            >
-              Emotion Wheel
-            </Box>
-          </Box> */}
         </Box>
       )}
     </Box>

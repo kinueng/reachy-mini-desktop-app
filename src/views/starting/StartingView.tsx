@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Box } from '@mui/material';
-import HardwareScanView from './HardwareScanView';
+import StartupView from './StartupView';
 import useAppStore from '../../store/useAppStore';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl, getWsBaseUrl } from '../../config/daemon';
 
@@ -10,8 +10,9 @@ export interface StartingViewProps {
 }
 
 /**
- * View displayed during daemon startup
- * Wrapper around HardwareScanView that handles the transition logic
+ * View displayed during daemon startup.
+ * Thin wrapper around `StartupView` that owns the auto wake-up sequence
+ * triggered right after the startup pipeline completes.
  */
 function StartingView({ startupError, startDaemon }: StartingViewProps) {
   const { darkMode, transitionTo, setHardwareError } = useAppStore();
@@ -114,7 +115,7 @@ function StartingView({ startupError, startDaemon }: StartingViewProps) {
           justifyContent: 'center',
         }}
       >
-        <HardwareScanView
+        <StartupView
           startupError={startupError}
           onScanComplete={handleScanComplete}
           startDaemon={startDaemon}

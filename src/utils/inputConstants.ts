@@ -14,6 +14,7 @@ export const ROBOT_POSITION_RANGES = {
   YAW: { min: -1.2, max: 1.2 },
   ROLL: { min: -0.5, max: 0.5 },
   ANTENNA: { min: (-160 * Math.PI) / 180, max: (160 * Math.PI) / 180 },
+  BODY_YAW: { min: (-160 * Math.PI) / 180, max: (160 * Math.PI) / 180 },
 } as const satisfies Record<string, Range>;
 
 /**
@@ -33,6 +34,9 @@ export const INPUT_THRESHOLDS = {
   ACTIVE_INPUT: 0.005,
   ZERO_TOLERANCE: 0.01,
   SYNC_TOLERANCE: 0.01,
+  INITIAL_POSITION: 0.0001,
+  AT_TARGET: 0.01,
+  MAJOR_CHANGE: 0.1,
 } as const;
 
 /**
@@ -43,6 +47,28 @@ export const TIMING = {
   GAMEPAD_RELEASE_SYNC_DELAY: 1000,
   DRAG_END_SYNC_DELAY: 2000,
   NOTIFICATION_THROTTLE: 33,
+  SEND_THROTTLE: 50,
+  UI_UPDATE_INTERVAL: 1000 / 15,
+  BUTTON_PULSE: 50,
+  GAMEPAD_CONNECTION_POLL: 500,
+  SYNC_INTERACTION_GRACE: 30000,
+  WS_RECONNECT_DELAY: 1000,
+} as const;
+
+/**
+ * WebSocket retry policy.
+ */
+export const WS_RETRY = {
+  MAX_ATTEMPTS: 5,
+} as const;
+
+/**
+ * Progressive increment parameters for held D-pad buttons (Z position, body yaw).
+ */
+export const PROGRESSIVE_INCREMENT = {
+  INITIAL_MAGNITUDE: 0.2,
+  FRAME_STEP: 0.002,
+  MAX_MAGNITUDE: 1.0,
 } as const;
 
 /**

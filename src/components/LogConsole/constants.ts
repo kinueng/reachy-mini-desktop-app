@@ -9,6 +9,11 @@ export const PADDING = {
   NORMAL: { horizontal: 16, vertical: 4 },
 } as const;
 
+/**
+ * Stable empty array reference. Used for `useAppStore` selectors that need to
+ * return "no data" without creating a new array identity on every render
+ * (Zustand bails out on reference equality).
+ */
 export const EMPTY_ARRAY: readonly never[] = [];
 
 /**

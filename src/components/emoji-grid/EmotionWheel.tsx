@@ -1,123 +1,44 @@
-import React, { useState, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import useSound from 'use-sound';
 import gsap from 'gsap';
 import { CircularProgress } from '@mui/material';
-import { EMOTION_EMOJIS } from '@constants/choreographies';
+import {
+  EMOTION_EMOJIS,
+  WHEEL_EMOTIONS,
+  labelFromActionName,
+  type EmojiGridAction,
+} from '@constants/choreographies';
 import diceRollSound from '@assets/sounds/dice.mp3';
 import tickSound from '@assets/sounds/bite.mp3';
+import { DiceIcon } from './DiceIcon';
+import { ACCENT_ORANGE, accentRgba } from './theme';
 
-interface DiceIconProps {
-  value?: number;
-  size?: number;
-  color?: string;
-  isShaking?: boolean;
-}
+/** Visual sizing for the wheel layout. */
+const WHEEL_SIZE = 380;
+const CENTER_SIZE = 160;
+const EMOJI_SIZE = 36;
+const DICE_SIZE = 30;
 
-/**
- * DiceIcon - A dice component that shows dots (1-6)
- * Styled to match the wheel aesthetic
- */
-function DiceIcon({ value = 6, size = 32, color = '#FF9500', isShaking = false }: DiceIconProps) {
-  const dotSize = size * 0.16;
+/** Spin animation timing parameters. */
+const SPIN_BASE_DELAY_MS = 50;
+const SPIN_MAX_DELAY_MS = 250;
+const SPIN_EASING_EXPONENT = 4;
+const SPIN_FULL_ROTATIONS_MIN = 1;
+const SPIN_FULL_ROTATIONS_RANGE = 2; // 1 or 2 extra rotations
+const SPIN_RESOLVE_DELAY_MS = 150;
+const SPIN_HIDE_DICE_DELAY_MS = 1500;
 
-  // Dot positions for each dice value (as percentage from center)
-  // Using simpler grid: 0 = 25%, 1 = 50%, 2 = 75%
-  const dotPatterns: Record<number, [number, number][]> = {
-    1: [[1, 1]], // center
-    2: [
-      [0, 0],
-      [2, 2],
-    ], // top-left, bottom-right
-    3: [
-      [0, 0],
-      [1, 1],
-      [2, 2],
-    ], // diagonal
-    4: [
-      [0, 0],
-      [2, 0],
-      [0, 2],
-      [2, 2],
-    ], // corners
-    5: [
-      [0, 0],
-      [2, 0],
-      [1, 1],
-      [0, 2],
-      [2, 2],
-    ], // corners + center
-    6: [
-      [0, 0],
-      [2, 0],
-      [0, 1],
-      [2, 1],
-      [0, 2],
-      [2, 2],
-    ], // 2 columns of 3
-  };
+const FALLBACK_EMOJI = '😐';
 
-  const dots = dotPatterns[value] || dotPatterns[6];
-
-  // Grid positions: 25%, 50%, 75%
-  const positions = [0.25, 0.5, 0.75];
-
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size * 0.2,
-        border: `1px solid ${color}`,
-        position: 'relative',
-        boxSizing: 'border-box',
-        animation: isShaking ? 'diceShake 0.1s ease-in-out infinite' : 'none',
-        pointerEvents: 'none', // Let clicks pass through to button
-      }}
-    >
-      {dots.map(([col, row], i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            width: dotSize,
-            height: dotSize,
-            borderRadius: '50%',
-            backgroundColor: color,
-            left: `calc(${positions[col] * 100}% - ${dotSize / 2}px)`,
-            top: `calc(${positions[row] * 100}% - ${dotSize / 2}px)`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-/**
- * Curated emotions for the wheel - 12 emotions arranged in a circle
- */
-const WHEEL_EMOTIONS: string[] = [
-  // Positive emotions
-  'loving1',
-  'grateful1',
-  'helpful1',
-  'surprised1',
-  'thoughtful1',
-  // Interaction
-  'yes1',
-  'no1',
-  // Neutral/Negative emotions
-  'boredom2',
-  'anxiety1',
-  'downcast1',
-  'sad1',
-  'sad2',
-  'dying1',
-  'reprimand1',
-];
-
-/**
- * Helper to create an arc path for a pie slice
- */
+/** Helper to create an SVG arc path for a pie slice. */
 function createArcPath(
   centerX: number,
   centerY: number,
@@ -150,8 +71,13 @@ function createArcPath(
   `;
 }
 
+/** Build an EmojiGridAction payload for a given emotion name. */
+function actionFor(name: string): EmojiGridAction {
+  return { name, type: 'emotion', label: labelFromActionName(name) };
+}
+
 export interface EmotionWheelProps {
-  onAction?: (action: { name: string; type: string; label: string }) => void;
+  onAction?: (action: EmojiGridAction) => void;
   darkMode?: boolean;
   disabled?: boolean;
   isBusy?: boolean;
@@ -164,8 +90,12 @@ export interface EmotionWheelHandle {
 }
 
 /**
- * EmotionWheel - A circular wheel of 12 curated emotions
- * Centered, large, and visually striking
+ * EmotionWheel - A circular wheel of curated emotions with a random-spin center.
+ *
+ * Active slice resolution:
+ * - While spinning, the active slice is driven by the local `spinIndex` state.
+ * - Otherwise, it is derived from `activeActionName` (single source of truth),
+ *   so parent-driven execution state stays in sync without a dedicated reset effect.
  */
 export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(function EmotionWheel(
   {
@@ -181,26 +111,22 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [pressedIndex, setPressedIndex] = useState<number | null>(null);
   const [centerHovered, setCenterHovered] = useState<boolean>(false);
-  const [centerPressed, setCenterPressed] = useState<boolean>(false);
 
-  // Prevent flash on mount - hide until positioned
-  const [isReady, setIsReady] = useState<boolean>(false);
-  React.useEffect(() => {
-    // Small delay to ensure layout is complete
-    const timer = requestAnimationFrame(() => {
-      setIsReady(true);
-    });
-    return () => cancelAnimationFrame(timer);
-  }, []);
-
-  // Spinning animation state
+  // Spinning animation state. `spinIndex` drives the rolling highlight; null
+  // outside of a spin (highlight then comes from `activeActionName`).
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [spinIndex, setSpinIndex] = useState<number | null>(null);
   const [diceValue, setDiceValue] = useState<{ dice1: number; dice2: number }>({
     dice1: 5,
     dice2: 3,
   });
-  const spinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // All timeouts created during a spin, tracked so we can flush them on unmount.
+  const spinTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const trackTimeout = useCallback((id: ReturnType<typeof setTimeout>) => {
+    spinTimeoutsRef.current.add(id);
+    return id;
+  }, []);
 
   // Refs for GSAP animations
   const dice1Ref = useRef<HTMLDivElement | null>(null);
@@ -208,22 +134,18 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
   const diceContainerRef = useRef<HTMLDivElement | null>(null);
   const labelRef = useRef<HTMLSpanElement | null>(null);
 
-  // Sounds
+  // `useSound` returns a stable reference for the play callback, so we can
+  // depend on it directly without an intermediary ref.
   const [playDiceSound] = useSound(diceRollSound, { volume: 0.25 });
   const [playTick] = useSound(tickSound, { volume: 0.035 });
 
-  // GSAP animation functions
   const showDice = useCallback(() => {
     const tl = gsap.timeline();
-
-    // Show container first
     tl.to(diceContainerRef.current, {
       height: 'auto',
       duration: 0.15,
       ease: 'power2.out',
     });
-
-    // Dice fall from top - staggered, like dropping onto surface
     tl.fromTo(
       [dice1Ref.current, dice2Ref.current],
       { y: -30, opacity: 0 },
@@ -236,25 +158,12 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
       },
       '-=0.05'
     );
-
-    // Move label down
-    tl.to(
-      labelRef.current,
-      {
-        y: 0,
-        duration: 0.15,
-        ease: 'power2.out',
-      },
-      '-=0.2'
-    );
-
+    tl.to(labelRef.current, { y: 0, duration: 0.15, ease: 'power2.out' }, '-=0.2');
     return tl;
   }, []);
 
   const hideDice = useCallback(() => {
     const tl = gsap.timeline();
-
-    // Dice fly up and fade - staggered reverse
     tl.to([dice2Ref.current, dice1Ref.current], {
       y: -25,
       opacity: 0,
@@ -262,61 +171,26 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
       stagger: 0.06,
       ease: 'power2.in',
     });
-
-    // Hide container
-    tl.to(
-      diceContainerRef.current,
-      {
-        height: 0,
-        duration: 0.12,
-        ease: 'power2.in',
-      },
-      '-=0.08'
-    );
-
-    // Center label back up
-    tl.to(
-      labelRef.current,
-      {
-        y: -8,
-        duration: 0.15,
-        ease: 'power2.out',
-      },
-      '-=0.15'
-    );
-
+    tl.to(diceContainerRef.current, { height: 0, duration: 0.12, ease: 'power2.in' }, '-=0.08');
+    tl.to(labelRef.current, { y: -8, duration: 0.15, ease: 'power2.out' }, '-=0.15');
     return tl;
   }, []);
 
-  // Ref for tick sound to use in animation closure
-  const playTickRef = useRef(playTick);
-  playTickRef.current = playTick;
-
-  const wheelSize = 380;
-  const centerSize = 160;
-  const emojiSize = 36;
-
-  // Calculate positions for 12 items in a circle
-  const angleStep = 360 / WHEEL_EMOTIONS.length;
-  const centerX = wheelSize / 2;
-  const centerY = wheelSize / 2;
-  const innerRadius = centerSize / 2; // Touching the center button
-  const outerRadius = wheelSize / 2 - 2; // Small gap from edge
-  const emojiRadius = (innerRadius + outerRadius) / 2; // Center of the slice
+  // Layout math - memoized so we only recompute if the sizing constants change.
+  const layout = useMemo(() => {
+    const angleStep = 360 / WHEEL_EMOTIONS.length;
+    const centerX = WHEEL_SIZE / 2;
+    const centerY = WHEEL_SIZE / 2;
+    const innerRadius = CENTER_SIZE / 2;
+    const outerRadius = WHEEL_SIZE / 2 - 2;
+    const emojiRadius = (innerRadius + outerRadius) / 2;
+    return { angleStep, centerX, centerY, innerRadius, outerRadius, emojiRadius };
+  }, []);
 
   const handleClick = useCallback(
     (emotion: string) => {
       if (disabled || isSpinning || !onAction) return;
-      // Set active index to show highlight during animation
-      const index = WHEEL_EMOTIONS.indexOf(emotion);
-      if (index !== -1) {
-        setActiveIndex(index);
-      }
-      onAction({
-        name: emotion,
-        type: 'emotion',
-        label: emotion.replace(/[0-9]+$/, '').replace(/_/g, ' '),
-      });
+      onAction(actionFor(emotion));
     },
     [disabled, isSpinning, onAction]
   );
@@ -324,131 +198,128 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
   const handleRandom = useCallback(() => {
     if (disabled || isSpinning || !onAction) return;
 
-    // Show dice with GSAP staggered animation
     showDice();
-
-    // Play dice roll sound
     playDiceSound();
 
     setIsSpinning(true);
 
-    // Generate random dice values first, then calculate final index from their sum
+    // Pick final dice values first, then derive the winning slice from their sum.
     const finalDice1 = Math.floor(Math.random() * 6) + 1;
     const finalDice2 = Math.floor(Math.random() * 6) + 1;
-
-    // Final position = sum of dice - 1 (sum 2-12 maps to positions 1-11, with wrap for 0)
     const diceSum = finalDice1 + finalDice2;
     const finalIndex = (diceSum - 1) % WHEEL_EMOTIONS.length;
 
-    // Calculate total steps: 1-2 full rotations + final position
-    const fullRotations = 1 + Math.floor(Math.random() * 2); // 1 or 2 rotations
+    const fullRotations =
+      SPIN_FULL_ROTATIONS_MIN + Math.floor(Math.random() * SPIN_FULL_ROTATIONS_RANGE);
     const totalSteps = fullRotations * WHEEL_EMOTIONS.length + finalIndex;
 
     let currentStep = 0;
-    let currentIndex = 0; // Always start from index 0
+    let currentIndex = 0;
 
-    const spin = () => {
-      // Play tick sound for each step
-      playTickRef.current();
+    const spin = (): void => {
+      playTick();
 
-      // Change dice values at each tick - random during spin, final at last step
-      const stepsRemaining = totalSteps - currentStep;
-      if (stepsRemaining <= 0) {
-        // Show final dice values only at the very last step
+      // Keep rolling random dice visuals until we land on the final step.
+      if (currentStep >= totalSteps) {
         setDiceValue({ dice1: finalDice1, dice2: finalDice2 });
       } else {
-        // Random dice at every tick during spin
         setDiceValue({
           dice1: Math.floor(Math.random() * 6) + 1,
           dice2: Math.floor(Math.random() * 6) + 1,
         });
       }
 
-      setActiveIndex(currentIndex);
+      setSpinIndex(currentIndex);
       currentStep++;
       currentIndex = (currentIndex + 1) % WHEEL_EMOTIONS.length;
 
       if (currentStep <= totalSteps) {
-        // Easing: start fast, slow down dramatically towards the end
         const progress = currentStep / totalSteps;
-        // Cubic bezier-like easing for natural deceleration
-        const baseDelay = 50;
-        const maxDelay = 250;
-        // Use higher exponent (4) for more dramatic slowdown at the end
-        const delay = baseDelay + (maxDelay - baseDelay) * Math.pow(progress, 4);
-
-        spinTimeoutRef.current = setTimeout(spin, delay);
-      } else {
-        // Animation finished - trigger the action
-        const finalEmotion = WHEEL_EMOTIONS[finalIndex];
-
-        // Small delay before triggering to let the user see the result
-        setTimeout(() => {
-          onAction({
-            name: finalEmotion,
-            type: 'emotion',
-            label: finalEmotion.replace(/[0-9]+$/, '').replace(/_/g, ' '),
-          });
-          // Set isSpinning false after action is triggered (isBusy will take over)
-          setIsSpinning(false);
-
-          // Hide dice after a longer delay with GSAP staggered reverse animation
-          setTimeout(() => {
-            hideDice();
-          }, 1500);
-        }, 150);
+        const delay =
+          SPIN_BASE_DELAY_MS +
+          (SPIN_MAX_DELAY_MS - SPIN_BASE_DELAY_MS) * Math.pow(progress, SPIN_EASING_EXPONENT);
+        trackTimeout(setTimeout(spin, delay));
+        return;
       }
+
+      // Spin finished - dispatch the selected emotion and schedule the dice
+      // hide animation. Both timeouts are tracked for unmount cleanup.
+      trackTimeout(
+        setTimeout(() => {
+          onAction(actionFor(WHEEL_EMOTIONS[finalIndex]));
+          setIsSpinning(false);
+          trackTimeout(
+            setTimeout(() => {
+              hideDice();
+            }, SPIN_HIDE_DICE_DELAY_MS)
+          );
+        }, SPIN_RESOLVE_DELAY_MS)
+      );
     };
 
-    // Start the spin
     spin();
-  }, [disabled, isSpinning, onAction, playDiceSound, showDice, hideDice]);
+  }, [disabled, isSpinning, onAction, playDiceSound, playTick, showDice, hideDice, trackTimeout]);
 
-  // Expose triggerRandom to parent via ref
-  useImperativeHandle(
-    ref,
-    () => ({
-      triggerRandom: handleRandom,
-    }),
-    [handleRandom]
-  );
+  useImperativeHandle(ref, () => ({ triggerRandom: handleRandom }), [handleRandom]);
 
-  // Cleanup on unmount
-  React.useEffect(() => {
+  // Flush pending timeouts on unmount so callbacks don't fire into a dead tree.
+  useEffect(() => {
+    const timeouts = spinTimeoutsRef.current;
     return () => {
-      if (spinTimeoutRef.current) {
-        clearTimeout(spinTimeoutRef.current);
-      }
+      timeouts.forEach(id => clearTimeout(id));
+      timeouts.clear();
     };
   }, []);
 
-  // Clear active index when robot stops being busy
-  const prevIsBusyRef = useRef<boolean>(isBusy);
-  React.useEffect(() => {
-    // When isBusy goes from true to false, clear the active index
-    if (prevIsBusyRef.current && !isBusy && activeIndex !== null) {
-      setActiveIndex(null);
+  // When the robot stops being busy, ensure we don't keep a stale highlight on
+  // a spin that already resolved. Handled by deriving `activeIndex` below,
+  // plus a defensive reset of `spinIndex` once the parent signals it's free.
+  useEffect(() => {
+    if (!isBusy && !isSpinning) {
+      setSpinIndex(null);
     }
-    prevIsBusyRef.current = isBusy;
-  }, [isBusy, activeIndex]);
+  }, [isBusy, isSpinning]);
 
-  // Colors
-  const borderColor = darkMode ? 'rgba(255,149,0,0.4)' : 'rgba(255,149,0,0.5)';
-  const segmentBorder = darkMode ? 'rgba(255,149,0,0.25)' : 'rgba(255,149,0,0.3)';
-  const highlightBorder = '#FF9500';
-  const pressedBorder = '#FF9500';
+  // Derived active slice: during a spin, the rolling index; otherwise the
+  // parent-driven active emotion. This removes the need for a duplicated
+  // `activeIndex` local state on click.
+  const activeEmotionIndex = useMemo<number | null>(() => {
+    if (isSpinning) return spinIndex;
+    if (activeActionName) {
+      const idx = WHEEL_EMOTIONS.indexOf(activeActionName as (typeof WHEEL_EMOTIONS)[number]);
+      return idx === -1 ? null : idx;
+    }
+    return null;
+  }, [isSpinning, spinIndex, activeActionName]);
+
+  const borderColor = accentRgba(darkMode ? 0.4 : 0.5);
+  const segmentBorder = accentRgba(darkMode ? 0.25 : 0.3);
 
   return (
     <div
+      className="emotion-wheel"
       style={{
         position: 'relative',
-        width: wheelSize,
-        height: wheelSize,
+        width: WHEEL_SIZE,
+        height: WHEEL_SIZE,
         margin: '0 auto',
-        opacity: isReady ? 1 : 0,
-        transition: 'opacity 0.15s ease',
       }}
     >
+      <style>{`
+        @keyframes diceShake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-2px); }
+          75% { transform: translateX(2px); }
+        }
+        @keyframes emotionWheelMount {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .emotion-wheel {
+          animation: emotionWheelMount 0.15s ease both;
+        }
+      `}</style>
+
       {/* Outer ring background */}
       <div
         style={{
@@ -474,33 +345,32 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
           height: '100%',
           zIndex: 1,
         }}
-        viewBox={`0 0 ${wheelSize} ${wheelSize}`}
+        viewBox={`0 0 ${WHEEL_SIZE} ${WHEEL_SIZE}`}
       >
-        {/* Pie slice segments - clickable areas with highlight */}
         {WHEEL_EMOTIONS.map((emotion, index) => {
-          const startAngle = index * angleStep;
-          const endAngle = (index + 1) * angleStep;
+          const startAngle = index * layout.angleStep;
+          const endAngle = (index + 1) * layout.angleStep;
           const path = createArcPath(
-            centerX,
-            centerY,
-            innerRadius,
-            outerRadius,
+            layout.centerX,
+            layout.centerY,
+            layout.innerRadius,
+            layout.outerRadius,
             startAngle,
             endAngle
           );
 
           const isHovered = hoveredIndex === index;
           const isPressed = pressedIndex === index;
-          const isActive = activeIndex === index;
+          const isActive = activeEmotionIndex === index;
           const showHighlight = isActive || (!isSpinning && isHovered);
-          const label = emotion.replace(/_/g, ' ');
+          const label = labelFromActionName(emotion);
 
           return (
             <path
-              key={`slice-${index}`}
+              key={`slice-${emotion}`}
               d={path}
               fill="transparent"
-              stroke={isPressed ? pressedBorder : showHighlight ? highlightBorder : 'transparent'}
+              stroke={isPressed ? ACCENT_ORANGE : showHighlight ? ACCENT_ORANGE : 'transparent'}
               strokeWidth={showHighlight || isPressed ? 2 : 0}
               style={{
                 cursor: disabled || isSpinning ? 'default' : 'pointer',
@@ -520,18 +390,16 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
           );
         })}
 
-        {/* Segment divider lines - from inner to outer radius */}
-        {WHEEL_EMOTIONS.map((_, index) => {
-          const angle = (index * angleStep - 90) * (Math.PI / 180);
-
-          const x1 = centerX + Math.cos(angle) * innerRadius;
-          const y1 = centerY + Math.sin(angle) * innerRadius;
-          const x2 = centerX + Math.cos(angle) * outerRadius;
-          const y2 = centerY + Math.sin(angle) * outerRadius;
+        {WHEEL_EMOTIONS.map((emotion, index) => {
+          const angle = (index * layout.angleStep - 90) * (Math.PI / 180);
+          const x1 = layout.centerX + Math.cos(angle) * layout.innerRadius;
+          const y1 = layout.centerY + Math.sin(angle) * layout.innerRadius;
+          const x2 = layout.centerX + Math.cos(angle) * layout.outerRadius;
+          const y2 = layout.centerY + Math.sin(angle) * layout.outerRadius;
 
           return (
             <line
-              key={`line-${index}`}
+              key={`line-${emotion}`}
               x1={x1}
               y1={y1}
               x2={x2}
@@ -544,19 +412,18 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
         })}
       </svg>
 
-      {/* Emoji labels - positioned in center of each slice */}
       {WHEEL_EMOTIONS.map((emotion, index) => {
-        const angle = (index * angleStep + angleStep / 2 - 90) * (Math.PI / 180);
-        const x = Math.cos(angle) * emojiRadius;
-        const y = Math.sin(angle) * emojiRadius;
+        const angle = (index * layout.angleStep + layout.angleStep / 2 - 90) * (Math.PI / 180);
+        const x = Math.cos(angle) * layout.emojiRadius;
+        const y = Math.sin(angle) * layout.emojiRadius;
 
         const isHovered = hoveredIndex === index;
-        const isActive = activeIndex === index;
+        const isActive = activeEmotionIndex === index;
         const isActiveAction = activeActionName === emotion;
         const showSpinner = isActiveAction && isExecuting && !isSpinning;
-        const emoji = (EMOTION_EMOJIS as Record<string, string>)[emotion] || '😐';
-        const showHighlight = isActive || isActiveAction || (!isSpinning && isHovered);
-        const isGhosted = (isBusy || isSpinning) && !isActive && !isActiveAction;
+        const emoji = (EMOTION_EMOJIS as Record<string, string>)[emotion] || FALLBACK_EMOJI;
+        const showHighlight = isActive || (!isSpinning && isHovered);
+        const isGhosted = (isBusy || isSpinning) && !isActive;
 
         return (
           <div
@@ -566,12 +433,12 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
               top: '50%',
               left: '50%',
               transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
-              fontSize: emojiSize,
+              fontSize: EMOJI_SIZE,
               lineHeight: 1,
               pointerEvents: 'none',
               opacity: isGhosted ? 0.4 : 1,
               filter: showHighlight
-                ? 'drop-shadow(0 2px 8px rgba(255,149,0,0.5)) saturate(1.2)'
+                ? `drop-shadow(0 2px 8px ${accentRgba(0.5)}) saturate(1.2)`
                 : isGhosted
                   ? 'saturate(0.5) grayscale(0.3)'
                   : 'saturate(0.85)',
@@ -580,18 +447,12 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: emojiSize,
-              height: emojiSize,
+              width: EMOJI_SIZE,
+              height: EMOJI_SIZE,
             }}
           >
             {showSpinner ? (
-              <CircularProgress
-                size={24}
-                thickness={3}
-                sx={{
-                  color: '#FF9500',
-                }}
-              />
+              <CircularProgress size={24} thickness={3} sx={{ color: ACCENT_ORANGE }} />
             ) : (
               emoji
             )}
@@ -603,22 +464,17 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
       <button
         onClick={handleRandom}
         onMouseEnter={() => setCenterHovered(true)}
-        onMouseLeave={() => {
-          setCenterHovered(false);
-          setCenterPressed(false);
-        }}
-        onMouseDown={() => setCenterPressed(true)}
-        onMouseUp={() => setCenterPressed(false)}
+        onMouseLeave={() => setCenterHovered(false)}
         disabled={disabled || isSpinning}
         style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: centerSize,
-          height: centerSize,
+          width: CENTER_SIZE,
+          height: CENTER_SIZE,
           borderRadius: '50%',
-          border: `1px solid ${isSpinning ? '#FF9500' : centerHovered ? 'rgba(255,149,0,0.7)' : borderColor}`,
+          border: `1px solid ${isSpinning ? ACCENT_ORANGE : centerHovered ? accentRgba(0.7) : borderColor}`,
           background: darkMode ? 'rgba(25,25,25,0.95)' : 'rgba(255,255,255,0.95)',
           display: 'flex',
           flexDirection: 'column',
@@ -629,7 +485,7 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
           opacity: disabled ? 0.5 : 1,
           boxShadow:
             centerHovered || isSpinning
-              ? '0 6px 24px rgba(255,149,0,0.35)'
+              ? `0 6px 24px ${accentRgba(0.35)}`
               : darkMode
                 ? '0 4px 20px rgba(0,0,0,0.4)'
                 : '0 4px 20px rgba(0,0,0,0.08)',
@@ -637,7 +493,6 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
           zIndex: 5,
         }}
       >
-        {/* Dice pair with GSAP staggered animation */}
         <div
           ref={diceContainerRef}
           style={{
@@ -648,13 +503,11 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
             overflow: 'visible',
           }}
         >
-          {/* First die */}
           <div ref={dice1Ref} style={{ opacity: 0 }}>
-            <DiceIcon value={diceValue.dice1} size={30} color="#FF9500" isShaking={isSpinning} />
+            <DiceIcon value={diceValue.dice1} size={DICE_SIZE} isShaking={isSpinning} />
           </div>
-          {/* Second die */}
           <div ref={dice2Ref} style={{ opacity: 0 }}>
-            <DiceIcon value={diceValue.dice2} size={30} color="#FF9500" isShaking={isSpinning} />
+            <DiceIcon value={diceValue.dice2} size={DICE_SIZE} isShaking={isSpinning} />
           </div>
         </div>
         <span
@@ -671,15 +524,6 @@ export const EmotionWheel = forwardRef<EmotionWheelHandle, EmotionWheelProps>(fu
           random
         </span>
       </button>
-
-      {/* CSS animation for shaking dice icon */}
-      <style>{`
-        @keyframes diceShake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-2px); }
-          75% { transform: translateX(2px); }
-        }
-      `}</style>
     </div>
   );
 });

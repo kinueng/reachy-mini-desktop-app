@@ -117,10 +117,13 @@ const storeCreator: StateCreator<FullAppState, [], [], FullAppState> = (set, get
       jobSeenOnce: false,
       isStoppingApp: false,
 
-      // Logs reset (optional - can be preserved)
+      // Logs reset: when the daemon is killed/disconnected we wipe every log
+      // source so the next session starts from a clean console. Keeping them
+      // around caused stale lines from a previous (possibly crashed) daemon
+      // to bleed into the bootstrap/setup view of the next launch.
+      logs: [],
+      frontendLogs: [],
       appLogs: [],
-      // frontendLogs: [], // Keep frontend logs for debugging
-      // logs: [], // Keep daemon logs for debugging
     } as Partial<FullAppState>);
   },
 
