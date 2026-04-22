@@ -102,14 +102,26 @@ export const DANGER = {
  * RADII
  * ============================================================ */
 
+/**
+ * Border-radius scale. Values are **px strings** on purpose.
+ *
+ * In MUI's `sx` prop, `borderRadius: <number>` is multiplied by
+ * `theme.shape.borderRadius` (default 4). Passing plain numbers here used to
+ * produce radii 4× too large (e.g. `RADIUS.xl = 12` would render as 48px).
+ * Using `'12px'` strings makes the token literal across MUI, emotion,
+ * styled-components and plain CSS.
+ *
+ * If you intentionally want the MUI multiplier behaviour, use a raw number
+ * directly at the call site (e.g. `borderRadius: 2` → 8px).
+ */
 export const RADIUS = {
-  xs: 4,
-  sm: 6,
-  md: 8,
-  lg: 10,
-  xl: 12,
-  xxl: 16,
-  pill: 999,
+  xs: '4px',
+  sm: '6px',
+  md: '8px',
+  lg: '10px',
+  xl: '12px',
+  xxl: '16px',
+  pill: '999px',
   circle: '50%',
 } as const;
 

@@ -125,14 +125,20 @@ consistent:
 
 | Before | After |
 |---|---|
-| `borderRadius: 4` | `borderRadius: RADIUS.xs` |
-| `borderRadius: 6` | `borderRadius: RADIUS.sm` |
-| `borderRadius: 8` | `borderRadius: RADIUS.md` |
-| `borderRadius: 10` | `borderRadius: RADIUS.lg` |
-| `borderRadius: 12` | `borderRadius: RADIUS.xl` |
-| `borderRadius: 16` | `borderRadius: RADIUS.xxl` |
-| `borderRadius: 999` (pill) | `borderRadius: RADIUS.pill` |
+| `borderRadius: '4px'` | `borderRadius: RADIUS.xs` |
+| `borderRadius: '6px'` | `borderRadius: RADIUS.sm` |
+| `borderRadius: '8px'` | `borderRadius: RADIUS.md` |
+| `borderRadius: '10px'` | `borderRadius: RADIUS.lg` |
+| `borderRadius: '12px'` | `borderRadius: RADIUS.xl` |
+| `borderRadius: '16px'` | `borderRadius: RADIUS.xxl` |
+| `borderRadius: '999px'` (pill) | `borderRadius: RADIUS.pill` |
 | `borderRadius: '50%'` (circle) | `borderRadius: RADIUS.circle` |
+
+> ⚠️ **MUI gotcha**: `RADIUS.*` values are **px strings** on purpose. In MUI's
+> `sx`, `borderRadius: <number>` is multiplied by `theme.shape.borderRadius`
+> (default 4), which made tokens render 4× too large. Raw numbers
+> (`borderRadius: 2` → 8px) are still valid if you intentionally want the
+> multiplier.
 | `fontSize: 10` | `fontSize: TYPO.tiny` |
 | `fontSize: 11` | `fontSize: TYPO.xs` |
 | `fontSize: 12` | `fontSize: TYPO.sm` |
