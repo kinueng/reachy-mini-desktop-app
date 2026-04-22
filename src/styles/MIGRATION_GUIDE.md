@@ -12,6 +12,9 @@ import {
   STATUS,
   DANGER,
   RADIUS,
+  TYPO,
+  FONT_WEIGHT,
+  BLUR,
   DURATION,
   EASING,
   Z,
@@ -21,7 +24,7 @@ import {
   hexToRgba,
   transition,
 } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, scrollbarSx } from '@styles';
 ```
 
 Inside the component:
@@ -114,7 +117,50 @@ action. Use this trio instead of the red variants you'd use for errors:
 | `darkMode ? 'rgba(248, 113, 113, 0.5)' : 'rgba(220, 38, 38, 0.5)'` | `palette.dangerBorder` |
 | `darkMode ? 'rgba(248, 113, 113, 0.1)' : 'rgba(220, 38, 38, 0.08)'` | `palette.dangerSurfaceHover` |
 
-### 2.d Neutral greys (helpers, labels, metadata)
+### 2.d Radii, typography, blur, scrollbars (non-color primitives)
+
+Prefer the semantic tokens over raw literals so the app stays visually
+consistent:
+
+| Before | After |
+|---|---|
+| `borderRadius: 4` | `borderRadius: RADIUS.xs` |
+| `borderRadius: 6` | `borderRadius: RADIUS.sm` |
+| `borderRadius: 8` | `borderRadius: RADIUS.md` |
+| `borderRadius: 10` | `borderRadius: RADIUS.lg` |
+| `borderRadius: 12` | `borderRadius: RADIUS.xl` |
+| `borderRadius: 16` | `borderRadius: RADIUS.xxl` |
+| `borderRadius: 999` (pill) | `borderRadius: RADIUS.pill` |
+| `borderRadius: '50%'` (circle) | `borderRadius: RADIUS.circle` |
+| `fontSize: 10` | `fontSize: TYPO.tiny` |
+| `fontSize: 11` | `fontSize: TYPO.xs` |
+| `fontSize: 12` | `fontSize: TYPO.sm` |
+| `fontSize: 13` | `fontSize: TYPO.body` |
+| `fontSize: 14` | `fontSize: TYPO.md` |
+| `fontSize: 16` | `fontSize: TYPO.lg` |
+| `fontSize: 18` | `fontSize: TYPO.xl` |
+| `fontSize: 20` | `fontSize: TYPO.xxl` |
+| `fontWeight: 400` | `fontWeight: FONT_WEIGHT.regular` |
+| `fontWeight: 500` | `fontWeight: FONT_WEIGHT.medium` |
+| `fontWeight: 600` | `fontWeight: FONT_WEIGHT.semibold` |
+| `fontWeight: 700` | `fontWeight: FONT_WEIGHT.bold` |
+| `backdropFilter: 'blur(8px)'` | `backdropFilter: BLUR.sm` |
+| `backdropFilter: 'blur(10px)'` | `backdropFilter: BLUR.md` |
+| `backdropFilter: 'blur(40px)'` | `backdropFilter: BLUR.lg` |
+| `transition: 'all 0.2s ease'` | `transition: transition('all', DURATION.base)` |
+| `transition: 'opacity 0.3s ease'` | `transition: transition('opacity', DURATION.slow)` |
+| `transition: 'X 0.15s ease'` | `transition: transition('X', DURATION.fast)` |
+| `'a 0.2s ease, b 0.2s ease'` | `transition: transition(['a','b'], DURATION.base)` |
+| hand-rolled `'&::-webkit-scrollbar': { ... }` block | `...scrollbarSx(palette)` |
+
+`scrollbarSx` accepts options: `scrollbarSx(palette, { width: 8, thumb, thumbHover })`.
+Use it for terminal-style surfaces that need explicit colors.
+
+One-offs (non-standard durations like `0.05s / 0.25s linear`, non-standard
+blurs like `blur(20px)`, or fontSizes like `15` / `17`) can stay as literals
+unless they become common enough to deserve a token.
+
+### 2.e Neutral greys (helpers, labels, metadata)
 
 Most ad-hoc `darkMode ? '#aaa' : '#666'` / `darkMode ? '#888' : '#999'` mappings
 fold into the existing semantic text tokens:
