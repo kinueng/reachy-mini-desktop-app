@@ -65,6 +65,12 @@ export const STATUS = {
   info: '#3b82f6',
   /** Neutral grey for "stopped" / "not initialized" states. */
   neutral: '#9ca3af',
+  /**
+   * Purple accent for "busy" / "moving" / "executing" / "app running" states.
+   * Intentionally distinct from `info` (blue = connected/progress) so users can
+   * tell an active task apart from a ready/idle connection.
+   */
+  busy: '#a855f7',
 } as const;
 
 /**
@@ -79,6 +85,7 @@ export const STATUS_TEXT = {
   warning: { light: '#fde047', dark: '#ca8a04' },
   info: { light: '#93c5fd', dark: '#2563eb' },
   neutral: { light: '#d1d5db', dark: '#6b7280' },
+  busy: { light: '#d8b4fe', dark: '#7c3aed' },
 } as const;
 
 /**

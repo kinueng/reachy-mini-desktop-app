@@ -8,7 +8,16 @@
 import React from 'react';
 import { Box, Typography, keyframes } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
-import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, DURATION, transition } from '@styles';
+import {
+  useAppPalette,
+  TYPO,
+  FONT_WEIGHT,
+  RADIUS,
+  DURATION,
+  STATUS,
+  STATUS_TEXT,
+  transition,
+} from '@styles';
 
 export interface StepsProgressStep {
   id: string;
@@ -64,7 +73,7 @@ function StepsProgressIndicator({
   // `palette.isDark` keeps the visuals stable while staying darkMode-prop-free.
   const bgColor = palette.isDark ? '#1a1a1a' : '#fdfcfa';
   const trackColor = palette.isDark ? '#2a2a2a' : '#e5e5e5';
-  const fillColor = palette.isDark ? '#22c55e' : '#16a34a'; // Green for completed
+  const fillColor = palette.isDark ? STATUS.success : STATUS_TEXT.success.dark;
   const activeColor = palette.isDark ? '#a3a3a3' : '#737373'; // Neutral grey for current
   const inactiveLabelColor = palette.isDark ? '#525252' : '#a3a3a3';
 

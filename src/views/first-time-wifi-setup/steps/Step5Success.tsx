@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import type { WifiRobotCompat } from '../../../hooks/system/useRobotDiscovery';
-import { ACCENT, FONT_WEIGHT, RADIUS, STATUS, TYPO, hexToRgba } from '@styles';
+import { ACCENT, FONT_WEIGHT, RADIUS, STATUS, STATUS_TEXT, TYPO, hexToRgba } from '@styles';
 
 interface Step5SuccessProps {
   /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
@@ -59,9 +59,7 @@ export default function Step5Success({
               borderColor: STATUS.success,
               color: STATUS.success,
               '&:hover': {
-                // TODO(style-migration): darker hover tone for success has no
-                // palette token; `#16a34a` matches the legacy shade.
-                borderColor: '#16a34a',
+                borderColor: STATUS_TEXT.success.dark,
                 bgcolor: hexToRgba(STATUS.success, 0.08),
               },
             }}

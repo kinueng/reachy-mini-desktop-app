@@ -22,7 +22,7 @@ import {
   type HardwareErrorConfig,
   type MeshLike,
 } from '../utils/hardwareErrors';
-import { ACCENT, STATUS } from '@styles/tokens';
+import { ACCENT, STATUS, STATUS_TEXT, hexToRgba } from '@styles/tokens';
 import { useAppPalette, TYPO, FONT_WEIGHT } from '@styles';
 
 type ScanState = 'idle' | 'scanning' | 'complete' | 'error';
@@ -384,7 +384,9 @@ export default function DevPlayground(): React.ReactElement {
                         sx={{
                           fontSize: TYPO.xs,
                           fontWeight: FONT_WEIGHT.medium,
-                          color: palette.isDark ? 'rgba(239, 68, 68, 0.7)' : '#dc2626',
+                          color: palette.isDark
+                            ? hexToRgba(STATUS.error, 0.7)
+                            : STATUS_TEXT.error.dark,
                           fontFamily: 'monospace',
                         }}
                       >
@@ -399,7 +401,7 @@ export default function DevPlayground(): React.ReactElement {
                         <CheckCircleOutlinedIcon
                           sx={{
                             fontSize: 18,
-                            color: '#16a34a',
+                            color: STATUS_TEXT.success.dark,
                           }}
                         />
                       )}

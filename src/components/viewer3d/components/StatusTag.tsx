@@ -2,7 +2,16 @@ import { Box, Typography } from '@mui/material';
 import CircleIcon from '@mui/icons-material/Circle';
 import { ROBOT_STATUS } from '../../../constants/robotStatus';
 import type { BusyReason, RobotStatus } from '../../../types/robot';
-import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, BLUR } from '@styles';
+import {
+  useAppPalette,
+  TYPO,
+  FONT_WEIGHT,
+  RADIUS,
+  BLUR,
+  STATUS,
+  STATUS_TEXT,
+  hexToRgba,
+} from '@styles';
 
 export interface StatusTagInfo {
   label: string;
@@ -21,19 +30,23 @@ export interface StatusTagProps {
 }
 
 const BUSY_LABELS: Record<BusyReason, StatusTagInfo> = {
-  moving: { label: 'Moving', color: '#a855f7' },
-  command: { label: 'Executing', color: '#a855f7' },
-  'app-running': { label: 'App Running', color: '#a855f7' },
-  installing: { label: 'Installing', color: '#3b82f6' },
+  moving: { label: 'Moving', color: STATUS.busy },
+  command: { label: 'Executing', color: STATUS.busy },
+  'app-running': { label: 'App Running', color: STATUS.busy },
+  installing: { label: 'Installing', color: STATUS.info },
 };
 
+/**
+ * Status colors sit on top of a tinted border. The border alpha is slightly
+ * stronger for busy/error states so the tag reads as "active" at a glance.
+ */
 const BORDER_BY_COLOR: Record<string, string> = {
-  '#22c55e': 'rgba(34, 197, 94, 0.3)',
-  '#6b7280': 'rgba(107, 114, 128, 0.3)',
-  '#3b82f6': 'rgba(59, 130, 246, 0.3)',
-  '#a855f7': 'rgba(168, 85, 247, 0.35)',
-  '#ef4444': 'rgba(239, 68, 68, 0.4)',
-  '#999': 'rgba(153, 153, 153, 0.25)',
+  [STATUS.success]: hexToRgba(STATUS.success, 0.3),
+  [STATUS.info]: hexToRgba(STATUS.info, 0.3),
+  [STATUS.busy]: hexToRgba(STATUS.busy, 0.35),
+  [STATUS.error]: hexToRgba(STATUS.error, 0.4),
+  [STATUS_TEXT.neutral.dark]: hexToRgba(STATUS_TEXT.neutral.dark, 0.3),
+  '#999': hexToRgba('#999999', 0.25),
 };
 
 function resolveStatus(props: StatusTagProps): StatusTagInfo {
@@ -44,36 +57,36 @@ function resolveStatus(props: StatusTagProps): StatusTagInfo {
       case ROBOT_STATUS.DISCONNECTED:
         return { label: 'Offline', color: '#999' };
       case ROBOT_STATUS.READY_TO_START:
-        return { label: 'Ready to Start', color: '#3b82f6' };
+        return { label: 'Ready to Start', color: STATUS.info };
       case ROBOT_STATUS.STARTING:
-        return { label: 'Starting', color: '#3b82f6', animated: true };
+        return { label: 'Starting', color: STATUS.info, animated: true };
       case ROBOT_STATUS.SLEEPING:
-        return { label: 'Sleeping', color: '#6b7280' };
+        return { label: 'Sleeping', color: STATUS_TEXT.neutral.dark };
       case ROBOT_STATUS.READY:
-        if (isOn === true) return { label: 'Ready', color: '#22c55e' };
-        if (isOn === false) return { label: 'Standby', color: '#6b7280' };
-        return { label: 'Connected', color: '#3b82f6' };
+        if (isOn === true) return { label: 'Ready', color: STATUS.success };
+        if (isOn === false) return { label: 'Standby', color: STATUS_TEXT.neutral.dark };
+        return { label: 'Connected', color: STATUS.info };
       case ROBOT_STATUS.BUSY: {
         const info = (busyReason && BUSY_LABELS[busyReason]) || {
           label: 'Busy',
-          color: '#a855f7',
+          color: STATUS.busy,
         };
         return { ...info, animated: true };
       }
       case ROBOT_STATUS.STOPPING:
-        return { label: 'Stopping', color: '#ef4444', animated: true };
+        return { label: 'Stopping', color: STATUS.error, animated: true };
       case ROBOT_STATUS.CRASHED:
-        return { label: 'Crashed', color: '#ef4444' };
+        return { label: 'Crashed', color: STATUS.error };
       default:
         return { label: 'Unknown', color: '#999' };
     }
   }
 
   if (!isActive) return { label: 'Offline', color: '#999' };
-  if (isMoving) return { label: 'Moving', color: '#a855f7', animated: true };
-  if (isOn === true) return { label: 'Ready', color: '#22c55e' };
-  if (isOn === false) return { label: 'Standby', color: '#6b7280' };
-  return { label: 'Connected', color: '#3b82f6' };
+  if (isMoving) return { label: 'Moving', color: STATUS.busy, animated: true };
+  if (isOn === true) return { label: 'Ready', color: STATUS.success };
+  if (isOn === false) return { label: 'Standby', color: STATUS_TEXT.neutral.dark };
+  return { label: 'Connected', color: STATUS.info };
 }
 
 export default function StatusTag(props: StatusTagProps): React.ReactElement {

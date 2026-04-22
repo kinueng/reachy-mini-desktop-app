@@ -10,7 +10,15 @@ import reachyUpdateBoxSvg from '../../assets/reachy-update-box.svg';
 import { invoke } from '@tauri-apps/api/core';
 import { logSuccess } from '../../utils/logging';
 import { useToast } from '../../hooks/useToast';
-import { ACCENT, STATUS, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
+import {
+  ACCENT,
+  STATUS,
+  STATUS_TEXT,
+  DANGER,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
 import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, BLUR, scrollbarSx } from '@styles';
 
 import {
@@ -953,7 +961,7 @@ export default function SettingsOverlay({
               sx={{
                 fontSize: TYPO.body,
                 fontWeight: FONT_WEIGHT.semibold,
-                color: palette.isDark ? '#fca5a5' : '#dc2626',
+                color: palette.statusErrorText,
                 mb: 0.5,
               }}
             >
@@ -962,7 +970,7 @@ export default function SettingsOverlay({
             <Typography
               sx={{
                 fontSize: TYPO.sm,
-                color: palette.isDark ? '#fca5a5' : '#dc2626',
+                color: palette.statusErrorText,
                 lineHeight: 1.5,
                 mb: 1,
               }}
@@ -1011,7 +1019,7 @@ export default function SettingsOverlay({
                 textTransform: 'none',
                 fontWeight: FONT_WEIGHT.semibold,
                 '&:hover': {
-                  bgcolor: '#dc2626',
+                  bgcolor: DANGER.dark,
                 },
                 '&:disabled': {
                   bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
@@ -1124,7 +1132,7 @@ export default function SettingsOverlay({
                 textTransform: 'none',
                 fontWeight: FONT_WEIGHT.semibold,
                 '&:hover': {
-                  bgcolor: '#dc2626',
+                  bgcolor: DANGER.dark,
                 },
                 '&:disabled': {
                   bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
@@ -1201,7 +1209,7 @@ export default function SettingsOverlay({
                 color: '#fff',
                 textTransform: 'none',
                 fontWeight: FONT_WEIGHT.semibold,
-                '&:hover': { bgcolor: '#dc2626' },
+                '&:hover': { bgcolor: DANGER.dark },
                 '&:disabled': {
                   bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
                   color: palette.isDark ? whiteAlpha(0.5) : whiteAlpha(0.8),
@@ -1295,7 +1303,7 @@ export default function SettingsOverlay({
                 color: '#fff',
                 textTransform: 'none',
                 fontWeight: FONT_WEIGHT.semibold,
-                '&:hover': { bgcolor: '#dc2626' },
+                '&:hover': { bgcolor: DANGER.dark },
                 '&:disabled': {
                   bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
                   color: palette.isDark ? whiteAlpha(0.5) : whiteAlpha(0.8),

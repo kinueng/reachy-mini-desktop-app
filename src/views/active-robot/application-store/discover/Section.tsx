@@ -12,6 +12,7 @@ import {
   DURATION,
   FONT_WEIGHT,
   RADIUS,
+  STATUS,
   TYPO,
   accentAlpha,
   blackAlpha,
@@ -55,9 +56,12 @@ interface DiscoverAppsSectionProps {
   onOpenCreateTutorial: () => void;
 }
 
-// TODO(style-migration): amber-accent badge colors not in the palette yet.
+// Amber-accent badge colors. `AMBER_LIGHT` aligns with `STATUS.warning`;
+// `AMBER_DARK` is a slightly lighter amber used only on dark surfaces.
+// TODO(style-migration): promote AMBER_DARK and the bg/border rgba variants
+// to palette tokens once they appear outside the app store.
 const AMBER_DARK = '#fbbf24';
-const AMBER_LIGHT = '#f59e0b';
+const AMBER_LIGHT = STATUS.warning;
 const AMBER_BG_DARK = 'rgba(251, 191, 36, 0.08)';
 const AMBER_BG_LIGHT = 'rgba(245, 158, 11, 0.08)';
 const AMBER_BORDER_DARK = 'rgba(251, 191, 36, 0.2)';

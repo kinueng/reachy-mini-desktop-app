@@ -70,6 +70,7 @@ literal (e.g. a radial gradient stop).
 | amber / warning | `palette.statusWarning` |
 | blue / info | `palette.statusInfo` |
 | grey "stopped" / "not_initialized" | `palette.statusNeutral` |
+| purple "busy" / "moving" / "executing" / "app-running" | `palette.statusBusy` |
 | `darkMode ? ACCENT.light : ACCENT.dark` (readable accent text) | `palette.accentTextStrong` |
 | `transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'` | `` `all ${DURATION.base}ms ${EASING.spring}` `` |
 | `transition: 'all 0.15s ease'` | `` `all ${DURATION.fast}ms ${EASING.standard}` `` or `transition('all')` |

@@ -16,16 +16,25 @@ import CategoryFilters from './components/CategoryFilters';
 import AppCard from './components/AppCard';
 import EmptyState from './components/EmptyState';
 import Footer from './components/Footer';
-import { FONT_WEIGHT, RADIUS, TYPO, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
+import {
+  FONT_WEIGHT,
+  RADIUS,
+  STATUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 const COLUMNS = 2;
 const ESTIMATED_ROW_HEIGHT = 240;
 const ROW_GAP = 20;
 
-// TODO(style-migration): amber warning tones not yet in the palette.
+// Amber-accent tones. `AMBER_LIGHT` aligns with `STATUS.warning`;
+// `AMBER_DARK` is a brighter amber tuned for dark surfaces.
 const AMBER_DARK = '#fbbf24';
-const AMBER_LIGHT = '#f59e0b';
+const AMBER_LIGHT = STATUS.warning;
 
 interface AppLike {
   name: string;

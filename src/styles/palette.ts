@@ -97,6 +97,8 @@ export interface AppPalette {
   statusInfo: string;
   /** Neutral grey for "stopped" / "not_initialized" lifecycle states. */
   statusNeutral: string;
+  /** Purple for "busy" / "moving" / "executing" / "app-running" states. */
+  statusBusy: string;
 
   /* --- STATUS (tinted surfaces, borders, readable text) ---
    * Used by toasts, alert banners, chip pills, status badges.
@@ -118,6 +120,9 @@ export interface AppPalette {
   statusNeutralSurface: string;
   statusNeutralBorder: string;
   statusNeutralText: string;
+  statusBusySurface: string;
+  statusBusyBorder: string;
+  statusBusyText: string;
 
   /* --- DANGER (destructive actions) ---
    * Warmer and lighter than `statusError`. Reserved for buttons like
@@ -180,6 +185,7 @@ export function buildAppPalette(isDark: boolean): AppPalette {
     statusWarning: STATUS.warning,
     statusInfo: STATUS.info,
     statusNeutral: STATUS.neutral,
+    statusBusy: STATUS.busy,
 
     statusSuccessSurface: hexToRgba(STATUS.success, isDark ? 0.15 : 0.1),
     statusSuccessBorder: hexToRgba(STATUS.success, isDark ? 0.4 : 0.3),
@@ -201,6 +207,10 @@ export function buildAppPalette(isDark: boolean): AppPalette {
     statusNeutralSurface: hexToRgba(STATUS.neutral, isDark ? 0.15 : 0.1),
     statusNeutralBorder: hexToRgba(STATUS.neutral, isDark ? 0.4 : 0.3),
     statusNeutralText: isDark ? STATUS_TEXT.neutral.light : STATUS_TEXT.neutral.dark,
+
+    statusBusySurface: hexToRgba(STATUS.busy, isDark ? 0.15 : 0.1),
+    statusBusyBorder: hexToRgba(STATUS.busy, isDark ? 0.4 : 0.3),
+    statusBusyText: isDark ? STATUS_TEXT.busy.light : STATUS_TEXT.busy.dark,
 
     dangerText: isDark ? DANGER.light : DANGER.dark,
     dangerBorder: isDark ? hexToRgba(DANGER.light, 0.5) : hexToRgba(DANGER.dark, 0.5),

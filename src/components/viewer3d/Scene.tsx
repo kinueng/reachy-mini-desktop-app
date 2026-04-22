@@ -7,7 +7,7 @@ import PremiumScanEffect from './effects/PremiumScanEffect';
 import ErrorHighlight from './effects/ErrorHighlight';
 import CinematicCamera from './CinematicCamera';
 import { findErrorMeshes } from '../../utils/viewer3d/findErrorMeshes';
-import { useAppPalette } from '@styles';
+import { useAppPalette, STATUS_TEXT } from '@styles';
 
 // TODO(ts): URDFLoader augments the robot root with `links` and joint helpers.
 // These aren't exposed in the upstream RobotModel type, widen locally.
@@ -78,7 +78,7 @@ const GRID_COLORS = {
 } as const;
 
 const SCAN_COLORS = {
-  standard: '#16a34a',
+  standard: STATUS_TEXT.success.dark,
   premium: '#00ff88',
 } as const;
 

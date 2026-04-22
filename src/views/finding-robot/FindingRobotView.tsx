@@ -38,6 +38,7 @@ import {
   ACCENT,
   accentAlpha,
   STATUS,
+  DANGER,
   blackAlpha,
   whiteAlpha,
   hexToRgba,
@@ -694,9 +695,7 @@ export default function FindingRobotView() {
               textTransform: 'none',
               borderRadius: `${RADIUS.md}px`,
               px: 2,
-              // TODO(style-migration): darker shade of error for hover has no
-              // dedicated token; `#dc2626` is ~12% darker than `STATUS.error`.
-              '&:hover': { bgcolor: '#dc2626' },
+              '&:hover': { bgcolor: DANGER.dark },
             }}
           >
             Reset
