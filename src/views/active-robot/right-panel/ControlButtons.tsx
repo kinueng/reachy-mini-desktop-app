@@ -65,7 +65,8 @@ export default function ControlButtons({
     // TODO(style-migration): card bg uses subtle 0.02 alpha in dark and plain 'white' in light; palette.surfaceCard is 0.95 alpha.
     bgcolor: palette.isDark ? palette.surfaceSubtle : '#ffffff',
     border: `1px solid ${palette.border}`,
-    p: 2.1,
+    px: 2.1,
+    py: 2.4,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
