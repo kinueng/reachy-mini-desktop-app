@@ -166,11 +166,58 @@ export const FONT_WEIGHT = {
   bold: 700,
 } as const;
 
+/**
+ * Font-size scale (in px). Values chosen from the usage histogram of the
+ * existing codebase (top sizes were 10, 11, 12, 13, 14, 16, 18, 20).
+ * Use semantic names in components; only reach for a raw number if you need
+ * a truly one-off size.
+ */
+export const TYPO = {
+  /** Micro labels, pill counters - 9px */
+  micro: 9,
+  /** Tiny captions, timestamps - 10px */
+  tiny: 10,
+  /** Small labels, chip text - 11px */
+  xs: 11,
+  /** Body small / dense lists - 12px (most common size in the app) */
+  sm: 12,
+  /** Standard body text - 13px */
+  body: 13,
+  /** Relaxed body / form inputs - 14px */
+  md: 14,
+  /** Section headings - 16px */
+  lg: 16,
+  /** Large subtitles - 18px */
+  xl: 18,
+  /** Page titles - 20px */
+  xxl: 20,
+  /** Hero stats / large numerals - 40px */
+  hero: 40,
+} as const;
+
 export const LETTER_SPACING = {
   tight: '-0.3px',
   normal: '0',
   wide: '0.1em',
   wider: '0.12em',
+} as const;
+
+/* ============================================================
+ * BACKDROP BLUR
+ * ============================================================ */
+
+/**
+ * CSS `backdrop-filter: blur(...)` presets.
+ * Values chosen from the existing codebase (8px, 10px, 40px were the
+ * recurring literals).
+ */
+export const BLUR = {
+  /** Subtle panel blur - 8px */
+  sm: 'blur(8px)',
+  /** Standard overlay blur - 10px */
+  md: 'blur(10px)',
+  /** Heavy modal / full-screen backdrop - 40px */
+  lg: 'blur(40px)',
 } as const;
 
 /* ============================================================
@@ -195,4 +242,6 @@ export type DangerToken = typeof DANGER;
 export type RadiusToken = typeof RADIUS;
 export type DurationToken = typeof DURATION;
 export type EasingToken = typeof EASING;
+export type TypoToken = typeof TYPO;
+export type BlurToken = typeof BLUR;
 export type StatusSeverity = keyof typeof STATUS;

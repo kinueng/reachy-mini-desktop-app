@@ -13,3 +13,5 @@
 export * from './tokens';
 export * from './palette';
 export { useAppPalette } from './useAppPalette';
+export { scrollbarSx } from './scrollbar';
+export type { ScrollbarOptions } from './scrollbar';
