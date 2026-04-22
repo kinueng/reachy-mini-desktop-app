@@ -23,8 +23,38 @@ import DiscoverAppsButton from '../discover/Button';
 import ReachiesCarousel from '@components/ReachiesCarousel';
 import { getDaemonHostname } from '../../../../config/daemon';
 import useAppStore from '../../../../store/useAppStore';
+import {
+  ACCENT,
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  transition,
+  whiteAlpha,
+} from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 const APP_STARTING_TIMEOUT = 60000;
+
+// TODO(style-migration): tinted status surfaces (success/error overlays) are not yet in the palette.
+const SUCCESS_BG_DARK = 'rgba(34, 197, 94, 0.05)';
+const SUCCESS_BG_LIGHT = 'rgba(34, 197, 94, 0.03)';
+const SUCCESS_ICON_BG_DARK = 'rgba(34, 197, 94, 0.1)';
+const SUCCESS_ICON_BG_LIGHT = 'rgba(34, 197, 94, 0.08)';
+const SUCCESS_BORDER = 'rgba(34, 197, 94, 0.3)';
+const SUCCESS_GLOW = '0 0 0 1px rgba(34, 197, 94, 0.2)';
+
+const ERROR_BG_DARK = 'rgba(239, 68, 68, 0.06)';
+const ERROR_BG_LIGHT = 'rgba(239, 68, 68, 0.04)';
+const ERROR_STOP_HOVER = 'rgba(239, 68, 68, 0.08)';
+const ERROR_STOP_DISABLED_BORDER = 'rgba(239, 68, 68, 0.5)';
+const ERROR_STOP_DISABLED_BG_DARK = 'rgba(239, 68, 68, 0.05)';
+const ERROR_STOP_DISABLED_BG_LIGHT = 'rgba(239, 68, 68, 0.03)';
+const ERROR_CHIP_BG = 'rgba(239, 68, 68, 0.1)';
+const ERROR_CHIP_HOVER_BG = 'rgba(239, 68, 68, 0.06)';
+const ERROR_GLOW = '0 0 0 1px rgba(239, 68, 68, 0.2)';
 
 interface InstalledApp {
   name: string;
@@ -244,16 +274,15 @@ interface OpenAppButtonProps {
   customAppUrl?: string;
   isStartingOrRunning: boolean;
   isRunning: boolean;
-  darkMode: boolean;
   onTimeout?: () => void;
 }
 
 function OpenAppButton({
   customAppUrl,
   isStartingOrRunning,
-  darkMode,
   onTimeout,
 }: OpenAppButtonProps): React.ReactElement | null {
+  const palette = useAppPalette();
   const [hasTimedOut, setHasTimedOut] = useState<boolean>(false);
 
   const handleTimeout = useCallback(() => {
@@ -338,32 +367,32 @@ function OpenAppButton({
           onClick={handleClick}
           endIcon={
             isGhostMode ? (
-              <CircularProgress size={12} sx={{ color: darkMode ? '#555' : '#bbb' }} />
+              <CircularProgress size={12} sx={{ color: palette.textDisabled }} />
             ) : (
-              <OpenInNewIcon sx={{ fontSize: 13 }} />
+              <OpenInNewIcon sx={{ fontSize: TYPO.body }} />
             )
           }
           sx={{
             minWidth: 'auto',
             px: 1.5,
             py: 0.75,
-            fontSize: 11,
-            fontWeight: 600,
+            fontSize: TYPO.xs,
+            fontWeight: FONT_WEIGHT.semibold,
             textTransform: 'none',
-            borderRadius: '8px',
+            borderRadius: RADIUS.md,
             flexShrink: 0,
             bgcolor: 'transparent',
-            color: isGhostMode ? (darkMode ? '#555' : '#bbb') : '#FF9500',
-            border: `1px solid ${isGhostMode ? (darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.12)') : '#FF9500'}`,
-            transition: 'all 0.2s ease',
+            color: isGhostMode ? palette.textDisabled : ACCENT.main,
+            border: `1px solid ${isGhostMode ? palette.border : ACCENT.main}`,
+            transition: transition('all', DURATION.base),
             '&:hover': {
-              bgcolor: 'rgba(255, 149, 0, 0.08)',
-              borderColor: '#FF9500',
+              bgcolor: accentAlpha(0.08),
+              borderColor: ACCENT.main,
             },
             '&:disabled': {
-              bgcolor: darkMode ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
-              color: darkMode ? '#555' : '#bbb',
-              borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.12)',
+              bgcolor: palette.isDark ? whiteAlpha(0.02) : blackAlpha(0.02),
+              color: palette.textDisabled,
+              borderColor: palette.border,
             },
           }}
         >
@@ -385,7 +414,8 @@ const openExternalUrl = async (url: string): Promise<void> => {
 
 interface InstalledAppsSectionProps {
   installedApps: InstalledApp[];
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   expandedApp?: string | null;
   setExpandedApp?: (name: string | null) => void;
   startingApp: string | null;
@@ -408,7 +438,6 @@ interface InstalledAppsSectionProps {
 
 export default function InstalledAppsSection({
   installedApps,
-  darkMode,
   startingApp,
   currentApp,
   isBusy,
@@ -423,6 +452,7 @@ export default function InstalledAppsSection({
   onOpenDiscover,
   onOpenCreateTutorial,
 }: InstalledAppsSectionProps): React.ReactElement {
+  const palette = useAppPalette();
   const { robotStatus } = useAppStore() as unknown as { robotStatus: string };
   const isSleeping = robotStatus === 'sleeping';
 
@@ -458,9 +488,7 @@ export default function InstalledAppsSection({
             py: 3.5,
             borderRadius: '14px',
             bgcolor: 'transparent',
-            border: darkMode
-              ? '1px dashed rgba(255, 255, 255, 0.3)'
-              : '1px dashed rgba(0, 0, 0, 0.3)',
+            border: `1px dashed ${palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3)}`,
             gap: 1.5,
             minHeight: '280px',
           }}
@@ -480,46 +508,42 @@ export default function InstalledAppsSection({
               transitionDuration={150}
               zoom={1.6}
               verticalAlign="60%"
-              darkMode={darkMode}
+              darkMode={palette.isDark}
             />
           </Box>
 
           <Typography
             sx={{
-              fontSize: 14,
-              color: darkMode ? '#aaa' : '#666',
-              fontWeight: 700,
+              fontSize: TYPO.md,
+              color: palette.textSecondary,
+              fontWeight: FONT_WEIGHT.bold,
               textAlign: 'center',
             }}
           >
             No apps installed yet...
           </Typography>
 
-          <DiscoverAppsButton
-            onClick={onOpenDiscover}
-            darkMode={darkMode}
-            disabled={isBusy || !!isAnyAppActive}
-          />
+          <DiscoverAppsButton onClick={onOpenDiscover} disabled={isBusy || !!isAnyAppActive} />
 
           <Typography
             component="button"
             onClick={onOpenCreateTutorial}
             sx={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: darkMode ? '#666' : '#999',
+              fontSize: TYPO.xs,
+              fontWeight: FONT_WEIGHT.medium,
+              color: palette.textMuted,
               textDecoration: 'underline',
-              textDecorationColor: darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+              textDecorationColor: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
               textUnderlineOffset: '2px',
               cursor: 'pointer',
               bgcolor: 'transparent',
               border: 'none',
               p: 0,
               mt: -0.5,
-              transition: 'all 0.2s ease',
+              transition: transition('all', DURATION.base),
               '&:hover': {
-                color: darkMode ? '#888' : '#777',
-                textDecorationColor: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+                color: palette.textSecondary,
+                textDecorationColor: palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3),
               },
             }}
           >
@@ -539,9 +563,7 @@ export default function InstalledAppsSection({
               minHeight: '280px',
               borderRadius: '14px',
               bgcolor: 'transparent',
-              border: darkMode
-                ? '1px solid rgba(255, 255, 255, 0.08)'
-                : '1px solid rgba(0, 0, 0, 0.08)',
+              border: `1px solid ${palette.border}`,
               p: 2,
             }}
           >
@@ -569,22 +591,20 @@ export default function InstalledAppsSection({
                   key={app.name}
                   sx={{
                     borderRadius: '14px',
-                    bgcolor: darkMode ? 'rgba(255, 255, 255, 0.02)' : 'white',
+                    bgcolor: palette.isDark ? whiteAlpha(0.02) : 'white',
                     border: `1px solid ${
                       hasAppError
-                        ? '#ef4444'
+                        ? palette.statusError
                         : isCurrentlyRunning
-                          ? '#22c55e'
-                          : darkMode
-                            ? 'rgba(255, 255, 255, 0.08)'
-                            : 'rgba(0, 0, 0, 0.08)'
+                          ? palette.statusSuccess
+                          : palette.border
                     }`,
-                    transition: 'opacity 0.25s ease, filter 0.25s ease, border-color 0.2s ease',
+                    transition: `${transition(['opacity', 'filter'], DURATION.medium)}, ${transition('border-color', DURATION.base)}`,
                     overflow: 'hidden',
                     boxShadow: hasAppError
-                      ? '0 0 0 1px rgba(239, 68, 68, 0.2)'
+                      ? ERROR_GLOW
                       : isCurrentlyRunning
-                        ? '0 0 0 1px rgba(34, 197, 94, 0.2)'
+                        ? SUCCESS_GLOW
                         : 'none',
                     opacity: isRemoving ? 0.5 : isBusy && !isCurrentlyRunning ? 0.4 : 1,
                     filter: isBusy && !isCurrentlyRunning ? 'grayscale(50%)' : 'none',
@@ -613,13 +633,13 @@ export default function InstalledAppsSection({
                       justifyContent: 'space-between',
                       gap: 1,
                       bgcolor: hasAppError
-                        ? darkMode
-                          ? 'rgba(239, 68, 68, 0.06)'
-                          : 'rgba(239, 68, 68, 0.04)'
+                        ? palette.isDark
+                          ? ERROR_BG_DARK
+                          : ERROR_BG_LIGHT
                         : isCurrentlyRunning
-                          ? darkMode
-                            ? 'rgba(34, 197, 94, 0.05)'
-                            : 'rgba(34, 197, 94, 0.03)'
+                          ? palette.isDark
+                            ? SUCCESS_BG_DARK
+                            : SUCCESS_BG_LIGHT
                           : 'transparent',
                     }}
                   >
@@ -642,20 +662,16 @@ export default function InstalledAppsSection({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            borderRadius: '12px',
+                            borderRadius: RADIUS.xl,
                             bgcolor: isCurrentlyRunning
-                              ? darkMode
-                                ? 'rgba(34, 197, 94, 0.1)'
-                                : 'rgba(34, 197, 94, 0.08)'
-                              : darkMode
-                                ? 'rgba(255, 255, 255, 0.04)'
-                                : 'rgba(0, 0, 0, 0.03)',
+                              ? palette.isDark
+                                ? SUCCESS_ICON_BG_DARK
+                                : SUCCESS_ICON_BG_LIGHT
+                              : palette.isDark
+                                ? whiteAlpha(0.04)
+                                : blackAlpha(0.03),
                             border: `1px solid ${
-                              isCurrentlyRunning
-                                ? 'rgba(34, 197, 94, 0.3)'
-                                : darkMode
-                                  ? 'rgba(255, 255, 255, 0.08)'
-                                  : 'rgba(0, 0, 0, 0.08)'
+                              isCurrentlyRunning ? SUCCESS_BORDER : palette.border
                             }`,
                           }}
                         >
@@ -667,9 +683,9 @@ export default function InstalledAppsSection({
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.3 }}>
                           <Typography
                             sx={{
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: darkMode ? '#f5f5f5' : '#333',
+                              fontSize: TYPO.body,
+                              fontWeight: FONT_WEIGHT.semibold,
+                              color: palette.textPrimary,
                               letterSpacing: '-0.2px',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -687,10 +703,10 @@ export default function InstalledAppsSection({
                               size="small"
                               sx={{
                                 height: 16,
-                                fontSize: 9,
-                                fontWeight: 700,
-                                bgcolor: 'rgba(239, 68, 68, 0.1)',
-                                color: '#ef4444',
+                                fontSize: TYPO.micro,
+                                fontWeight: FONT_WEIGHT.bold,
+                                bgcolor: ERROR_CHIP_BG,
+                                color: palette.statusError,
                                 '& .MuiChip-label': { px: 0.75 },
                               }}
                             />
@@ -703,9 +719,9 @@ export default function InstalledAppsSection({
                             return (
                               <Typography
                                 sx={{
-                                  fontSize: 9,
-                                  fontWeight: 500,
-                                  color: '#ef4444',
+                                  fontSize: TYPO.micro,
+                                  fontWeight: FONT_WEIGHT.medium,
+                                  color: palette.statusError,
                                   fontFamily: 'monospace',
                                   letterSpacing: '0.2px',
                                   overflow: 'hidden',
@@ -724,9 +740,10 @@ export default function InstalledAppsSection({
                             return (
                               <Typography
                                 sx={{
-                                  fontSize: 9,
-                                  color: jobInfo.type === 'remove' ? '#ef4444' : '#FF9500',
-                                  fontWeight: 500,
+                                  fontSize: TYPO.micro,
+                                  color:
+                                    jobInfo.type === 'remove' ? palette.statusError : ACCENT.main,
+                                  fontWeight: FONT_WEIGHT.medium,
                                   fontFamily: 'monospace',
                                   letterSpacing: '0.2px',
                                 }}
@@ -743,9 +760,9 @@ export default function InstalledAppsSection({
                             return (
                               <Typography
                                 sx={{
-                                  fontSize: 9,
-                                  fontWeight: 500,
-                                  color: darkMode ? '#666' : '#999',
+                                  fontSize: TYPO.micro,
+                                  fontWeight: FONT_WEIGHT.medium,
+                                  color: palette.textMuted,
                                   fontFamily: 'monospace',
                                   letterSpacing: '0.2px',
                                 }}
@@ -769,15 +786,15 @@ export default function InstalledAppsSection({
                           width: 28,
                           height: 28,
                           display: isMenuOpen ? 'inline-flex' : 'none',
-                          color: darkMode ? '#888' : '#999',
-                          transition: 'color 0.15s ease, background-color 0.15s ease',
+                          color: palette.textMuted,
+                          transition: transition(['color', 'background-color'], DURATION.fast),
                           '&:hover': {
-                            color: darkMode ? '#ccc' : '#666',
-                            bgcolor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                            color: palette.textSecondary,
+                            bgcolor: palette.isDark ? whiteAlpha(0.08) : blackAlpha(0.06),
                           },
                         }}
                       >
-                        <MoreVertIcon sx={{ fontSize: 16 }} />
+                        <MoreVertIcon sx={{ fontSize: TYPO.lg }} />
                       </IconButton>
 
                       {(() => {
@@ -789,7 +806,7 @@ export default function InstalledAppsSection({
                               <CircularProgress
                                 size={14}
                                 thickness={5}
-                                sx={{ color: '#FF9500', flexShrink: 0 }}
+                                sx={{ color: ACCENT.main, flexShrink: 0 }}
                               />
                             </Tooltip>
                           );
@@ -809,22 +826,20 @@ export default function InstalledAppsSection({
                                   sx={{
                                     width: 32,
                                     height: 32,
-                                    color: '#FF9500',
-                                    border: '1px solid #FF9500',
-                                    borderRadius: '8px',
-                                    transition: 'all 0.2s ease',
+                                    color: ACCENT.main,
+                                    border: `1px solid ${ACCENT.main}`,
+                                    borderRadius: RADIUS.md,
+                                    transition: transition('all', DURATION.base),
                                     '&:hover': {
-                                      bgcolor: 'rgba(255, 149, 0, 0.1)',
+                                      bgcolor: accentAlpha(0.1),
                                     },
                                     '&:disabled': {
-                                      color: darkMode ? '#555' : '#999',
-                                      borderColor: darkMode
-                                        ? 'rgba(255, 255, 255, 0.1)'
-                                        : 'rgba(0, 0, 0, 0.12)',
+                                      color: palette.textDisabled,
+                                      borderColor: palette.border,
                                     },
                                   }}
                                 >
-                                  <ArrowUpwardIcon sx={{ fontSize: 14 }} />
+                                  <ArrowUpwardIcon sx={{ fontSize: TYPO.md }} />
                                 </IconButton>
                               </span>
                             </Tooltip>
@@ -839,7 +854,6 @@ export default function InstalledAppsSection({
                         customAppUrl={app.extra?.custom_app_url}
                         isStartingOrRunning={isStartingOrRunning}
                         isRunning={isCurrentlyRunning}
-                        darkMode={darkMode}
                         onTimeout={() => {
                           console.error(`[${app.name}] Web interface timeout - stopping app`);
                           if (isThisAppCurrent) {
@@ -857,20 +871,24 @@ export default function InstalledAppsSection({
                               sx={{
                                 width: 32,
                                 height: 32,
-                                color: '#ef4444',
-                                border: '1px solid #ef4444',
-                                borderRadius: '8px',
-                                transition: 'all 0.2s ease',
+                                color: palette.statusError,
+                                border: `1px solid ${palette.statusError}`,
+                                borderRadius: RADIUS.md,
+                                transition: transition('all', DURATION.base),
                                 '&:disabled': {
-                                  color: '#ef4444',
-                                  borderColor: 'rgba(239, 68, 68, 0.5)',
-                                  bgcolor: darkMode
-                                    ? 'rgba(239, 68, 68, 0.05)'
-                                    : 'rgba(239, 68, 68, 0.03)',
+                                  color: palette.statusError,
+                                  borderColor: ERROR_STOP_DISABLED_BORDER,
+                                  bgcolor: palette.isDark
+                                    ? ERROR_STOP_DISABLED_BG_DARK
+                                    : ERROR_STOP_DISABLED_BG_LIGHT,
                                 },
                               }}
                             >
-                              <CircularProgress size={14} thickness={5} sx={{ color: '#ef4444' }} />
+                              <CircularProgress
+                                size={14}
+                                thickness={5}
+                                sx={{ color: palette.statusError }}
+                              />
                             </IconButton>
                           </span>
                         </Tooltip>
@@ -886,22 +904,20 @@ export default function InstalledAppsSection({
                             sx={{
                               width: 32,
                               height: 32,
-                              color: '#ef4444',
-                              border: '1px solid #ef4444',
-                              borderRadius: '8px',
-                              transition: 'all 0.2s ease',
+                              color: palette.statusError,
+                              border: `1px solid ${palette.statusError}`,
+                              borderRadius: RADIUS.md,
+                              transition: transition('all', DURATION.base),
                               '&:hover': {
-                                bgcolor: 'rgba(239, 68, 68, 0.08)',
+                                bgcolor: ERROR_STOP_HOVER,
                               },
                               '&:disabled': {
-                                color: darkMode ? '#555' : '#999',
-                                borderColor: darkMode
-                                  ? 'rgba(255, 255, 255, 0.1)'
-                                  : 'rgba(0, 0, 0, 0.12)',
+                                color: palette.textDisabled,
+                                borderColor: palette.border,
                               },
                             }}
                           >
-                            <StopCircleOutlinedIcon sx={{ fontSize: 16 }} />
+                            <StopCircleOutlinedIcon sx={{ fontSize: TYPO.lg }} />
                           </IconButton>
                         </Tooltip>
                       ) : isStarting ? (
@@ -913,20 +929,22 @@ export default function InstalledAppsSection({
                               sx={{
                                 width: 32,
                                 height: 32,
-                                color: '#FF9500',
-                                border: '1px solid #FF9500',
-                                borderRadius: '8px',
-                                transition: 'all 0.2s ease',
+                                color: ACCENT.main,
+                                border: `1px solid ${ACCENT.main}`,
+                                borderRadius: RADIUS.md,
+                                transition: transition('all', DURATION.base),
                                 '&:disabled': {
-                                  color: '#FF9500',
-                                  borderColor: 'rgba(255, 149, 0, 0.5)',
-                                  bgcolor: darkMode
-                                    ? 'rgba(255, 149, 0, 0.05)'
-                                    : 'rgba(255, 149, 0, 0.03)',
+                                  color: ACCENT.main,
+                                  borderColor: accentAlpha(0.5),
+                                  bgcolor: accentAlpha(palette.isDark ? 0.05 : 0.03),
                                 },
                               }}
                             >
-                              <CircularProgress size={14} thickness={5} sx={{ color: '#FF9500' }} />
+                              <CircularProgress
+                                size={14}
+                                thickness={5}
+                                sx={{ color: ACCENT.main }}
+                              />
                             </IconButton>
                           </span>
                         </Tooltip>
@@ -938,32 +956,28 @@ export default function InstalledAppsSection({
                             e.stopPropagation();
                             handleStartApp(app.name);
                           }}
-                          endIcon={<PlayArrowOutlinedIcon sx={{ fontSize: 13 }} />}
+                          endIcon={<PlayArrowOutlinedIcon sx={{ fontSize: TYPO.body }} />}
                           sx={{
                             minWidth: 'auto',
                             px: 1.5,
                             py: 0.75,
-                            fontSize: 11,
-                            fontWeight: 600,
+                            fontSize: TYPO.xs,
+                            fontWeight: FONT_WEIGHT.semibold,
                             textTransform: 'none',
-                            borderRadius: '8px',
+                            borderRadius: RADIUS.md,
                             flexShrink: 0,
                             bgcolor: 'transparent',
-                            color: '#FF9500',
-                            border: '1px solid #FF9500',
-                            transition: 'all 0.2s ease',
+                            color: ACCENT.main,
+                            border: `1px solid ${ACCENT.main}`,
+                            transition: transition('all', DURATION.base),
                             '&:hover': {
-                              bgcolor: 'rgba(255, 149, 0, 0.08)',
-                              borderColor: '#FF9500',
+                              bgcolor: accentAlpha(0.08),
+                              borderColor: ACCENT.main,
                             },
                             '&:disabled': {
-                              bgcolor: darkMode
-                                ? 'rgba(255, 255, 255, 0.02)'
-                                : 'rgba(0, 0, 0, 0.02)',
-                              color: darkMode ? '#555' : '#999',
-                              borderColor: darkMode
-                                ? 'rgba(255, 255, 255, 0.1)'
-                                : 'rgba(0, 0, 0, 0.12)',
+                              bgcolor: palette.isDark ? whiteAlpha(0.02) : blackAlpha(0.02),
+                              color: palette.textDisabled,
+                              borderColor: palette.border,
                             },
                           }}
                         >
@@ -985,12 +999,10 @@ export default function InstalledAppsSection({
               slotProps={{
                 paper: {
                   sx: {
-                    bgcolor: darkMode ? '#1a1a1a' : '#fff',
-                    border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
-                    borderRadius: '10px',
-                    boxShadow: darkMode
-                      ? '0 8px 24px rgba(0, 0, 0, 0.5)'
-                      : '0 8px 24px rgba(0, 0, 0, 0.12)',
+                    bgcolor: palette.isDark ? '#1a1a1a' : '#fff',
+                    border: `1px solid ${palette.border}`,
+                    borderRadius: RADIUS.lg,
+                    boxShadow: palette.shadowMd,
                     minWidth: 180,
                     py: 0.5,
                   },
@@ -1019,20 +1031,20 @@ export default function InstalledAppsSection({
                         handleMenuClose();
                       }}
                       sx={{
-                        fontSize: 12,
+                        fontSize: TYPO.sm,
                         py: 1,
-                        color: darkMode ? '#ccc' : '#444',
+                        color: palette.textSecondary,
                         '&:hover': {
-                          bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+                          bgcolor: palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.04),
                         },
                       }}
                     >
                       <ListItemIcon>
-                        <LaunchIcon sx={{ fontSize: 15, color: darkMode ? '#888' : '#999' }} />
+                        <LaunchIcon sx={{ fontSize: 15, color: palette.textMuted }} />
                       </ListItemIcon>
                       <ListItemText
                         primary="View on HuggingFace"
-                        primaryTypographyProps={{ fontSize: 12 }}
+                        primaryTypographyProps={{ fontSize: TYPO.sm }}
                       />
                     </MenuItem>
                   ),
@@ -1044,27 +1056,27 @@ export default function InstalledAppsSection({
                       handleMenuClose();
                     }}
                     sx={{
-                      fontSize: 12,
+                      fontSize: TYPO.sm,
                       py: 1,
-                      color: '#ef4444',
+                      color: palette.statusError,
                       '&:hover': {
-                        bgcolor: 'rgba(239, 68, 68, 0.06)',
+                        bgcolor: ERROR_CHIP_HOVER_BG,
                       },
                       '&.Mui-disabled': {
-                        color: darkMode ? '#555' : '#bbb',
+                        color: palette.textDisabled,
                       },
                     }}
                   >
                     <ListItemIcon>
                       {isRemoving ? (
-                        <CircularProgress size={15} sx={{ color: '#ef4444' }} />
+                        <CircularProgress size={15} sx={{ color: palette.statusError }} />
                       ) : (
-                        <DeleteOutlineIcon sx={{ fontSize: 15, color: '#ef4444' }} />
+                        <DeleteOutlineIcon sx={{ fontSize: 15, color: palette.statusError }} />
                       )}
                     </ListItemIcon>
                     <ListItemText
                       primary={isRemoving ? 'Uninstalling...' : 'Uninstall'}
-                      primaryTypographyProps={{ fontSize: 12 }}
+                      primaryTypographyProps={{ fontSize: TYPO.sm }}
                     />
                   </MenuItem>,
                 ];
@@ -1080,36 +1092,32 @@ export default function InstalledAppsSection({
                 gap: 1.5,
                 px: 2,
                 py: 1.5,
-                borderRadius: '12px',
+                borderRadius: RADIUS.xl,
                 bgcolor: 'transparent',
-                border: darkMode
-                  ? '1px dashed rgba(255, 255, 255, 0.2)'
-                  : '1px dashed rgba(0, 0, 0, 0.2)',
+                border: `1px dashed ${palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2)}`,
                 mt: 1,
               }}
             >
-              <DiscoverAppsButton onClick={onOpenDiscover} darkMode={darkMode} disabled={isBusy} />
+              <DiscoverAppsButton onClick={onOpenDiscover} disabled={isBusy} />
 
               <Typography
                 component="button"
                 onClick={onOpenCreateTutorial}
                 sx={{
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: darkMode ? '#666' : '#999',
+                  fontSize: TYPO.xs,
+                  fontWeight: FONT_WEIGHT.medium,
+                  color: palette.textMuted,
                   textDecoration: 'underline',
-                  textDecorationColor: darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+                  textDecorationColor: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
                   textUnderlineOffset: '2px',
                   cursor: 'pointer',
                   bgcolor: 'transparent',
                   border: 'none',
                   p: 0,
-                  transition: 'color 0.2s ease, textDecorationColor 0.2s ease',
+                  transition: transition(['color', 'textDecorationColor'], DURATION.base),
                   '&:hover': {
-                    color: darkMode ? '#888' : '#777',
-                    textDecorationColor: darkMode
-                      ? 'rgba(255, 255, 255, 0.3)'
-                      : 'rgba(0, 0, 0, 0.3)',
+                    color: palette.textSecondary,
+                    textDecorationColor: palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3),
                   },
                 }}
               >

@@ -4,6 +4,8 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import { STATUS, hexToRgba } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export type ToastSeverity = 'success' | 'error' | 'warning' | 'info';
 
@@ -17,6 +19,7 @@ export interface ToastProps {
   toast: ToastState;
   toastProgress: number;
   onClose: () => void;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   zIndex?: number;
 }
@@ -44,9 +47,10 @@ export default function Toast({
   toast,
   toastProgress,
   onClose,
-  darkMode = false,
   zIndex = 100001,
 }: ToastProps): React.ReactElement {
+  const palette = useAppPalette();
+
   const getIcon = (): React.ReactElement | null => {
     switch (toast.severity) {
       case 'success':
@@ -66,38 +70,38 @@ export default function Toast({
     switch (toast.severity) {
       case 'success':
         return {
-          background: darkMode ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.1)',
-          border: darkMode ? 'rgba(34, 197, 94, 0.4)' : 'rgba(34, 197, 94, 0.3)',
-          text: darkMode ? '#86efac' : '#16a34a',
-          progress: darkMode ? 'rgba(34, 197, 94, 0.8)' : 'rgba(34, 197, 94, 0.7)',
+          background: palette.statusSuccessSurface,
+          border: palette.statusSuccessBorder,
+          text: palette.statusSuccessText,
+          progress: hexToRgba(STATUS.success, 0.8),
         };
       case 'error':
         return {
-          background: darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-          border: darkMode ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)',
-          text: darkMode ? '#fca5a5' : '#dc2626',
-          progress: darkMode ? 'rgba(239, 68, 68, 0.8)' : 'rgba(239, 68, 68, 0.7)',
+          background: palette.statusErrorSurface,
+          border: palette.statusErrorBorder,
+          text: palette.statusErrorText,
+          progress: hexToRgba(STATUS.error, 0.8),
         };
       case 'warning':
         return {
-          background: darkMode ? 'rgba(251, 191, 36, 0.15)' : 'rgba(251, 191, 36, 0.1)',
-          border: darkMode ? 'rgba(251, 191, 36, 0.4)' : 'rgba(251, 191, 36, 0.3)',
-          text: darkMode ? '#fde047' : '#ca8a04',
-          progress: darkMode ? 'rgba(251, 191, 36, 0.8)' : 'rgba(251, 191, 36, 0.7)',
+          background: palette.statusWarningSurface,
+          border: palette.statusWarningBorder,
+          text: palette.statusWarningText,
+          progress: hexToRgba(STATUS.warning, 0.8),
         };
       case 'info':
         return {
-          background: darkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)',
-          border: darkMode ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)',
-          text: darkMode ? '#93c5fd' : '#2563eb',
-          progress: darkMode ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.7)',
+          background: palette.statusInfoSurface,
+          border: palette.statusInfoBorder,
+          text: palette.statusInfoText,
+          progress: hexToRgba(STATUS.info, 0.8),
         };
       default:
         return {
-          background: darkMode ? 'rgba(156, 163, 175, 0.15)' : 'rgba(156, 163, 175, 0.1)',
-          border: darkMode ? 'rgba(156, 163, 175, 0.4)' : 'rgba(156, 163, 175, 0.3)',
-          text: darkMode ? '#d1d5db' : '#6b7280',
-          progress: darkMode ? 'rgba(156, 163, 175, 0.8)' : 'rgba(156, 163, 175, 0.7)',
+          background: palette.statusNeutralSurface,
+          border: palette.statusNeutralBorder,
+          text: palette.statusNeutralText,
+          progress: hexToRgba(STATUS.neutral, 0.8),
         };
     }
   };
@@ -133,9 +137,7 @@ export default function Toast({
           borderRadius: '12px',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: darkMode
-            ? '0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)'
-            : '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
+          boxShadow: `${palette.shadowLg}, ${palette.shadowSm}`,
           zIndex,
           cursor: 'pointer',
         }}

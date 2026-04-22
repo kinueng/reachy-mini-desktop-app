@@ -3,10 +3,13 @@ import { createPortal } from 'react-dom';
 import { Box, IconButton, Modal } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { getAppWindow } from '../utils/windowUtils';
+import { ACCENT, whiteAlpha, blackAlpha } from '@styles/tokens';
+import { useAppPalette, TYPO, scrollbarSx } from '@styles';
 
 export interface FullscreenOverlayProps {
   open: boolean;
   onClose: () => void;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   zIndex?: number;
   showCloseButton?: boolean;
@@ -27,7 +30,6 @@ export interface FullscreenOverlayProps {
 export default function FullscreenOverlay({
   open,
   onClose,
-  darkMode = false,
   zIndex = 9999,
   showCloseButton = false,
   backdropBlur = 20,
@@ -41,6 +43,8 @@ export default function FullscreenOverlay({
   scrollRef,
   children,
 }: FullscreenOverlayProps): React.ReactElement {
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
   const appWindow = getAppWindow();
 
   const hasAnimatedRef = useRef(false);
@@ -53,7 +57,7 @@ export default function FullscreenOverlay({
 
   const shouldAnimate = open && !hidden && !hasAnimatedRef.current;
   const defaultBackdropOpacity =
-    backdropOpacity !== undefined ? backdropOpacity : darkMode ? 0.92 : 0.95;
+    backdropOpacity !== undefined ? backdropOpacity : isDark ? 0.92 : 0.95;
 
   const isCenteredX = centeredX !== undefined ? centeredX : centered;
   const isCenteredY = centeredY !== undefined ? centeredY : centered;
@@ -66,25 +70,25 @@ export default function FullscreenOverlay({
     }
   };
 
-  const overlayBgColor = darkMode
+  // TODO(style-migration): overlay backgrounds use parametric opacity rather
+  // than a fixed token; keep the isDark branch so the blur scrim still blends
+  // cleanly with the app chrome.
+  const overlayBgColor = isDark
     ? `rgba(18, 18, 18, ${defaultBackdropOpacity})`
     : `rgba(255, 255, 255, ${defaultBackdropOpacity})`;
 
-  const scrollbarStyles = {
-    '&::-webkit-scrollbar': {
-      width: 8,
-    },
-    '&::-webkit-scrollbar-track': {
-      background: 'transparent',
-    },
-    '&::-webkit-scrollbar-thumb': {
-      background: darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)',
-      borderRadius: 4,
-      '&:hover': {
-        background: darkMode ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.25)',
-      },
-    },
-  };
+  const scrollbarThumb = isDark ? whiteAlpha(0.15) : blackAlpha(0.15);
+  const scrollbarThumbHover = isDark ? whiteAlpha(0.25) : blackAlpha(0.25);
+
+  const scrollbarStyles = scrollbarSx(palette, {
+    width: 8,
+    radius: 4,
+    thumb: scrollbarThumb,
+    thumbHover: scrollbarThumbHover,
+  });
+
+  const closeBtnBg = isDark ? whiteAlpha(0.08) : '#ffffff';
+  const closeBtnHoverBg = isDark ? whiteAlpha(0.12) : '#ffffff';
 
   return (
     <>
@@ -187,19 +191,19 @@ export default function FullscreenOverlay({
               position: 'fixed',
               top: 20,
               right: 16,
-              color: '#FF9500',
-              bgcolor: darkMode ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
-              border: '1px solid #FF9500',
+              color: ACCENT.main,
+              bgcolor: closeBtnBg,
+              border: `1px solid ${ACCENT.main}`,
               opacity: 0.7,
               zIndex: 10000001,
               WebkitAppRegion: 'no-drag',
               '&:hover': {
                 opacity: 1,
-                bgcolor: darkMode ? 'rgba(255, 255, 255, 0.12)' : '#ffffff',
+                bgcolor: closeBtnHoverBg,
               },
             }}
           >
-            <CloseIcon sx={{ fontSize: 20 }} />
+            <CloseIcon sx={{ fontSize: TYPO.xxl }} />
           </IconButton>,
           document.body
         )}

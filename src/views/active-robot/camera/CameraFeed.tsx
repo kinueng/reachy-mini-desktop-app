@@ -2,8 +2,9 @@ import React, { useRef, useEffect } from 'react';
 import { Box, Typography, CircularProgress } from '@mui/material';
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined';
 import VideocamOffIcon from '@mui/icons-material/VideocamOff';
+import { STATUS, whiteAlpha, blackAlpha } from '@styles/tokens';
+import { DURATION, RADIUS, TYPO, transition, useAppPalette } from '@styles';
 import { useWebRTCStreamContext, StreamState } from '../../../contexts/WebRTCStreamContext';
-import useAppStore from '../../../store/useAppStore';
 
 export interface CameraFeedProps {
   isLarge?: boolean;
@@ -17,7 +18,7 @@ export interface CameraFeedProps {
  */
 export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.ReactElement {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const darkMode = useAppStore(state => state.darkMode);
+  const palette = useAppPalette();
 
   // Get shared WebRTC stream from context
   const {
@@ -62,21 +63,24 @@ export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.
 
   // Theme-aware placeholder palette. Background and border are fully opaque
   // so the placeholder doesn't bleed through the parent viewport panel.
-  const placeholderBg = darkMode ? '#1a1a1a' : '#e8e8e8';
-  const placeholderBorder = darkMode ? '#2a2a2a' : '#d8d8d8';
-  const iconColorMuted = darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)';
-  const textColorMuted = darkMode ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)';
-  const hoverBg = darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)';
+  // TODO(style-migration): opaque placeholder bg/border tints don't map to palette.surface* (alpha-based).
+  const placeholderBg = palette.isDark ? '#1a1a1a' : '#e8e8e8';
+  const placeholderBorder = palette.isDark ? '#2a2a2a' : '#d8d8d8';
+  const iconColorMuted = palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3);
+  const textColorMuted = palette.isDark ? whiteAlpha(0.4) : blackAlpha(0.4);
+  const hoverBg = palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.04);
   // Neutral, theme-aware spinner color - matches the rest of the app
   // (Viewer3D LoadingSpinner, LogConsole Simple/Dev transition, etc.)
-  const spinnerColor = darkMode ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.35)';
+  const spinnerColor = palette.isDark ? whiteAlpha(0.45) : blackAlpha(0.35);
+  const errorIconColor = `${STATUS.error}99`;
+  const errorTextColor = `${STATUS.error}b3`;
 
   // Common placeholder box style
   const placeholderStyle = {
     position: 'relative',
     width: '100%',
     height: '100%',
-    borderRadius: isLarge ? '16px' : '12px',
+    borderRadius: isLarge ? RADIUS.xxl : RADIUS.xl,
     overflow: 'hidden',
     border: isLarge ? 'none' : `1px solid ${placeholderBorder}`,
     bgcolor: placeholderBg,
@@ -108,7 +112,7 @@ export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.
           />
           <Typography
             sx={{
-              fontSize: isLarge ? 12 : 9,
+              fontSize: isLarge ? TYPO.sm : TYPO.micro,
               color: textColorMuted,
               fontFamily: 'SF Mono, Monaco, Menlo, monospace',
               textTransform: 'uppercase',
@@ -170,7 +174,7 @@ export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.
           />
           <Typography
             sx={{
-              fontSize: isLarge ? 12 : 9,
+              fontSize: isLarge ? TYPO.sm : TYPO.micro,
               color: textColorMuted,
               fontFamily: 'SF Mono, Monaco, Menlo, monospace',
               textTransform: 'uppercase',
@@ -236,7 +240,7 @@ export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.
             justifyContent: 'center',
             gap: 1,
             cursor: 'pointer',
-            transition: 'background 0.2s',
+            transition: transition('background', DURATION.base),
             '&:hover': {
               bgcolor: hoverBg,
             },
@@ -246,13 +250,13 @@ export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.
           <VideocamOffIcon
             sx={{
               fontSize: isLarge ? 48 : 28,
-              color: state === StreamState.ERROR ? 'rgba(239, 68, 68, 0.6)' : iconColorMuted,
+              color: state === StreamState.ERROR ? errorIconColor : iconColorMuted,
             }}
           />
           <Typography
             sx={{
-              fontSize: isLarge ? 12 : 9,
-              color: state === StreamState.ERROR ? 'rgba(239, 68, 68, 0.7)' : textColorMuted,
+              fontSize: isLarge ? TYPO.sm : TYPO.micro,
+              color: state === StreamState.ERROR ? errorTextColor : textColorMuted,
               fontFamily: 'SF Mono, Monaco, Menlo, monospace',
               textTransform: 'uppercase',
               letterSpacing: '0.5px',

@@ -20,6 +20,16 @@ const FullscreenOverlay = FullscreenOverlayRaw as unknown as React.ComponentType
 >;
 import LogConsole from '@components/LogConsole';
 import { useActiveRobotContext } from '../../context';
+import {
+  ACCENT,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 const LOG_CONSOLE_SX = {
   bgcolor: 'transparent',
@@ -51,7 +61,8 @@ interface JobInfo {
 interface InstallOverlayProps {
   appInfo: AppInfo | null;
   jobInfo: JobInfo | null | undefined;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   jobType?: 'install' | 'remove' | 'update' | string;
   resultState?: 'success' | 'failed' | null;
   installStartTime?: number | null;
@@ -60,11 +71,11 @@ interface InstallOverlayProps {
 export default function InstallOverlay({
   appInfo,
   jobInfo,
-  darkMode,
   jobType = 'install',
   resultState = null,
   installStartTime = null,
 }: InstallOverlayProps): React.ReactElement | null {
+  const palette = useAppPalette();
   const { actions } = useActiveRobotContext();
   const { unlockInstall } = actions;
   const [elapsedTime, setElapsedTime] = useState<number>(0);
@@ -200,6 +211,12 @@ export default function InstallOverlay({
 
   const isShowingResult = resultState !== null;
 
+  // TODO(style-migration): warning amber tint is not yet in the palette.
+  const warningSurface = 'rgba(245, 158, 11, 0.1)';
+  const warningBorder = 'rgba(245, 158, 11, 0.3)';
+  const errorSurface = 'rgba(239, 68, 68, 0.1)';
+  const errorBorder = 'rgba(239, 68, 68, 0.3)';
+
   return (
     <FullscreenOverlay
       open={!!appInfo}
@@ -212,7 +229,7 @@ export default function InstallOverlay({
           unlockInstall();
         }
       }}
-      darkMode={darkMode}
+      darkMode={palette.isDark}
       zIndex={10003}
       backdropBlur={0}
       backdropOpacity={1}
@@ -238,22 +255,22 @@ export default function InstallOverlay({
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: '60px',
-              bgcolor: isNetworkError ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-              border: `3px solid ${isNetworkError ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+              bgcolor: isNetworkError ? warningSurface : errorSurface,
+              border: `3px solid ${isNetworkError ? warningBorder : errorBorder}`,
             }}
           >
             {isNetworkError ? (
               <WifiOffIcon
                 sx={{
                   fontSize: 64,
-                  color: '#f59e0b',
+                  color: palette.statusWarning,
                 }}
               />
             ) : (
               <ErrorOutlineIcon
                 sx={{
                   fontSize: 64,
-                  color: '#ef4444',
+                  color: palette.statusError,
                 }}
               />
             )}
@@ -268,8 +285,8 @@ export default function InstallOverlay({
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: '24px',
-              bgcolor: darkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
-              border: `2px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+              bgcolor: palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.03),
+              border: `2px solid ${palette.border}`,
               animation: 'pulse 2s ease-in-out infinite',
               '@keyframes pulse': {
                 '0%, 100%': { transform: 'scale(1)' },
@@ -286,8 +303,8 @@ export default function InstallOverlay({
             <Typography
               sx={{
                 fontSize: 24,
-                fontWeight: 600,
-                color: isNetworkError ? '#f59e0b' : '#ef4444',
+                fontWeight: FONT_WEIGHT.semibold,
+                color: isNetworkError ? palette.statusWarning : palette.statusError,
                 mb: 0.5,
                 animation: 'fadeInScale 0.5s ease',
                 '@keyframes fadeInScale': {
@@ -300,9 +317,9 @@ export default function InstallOverlay({
             </Typography>
             <Typography
               sx={{
-                fontSize: 16,
-                fontWeight: 500,
-                color: darkMode ? '#999' : '#666',
+                fontSize: TYPO.lg,
+                fontWeight: FONT_WEIGHT.medium,
+                color: palette.textSecondary,
                 mb: isNetworkError ? 1.5 : 0,
               }}
             >
@@ -311,8 +328,8 @@ export default function InstallOverlay({
             {isNetworkError && (
               <Typography
                 sx={{
-                  fontSize: 13,
-                  color: darkMode ? '#888' : '#777',
+                  fontSize: TYPO.body,
+                  color: palette.textMuted,
                   lineHeight: 1.5,
                 }}
               >
@@ -332,9 +349,9 @@ export default function InstallOverlay({
           >
             <Typography
               sx={{
-                fontSize: 10,
-                fontWeight: 500,
-                color: darkMode ? '#666' : '#aaa',
+                fontSize: TYPO.tiny,
+                fontWeight: FONT_WEIGHT.medium,
+                color: palette.textMuted,
                 letterSpacing: '1px',
                 textTransform: 'uppercase',
               }}
@@ -344,8 +361,8 @@ export default function InstallOverlay({
             <Typography
               sx={{
                 fontSize: 24,
-                fontWeight: 600,
-                color: darkMode ? '#f5f5f5' : '#333',
+                fontWeight: FONT_WEIGHT.semibold,
+                color: palette.textPrimary,
                 letterSpacing: '-0.3px',
               }}
             >
@@ -359,8 +376,8 @@ export default function InstallOverlay({
             <Box sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1 }}>
               <Typography
                 sx={{
-                  fontSize: 13,
-                  color: darkMode ? '#aaa' : '#666',
+                  fontSize: TYPO.body,
+                  color: palette.textSecondary,
                   lineHeight: 1.5,
                   maxWidth: '420px',
                 }}
@@ -380,9 +397,9 @@ export default function InstallOverlay({
                 {appInfo.author && (
                   <Typography
                     sx={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: darkMode ? '#888' : '#999',
+                      fontSize: TYPO.xs,
+                      fontWeight: FONT_WEIGHT.semibold,
+                      color: palette.textMuted,
                     }}
                   >
                     by {appInfo.author}
@@ -397,15 +414,15 @@ export default function InstallOverlay({
                       gap: 0.5,
                       px: 1,
                       py: 0.25,
-                      borderRadius: '8px',
-                      bgcolor: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+                      borderRadius: RADIUS.md,
+                      bgcolor: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.03),
                     }}
                   >
                     <Typography
                       sx={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: darkMode ? '#888' : '#666',
+                        fontSize: TYPO.xs,
+                        fontWeight: FONT_WEIGHT.semibold,
+                        color: palette.textSecondary,
                       }}
                     >
                       {appInfo.downloads} downloads
@@ -432,17 +449,17 @@ export default function InstallOverlay({
                   gap: 1,
                   px: 2,
                   py: 1,
-                  borderRadius: '10px',
-                  bgcolor: darkMode ? 'rgba(255, 149, 0, 0.08)' : 'rgba(255, 149, 0, 0.05)',
-                  border: `1px solid ${darkMode ? 'rgba(255, 149, 0, 0.2)' : 'rgba(255, 149, 0, 0.15)'}`,
+                  borderRadius: RADIUS.lg,
+                  bgcolor: accentAlpha(palette.isDark ? 0.08 : 0.05),
+                  border: `1px solid ${accentAlpha(palette.isDark ? 0.2 : 0.15)}`,
                 }}
               >
-                <CircularProgress size={14} thickness={5} sx={{ color: '#FF9500' }} />
+                <CircularProgress size={14} thickness={5} sx={{ color: ACCENT.main }} />
                 <Typography
                   sx={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: '#FF9500',
+                    fontSize: TYPO.sm,
+                    fontWeight: FONT_WEIGHT.semibold,
+                    color: ACCENT.main,
                     fontFamily: 'monospace',
                   }}
                 >
@@ -457,17 +474,17 @@ export default function InstallOverlay({
                   gap: 0.75,
                   px: 1.5,
                   py: 1,
-                  borderRadius: '10px',
-                  bgcolor: darkMode ? 'rgba(255, 149, 0, 0.08)' : 'rgba(255, 149, 0, 0.05)',
-                  border: `1px solid ${darkMode ? 'rgba(255, 149, 0, 0.2)' : 'rgba(255, 149, 0, 0.15)'}`,
+                  borderRadius: RADIUS.lg,
+                  bgcolor: accentAlpha(palette.isDark ? 0.08 : 0.05),
+                  border: `1px solid ${accentAlpha(palette.isDark ? 0.2 : 0.15)}`,
                 }}
               >
-                <PlaylistAddCheckIcon sx={{ fontSize: 14, color: '#FF9500' }} />
+                <PlaylistAddCheckIcon sx={{ fontSize: TYPO.md, color: ACCENT.main }} />
                 <Typography
                   sx={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: '#FF9500',
+                    fontSize: TYPO.sm,
+                    fontWeight: FONT_WEIGHT.semibold,
+                    color: ACCENT.main,
                     fontFamily: 'monospace',
                   }}
                 >
@@ -494,8 +511,8 @@ export default function InstallOverlay({
               expandIcon={
                 <ExpandMoreIcon
                   sx={{
-                    color: darkMode ? '#888' : '#999',
-                    fontSize: 18,
+                    color: palette.textMuted,
+                    fontSize: TYPO.xl,
                   }}
                 />
               }
@@ -503,11 +520,11 @@ export default function InstallOverlay({
                 minHeight: 'auto !important',
                 py: 1,
                 px: 1.5,
-                borderRadius: '12px',
-                bgcolor: darkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
-                border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
+                borderRadius: RADIUS.xl,
+                bgcolor: palette.isDark ? blackAlpha(0.2) : blackAlpha(0.02),
+                border: `1px solid ${palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05)}`,
                 '&:hover': {
-                  bgcolor: darkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.04)',
+                  bgcolor: palette.isDark ? blackAlpha(0.3) : blackAlpha(0.04),
                 },
                 '&.Mui-expanded': {
                   minHeight: 'auto !important',
@@ -525,9 +542,9 @@ export default function InstallOverlay({
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                 <Typography
                   sx={{
-                    fontSize: 11,
-                    fontWeight: 500,
-                    color: darkMode ? '#aaa' : '#666',
+                    fontSize: TYPO.xs,
+                    fontWeight: FONT_WEIGHT.medium,
+                    color: palette.textSecondary,
                   }}
                 >
                   {logsExpanded ? 'Hide logs' : 'Show logs'}
@@ -535,8 +552,8 @@ export default function InstallOverlay({
                 {!logsExpanded && latestLogs.length > 0 && (
                   <Typography
                     sx={{
-                      fontSize: 10,
-                      color: darkMode ? '#666' : '#999',
+                      fontSize: TYPO.tiny,
+                      color: palette.textMuted,
                       ml: 'auto',
                     }}
                   >
@@ -548,16 +565,16 @@ export default function InstallOverlay({
             <AccordionDetails
               sx={{
                 p: 0,
-                border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
+                border: `1px solid ${palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05)}`,
                 borderTop: 'none',
-                borderBottomLeftRadius: '12px',
-                borderBottomRightRadius: '12px',
-                bgcolor: darkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
+                borderBottomLeftRadius: RADIUS.xl,
+                borderBottomRightRadius: RADIUS.xl,
+                bgcolor: palette.isDark ? blackAlpha(0.2) : blackAlpha(0.02),
               }}
             >
               <LogConsole
                 logs={currentLogs}
-                darkMode={darkMode}
+                darkMode={palette.isDark}
                 includeStoreLogs={false}
                 maxHeight="140px"
                 showTimestamp={false}
@@ -571,8 +588,8 @@ export default function InstallOverlay({
           {!isShowingResult && isInstalling && (
             <Typography
               sx={{
-                fontSize: 11,
-                color: darkMode ? '#666' : '#999',
+                fontSize: TYPO.xs,
+                color: palette.textMuted,
                 fontStyle: 'italic',
                 mt: 1,
               }}

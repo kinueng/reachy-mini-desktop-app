@@ -16,6 +16,8 @@ import { useWebActiveRobotAdapter } from '../hooks/useWebActiveRobotAdapter';
 import useAppStore from '../store/useAppStore';
 import { ROBOT_STATUS } from '../constants/robotStatus';
 import type { FullAppState } from '../store/useStore';
+import { ACCENT, STATUS, blackAlpha, whiteAlpha } from '@styles/tokens';
+import { useAppPalette, TYPO, RADIUS } from '@styles';
 
 interface DaemonStatusResponse {
   state?: string;
@@ -28,10 +30,10 @@ interface DaemonStatusResponse {
  * Directly renders ActiveRobotView without Tauri dependencies
  */
 export default function WebApp(): React.ReactElement {
+  const palette = useAppPalette();
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [daemonVersion, setDaemonVersion] = useState<string>('web');
-  const darkMode = useAppStore((state: FullAppState) => state.darkMode);
   const isActive = useAppStore((state: FullAppState) => state.isActive);
   const isCommandRunning = useAppStore((state: FullAppState) => state.isCommandRunning);
   const logs = useAppStore((state: FullAppState) => state.logs);
@@ -90,6 +92,12 @@ export default function WebApp(): React.ReactElement {
     return () => clearInterval(interval);
   }, []);
 
+  // TODO(style-migration): these app-frame greys (1a1a1a/f5f5f7, 0a0a0a/e5e5e7)
+  // are not captured by a semantic surface token yet; branch on `palette.isDark`
+  // to preserve the chrome while staying darkMode-prop-free.
+  const frameBg = palette.isDark ? '#1a1a1a' : '#f5f5f7';
+  const shellBg = palette.isDark ? '#0a0a0a' : '#e5e5e7';
+
   if (!isConnected && !error) {
     return (
       <Box
@@ -101,11 +109,11 @@ export default function WebApp(): React.ReactElement {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 2,
-          bgcolor: darkMode ? '#1a1a1a' : '#f5f5f7',
+          bgcolor: frameBg,
         }}
       >
-        <CircularProgress sx={{ color: '#FF9500' }} />
-        <Typography sx={{ color: darkMode ? '#888' : '#666' }}>Connecting to daemon...</Typography>
+        <CircularProgress sx={{ color: ACCENT.main }} />
+        <Typography sx={{ color: palette.textSecondary }}>Connecting to daemon...</Typography>
       </Box>
     );
   }
@@ -121,16 +129,16 @@ export default function WebApp(): React.ReactElement {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 2,
-          bgcolor: darkMode ? '#1a1a1a' : '#f5f5f7',
+          bgcolor: frameBg,
         }}
       >
-        <Typography variant="h5" sx={{ color: '#ef4444' }}>
+        <Typography variant="h5" sx={{ color: STATUS.error }}>
           Connection Error
         </Typography>
-        <Typography sx={{ color: darkMode ? '#888' : '#666', textAlign: 'center', maxWidth: 400 }}>
+        <Typography sx={{ color: palette.textSecondary, textAlign: 'center', maxWidth: 400 }}>
           {error}
         </Typography>
-        <Typography sx={{ color: darkMode ? '#666' : '#999', fontSize: 12, mt: 2 }}>
+        <Typography sx={{ color: palette.textMuted, fontSize: TYPO.sm, mt: 2 }}>
           Make sure the daemon is running on port 8000
         </Typography>
       </Box>
@@ -147,18 +155,18 @@ export default function WebApp(): React.ReactElement {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: darkMode ? '#0a0a0a' : '#e5e5e7',
+        bgcolor: shellBg,
       }}
     >
       <Box
         sx={{
           width: 900,
           height: 670,
-          borderRadius: '12px',
+          borderRadius: RADIUS.xl,
           overflow: 'hidden',
-          boxShadow: darkMode
-            ? '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.1)'
-            : '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0,0,0,0.05)',
+          boxShadow: palette.isDark
+            ? `0 25px 50px -12px ${blackAlpha(0.5)}, 0 0 0 1px ${whiteAlpha(0.1)}`
+            : `0 25px 50px -12px ${blackAlpha(0.25)}, 0 0 0 1px ${blackAlpha(0.05)}`,
         }}
       >
         <ActiveRobotModule

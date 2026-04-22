@@ -3,9 +3,11 @@ import { Box, Typography } from '@mui/material';
 import { getVersion } from '@utils/tauriCompat';
 import { invoke } from '@tauri-apps/api/core';
 import useAppStore from '../../store/useAppStore';
+import { FONT_WEIGHT, RADIUS, TYPO, useAppPalette } from '@styles';
 
 export interface RobotHeaderProps {
   daemonVersion?: string | null;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
 }
 
@@ -17,10 +19,8 @@ interface SidecarSourceInfo {
  * Robot header with title, version and metadata
  * Apple style: minimalist, clean, spacious
  */
-export default function RobotHeader({
-  daemonVersion,
-  darkMode = false,
-}: RobotHeaderProps): React.ReactElement {
+export default function RobotHeader({ daemonVersion }: RobotHeaderProps): React.ReactElement {
+  const palette = useAppPalette();
   const { connectionMode } = useAppStore();
   const [appVersion, setAppVersion] = useState<string | null>('');
   const [sidecarBranch, setSidecarBranch] = useState<string | null>(null);
@@ -59,9 +59,10 @@ export default function RobotHeader({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: -0.5 }}>
         <Typography
           sx={{
-            fontSize: 20,
-            fontWeight: 600,
-            color: darkMode ? '#f5f5f5' : '#1d1d1f',
+            fontSize: TYPO.xxl,
+            fontWeight: FONT_WEIGHT.semibold,
+            // TODO(style-migration): palette.textPrimary uses #333 in light; RobotHeader prefers Apple-like #1d1d1f.
+            color: palette.isDark ? palette.textPrimary : '#1d1d1f',
             letterSpacing: '-0.4px',
           }}
         >
@@ -71,13 +72,13 @@ export default function RobotHeader({
           <Typography
             component="span"
             sx={{
-              fontSize: 10,
-              fontWeight: 600,
-              color: darkMode ? '#666' : '#999',
-              bgcolor: darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+              fontSize: TYPO.tiny,
+              fontWeight: FONT_WEIGHT.semibold,
+              color: palette.textFaint,
+              bgcolor: palette.surfaceSubtle,
               px: 0.75,
               py: 0.25,
-              borderRadius: '4px',
+              borderRadius: RADIUS.xs,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
             }}
@@ -90,9 +91,9 @@ export default function RobotHeader({
       {/* Version Subtitle - App + Daemon */}
       <Typography
         sx={{
-          fontSize: 9,
-          fontWeight: 500,
-          color: darkMode ? '#666' : '#999',
+          fontSize: TYPO.micro,
+          fontWeight: FONT_WEIGHT.medium,
+          color: palette.textFaint,
           fontFamily: 'SF Mono, Monaco, Menlo, monospace',
           mb: 0.75,
         }}
@@ -104,8 +105,8 @@ export default function RobotHeader({
             display: 'inline-block',
             width: 3,
             height: 3,
-            borderRadius: '50%',
-            bgcolor: darkMode ? '#555' : '#bbb',
+            borderRadius: RADIUS.circle,
+            bgcolor: palette.textFaint,
             mx: 1,
             verticalAlign: 'middle',
           }}

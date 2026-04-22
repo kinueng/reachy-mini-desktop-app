@@ -16,10 +16,25 @@ import CategoryFilters from './components/CategoryFilters';
 import AppCard from './components/AppCard';
 import EmptyState from './components/EmptyState';
 import Footer from './components/Footer';
+import {
+  FONT_WEIGHT,
+  RADIUS,
+  STATUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 const COLUMNS = 2;
 const ESTIMATED_ROW_HEIGHT = 240;
 const ROW_GAP = 20;
+
+// Amber-accent tones. `AMBER_LIGHT` aligns with `STATUS.warning`;
+// `AMBER_DARK` is a brighter amber tuned for dark surfaces.
+const AMBER_DARK = '#fbbf24';
+const AMBER_LIGHT = STATUS.warning;
 
 interface AppLike {
   name: string;
@@ -44,7 +59,8 @@ interface DiscoverModalProps {
   open: boolean;
   onClose: () => void;
   filteredApps: AppLike[];
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   isBusy: boolean;
   isLoading: boolean;
   error: string | null;
@@ -71,7 +87,6 @@ export default function DiscoverModal({
   open: isOpen,
   onClose,
   filteredApps,
-  darkMode,
   isBusy,
   isLoading,
   error,
@@ -91,6 +106,7 @@ export default function DiscoverModal({
   onOpenCreateTutorial,
   hidden = false,
 }: DiscoverModalProps): React.ReactElement {
+  const palette = useAppPalette();
   const hasActiveFilter = selectedCategory !== null || (searchQuery && searchQuery.trim());
   const isFiltered = !!hasActiveFilter && filteredApps.length < totalAppsCount;
 
@@ -119,7 +135,7 @@ export default function DiscoverModal({
     <FullscreenOverlay
       open={isOpen}
       onClose={onClose}
-      darkMode={darkMode}
+      darkMode={palette.isDark}
       zIndex={10002}
       centeredX={true}
       debugName="DiscoverModalLegacy"
@@ -139,10 +155,9 @@ export default function DiscoverModal({
           mb: 4,
         }}
       >
-        <Header darkMode={darkMode} />
+        <Header />
 
         <SearchBar
-          darkMode={darkMode}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           officialOnly={officialOnly}
@@ -156,7 +171,6 @@ export default function DiscoverModal({
         />
 
         <CategoryFilters
-          darkMode={darkMode}
           categories={categories}
           selectedCategory={selectedCategory}
           setSelectedCategory={setSelectedCategory}
@@ -172,19 +186,23 @@ export default function DiscoverModal({
               px: 2.5,
               py: 1.5,
               mb: 2,
-              borderRadius: '10px',
-              backgroundColor: darkMode ? 'rgba(255, 149, 0, 0.12)' : 'rgba(255, 149, 0, 0.08)',
-              border: `1px solid ${darkMode ? 'rgba(255, 149, 0, 0.3)' : 'rgba(255, 149, 0, 0.25)'}`,
+              borderRadius: RADIUS.lg,
+              backgroundColor: accentAlpha(palette.isDark ? 0.12 : 0.08),
+              border: `1px solid ${accentAlpha(palette.isDark ? 0.3 : 0.25)}`,
             }}
           >
             <WifiOffIcon
-              sx={{ fontSize: 20, color: darkMode ? '#fbbf24' : '#f59e0b', flexShrink: 0 }}
+              sx={{
+                fontSize: 20,
+                color: palette.isDark ? AMBER_DARK : AMBER_LIGHT,
+                flexShrink: 0,
+              }}
             />
             <Typography
               sx={{
-                fontSize: 13,
-                color: darkMode ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)',
-                fontWeight: 500,
+                fontSize: TYPO.body,
+                color: palette.textPrimary,
+                fontWeight: FONT_WEIGHT.medium,
                 flex: 1,
               }}
             >
@@ -205,14 +223,12 @@ export default function DiscoverModal({
               gap: 2,
             }}
           >
-            <WifiOffIcon
-              sx={{ fontSize: 56, color: darkMode ? '#666' : '#999', opacity: 0.7, mb: 1 }}
-            />
+            <WifiOffIcon sx={{ fontSize: 56, color: palette.textMuted, opacity: 0.7, mb: 1 }} />
             <Typography
               sx={{
                 fontSize: 15,
-                color: darkMode ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.87)',
-                fontWeight: 600,
+                color: palette.textPrimary,
+                fontWeight: FONT_WEIGHT.semibold,
                 mb: 0.5,
               }}
             >
@@ -220,9 +236,9 @@ export default function DiscoverModal({
             </Typography>
             <Typography
               sx={{
-                fontSize: 13,
-                color: darkMode ? '#888' : '#666',
-                fontWeight: 400,
+                fontSize: TYPO.body,
+                color: palette.textSecondary,
+                fontWeight: FONT_WEIGHT.regular,
                 maxWidth: 320,
                 lineHeight: 1.6,
                 mb: 2,
@@ -236,16 +252,16 @@ export default function DiscoverModal({
               onClick={() => window.location.reload()}
               sx={{
                 textTransform: 'none',
-                fontSize: 13,
-                fontWeight: 500,
+                fontSize: TYPO.body,
+                fontWeight: FONT_WEIGHT.medium,
                 px: 3,
                 py: 1,
-                borderRadius: '8px',
-                borderColor: darkMode ? '#444' : '#ddd',
-                color: darkMode ? '#aaa' : '#666',
+                borderRadius: RADIUS.md,
+                borderColor: palette.borderStrong,
+                color: palette.textSecondary,
                 '&:hover': {
-                  borderColor: darkMode ? '#555' : '#ccc',
-                  backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+                  borderColor: palette.borderStrong,
+                  backgroundColor: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.03),
                 },
               }}
             >
@@ -264,17 +280,15 @@ export default function DiscoverModal({
               gap: 2,
             }}
           >
-            <CircularProgress size={40} sx={{ color: darkMode ? '#666' : '#999' }} />
-            <Typography sx={{ fontSize: 14, color: darkMode ? '#888' : '#999', fontWeight: 500 }}>
+            <CircularProgress size={40} sx={{ color: palette.textMuted }} />
+            <Typography
+              sx={{ fontSize: TYPO.md, color: palette.textMuted, fontWeight: FONT_WEIGHT.medium }}
+            >
               Loading apps...
             </Typography>
           </Box>
         ) : filteredApps.length === 0 ? (
-          <EmptyState
-            darkMode={darkMode}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-          />
+          <EmptyState searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
         ) : (
           <Box ref={gridAnchorRef} sx={{ position: 'relative', width: '100%' }}>
             <div
@@ -294,7 +308,6 @@ export default function DiscoverModal({
                   return {
                     key: app.name,
                     app,
-                    darkMode,
                     isBusy,
                     isInstalling: isJobRunning(app.name, 'install'),
                     installFailed: !!(installJob && installJob.status === 'failed'),
@@ -326,7 +339,7 @@ export default function DiscoverModal({
               })}
             </div>
 
-            <Footer darkMode={darkMode} onOpenCreateTutorial={onOpenCreateTutorial} />
+            <Footer onOpenCreateTutorial={onOpenCreateTutorial} />
           </Box>
         )}
       </Box>

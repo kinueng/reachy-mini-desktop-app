@@ -5,6 +5,16 @@ import BluetoothIcon from '@mui/icons-material/Bluetooth';
 import useAppStore from '../../store/useAppStore';
 import FullscreenOverlayUntyped from '../../components/FullscreenOverlay';
 import type React from 'react';
+import {
+  ACCENT,
+  accentAlpha,
+  DURATION,
+  EASING,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  useAppPalette,
+} from '@styles';
 
 // TODO(ts): FullscreenOverlay lives outside this agent's migration scope; cast locally
 // to a React.FC shape that matches the runtime call signature we use.
@@ -24,13 +34,16 @@ const FullscreenOverlay = FullscreenOverlayUntyped as unknown as React.FC<{
  * between WiFi first-time setup and Bluetooth troubleshooting.
  */
 export default function SetupChoiceView() {
-  const { darkMode, setShowSetupChoice, setShowFirstTimeWifiSetup, setShowBluetoothSupportView } =
+  const palette = useAppPalette();
+  const { setShowSetupChoice, setShowFirstTimeWifiSetup, setShowBluetoothSupportView } =
     useAppStore();
 
-  const textPrimary = darkMode ? '#f5f5f5' : '#333';
-  const textSecondary = darkMode ? '#888' : '#666';
-  const bgCard = darkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)';
-  const borderColor = darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+  const textPrimary = palette.textPrimary;
+  // TODO(style-migration): the literal `#888` / `#666` pair has no exact
+  // palette token; `textSecondary` is the closest semantic fit.
+  const textSecondary = palette.textSecondary;
+  const bgCard = palette.surfaceSubtle;
+  const borderColor = palette.border;
 
   const handleWifi = () => {
     setShowSetupChoice(false);
@@ -50,7 +63,7 @@ export default function SetupChoiceView() {
     <FullscreenOverlay
       open={true}
       onClose={handleClose}
-      darkMode={darkMode}
+      darkMode={palette.isDark}
       showCloseButton={true}
       centered={true}
       backdropBlur={40}
@@ -71,7 +84,7 @@ export default function SetupChoiceView() {
         <Typography
           sx={{
             fontSize: 22,
-            fontWeight: 700,
+            fontWeight: FONT_WEIGHT.bold,
             color: textPrimary,
             mb: 1,
             textAlign: 'center',
@@ -83,7 +96,7 @@ export default function SetupChoiceView() {
 
         <Typography
           sx={{
-            fontSize: 13,
+            fontSize: TYPO.body,
             color: textSecondary,
             textAlign: 'center',
             mb: 3,
@@ -106,26 +119,31 @@ export default function SetupChoiceView() {
               justifyContent: 'center',
               gap: 1,
               p: 3,
-              borderRadius: '12px',
+              borderRadius: RADIUS.xl,
               border: '2px solid',
-              borderColor: '#FF9500',
-              bgcolor: darkMode ? 'rgba(255, 149, 0, 0.06)' : 'rgba(255, 149, 0, 0.04)',
+              borderColor: ACCENT.main,
+              bgcolor: palette.accentSurface,
               cursor: 'pointer',
-              transition: 'all 0.2s ease',
+              transition: `all ${DURATION.base}ms ${EASING.standard}`,
               '&:hover': {
-                bgcolor: darkMode ? 'rgba(255, 149, 0, 0.12)' : 'rgba(255, 149, 0, 0.08)',
+                bgcolor: palette.accentSurfaceHover,
               },
             }}
           >
-            <WifiOutlinedIcon sx={{ fontSize: 36, color: '#FF9500' }} />
+            <WifiOutlinedIcon sx={{ fontSize: 36, color: ACCENT.main }} />
             <Typography
-              sx={{ fontSize: 15, fontWeight: 600, color: textPrimary, textAlign: 'center' }}
+              sx={{
+                fontSize: 15,
+                fontWeight: FONT_WEIGHT.semibold,
+                color: textPrimary,
+                textAlign: 'center',
+              }}
             >
               WiFi Setup
             </Typography>
             <Typography
               sx={{
-                fontSize: 11,
+                fontSize: TYPO.xs,
                 color: textSecondary,
                 textAlign: 'center',
                 lineHeight: 1.4,
@@ -147,15 +165,18 @@ export default function SetupChoiceView() {
               justifyContent: 'center',
               gap: 1,
               p: 3,
-              borderRadius: '12px',
+              borderRadius: RADIUS.xl,
               border: '1px solid',
               borderColor: borderColor,
               bgcolor: bgCard,
               cursor: 'pointer',
-              transition: 'all 0.2s ease',
+              transition: `all ${DURATION.base}ms ${EASING.standard}`,
               '&:hover': {
-                borderColor: darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)',
-                bgcolor: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+                borderColor: palette.borderStrong,
+                // TODO(style-migration): hovered-card background doesn't
+                // have a dedicated token yet; `surfaceCardHover` is close but
+                // meant for full cards - using an accent-free overlay here.
+                bgcolor: palette.surfaceSubtle,
               },
             }}
           >
@@ -167,16 +188,16 @@ export default function SetupChoiceView() {
                 right: 8,
                 px: 0.75,
                 py: 0.25,
-                borderRadius: '4px',
-                bgcolor: darkMode ? 'rgba(255, 149, 0, 0.15)' : 'rgba(255, 149, 0, 0.1)',
-                border: `1px solid ${darkMode ? 'rgba(255, 149, 0, 0.3)' : 'rgba(255, 149, 0, 0.25)'}`,
+                borderRadius: RADIUS.xs,
+                bgcolor: accentAlpha(palette.isDark ? 0.15 : 0.1),
+                border: `1px solid ${palette.accentBorder}`,
               }}
             >
               <Typography
                 sx={{
                   fontSize: 8,
-                  fontWeight: 600,
-                  color: '#FF9500',
+                  fontWeight: FONT_WEIGHT.semibold,
+                  color: ACCENT.main,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                   lineHeight: 1,
@@ -188,13 +209,18 @@ export default function SetupChoiceView() {
 
             <BluetoothIcon sx={{ fontSize: 36, color: textSecondary }} />
             <Typography
-              sx={{ fontSize: 15, fontWeight: 600, color: textPrimary, textAlign: 'center' }}
+              sx={{
+                fontSize: 15,
+                fontWeight: FONT_WEIGHT.semibold,
+                color: textPrimary,
+                textAlign: 'center',
+              }}
             >
               Bluetooth
             </Typography>
             <Typography
               sx={{
-                fontSize: 11,
+                fontSize: TYPO.xs,
                 color: textSecondary,
                 textAlign: 'center',
                 lineHeight: 1.4,

@@ -3,7 +3,8 @@ import { Box, IconButton, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { EmotionWheel, EmojiPicker } from '@components/emoji-grid';
 import type { EmotionWheelHandle } from '@components/emoji-grid/EmotionWheel';
-import { ACCENT_ORANGE, accentRgba } from '@components/emoji-grid/theme';
+import { ACCENT, accentAlpha } from '@styles/tokens';
+import { DURATION, FONT_WEIGHT, TYPO, transition, useAppPalette } from '@styles';
 import {
   CHOREOGRAPHY_DATASETS,
   EMOTION_EFFECT_DURATION_MS,
@@ -29,6 +30,7 @@ type TimeoutId = ReturnType<typeof setTimeout>;
 
 export interface ExpressionsSectionProps {
   isBusy?: boolean;
+  /** @deprecated No longer used; theme is read from the global store. */
   darkMode?: boolean;
 }
 
@@ -38,8 +40,8 @@ export interface ExpressionsSectionProps {
  */
 export default function ExpressionsSection({
   isBusy: _isBusyProp = false,
-  darkMode = false,
 }: ExpressionsSectionProps): React.ReactElement {
+  const palette = useAppPalette();
   const [currentView, setCurrentView] = useState<View>('library');
   const [spacePressed, setSpacePressed] = useState<boolean>(false);
   const wheelRef = useRef<EmotionWheelHandle | null>(null);
@@ -191,31 +193,27 @@ export default function ExpressionsSection({
             size="small"
             disabled={isExecuting}
             sx={{
-              color: isExecuting
-                ? darkMode
-                  ? 'rgba(255,255,255,0.3)'
-                  : 'rgba(0,0,0,0.2)'
-                : ACCENT_ORANGE,
+              color: isExecuting ? palette.textFaint : ACCENT.main,
               cursor: isExecuting ? 'not-allowed' : 'pointer',
               '&:hover': {
                 bgcolor: isExecuting
                   ? 'transparent'
-                  : darkMode
-                    ? accentRgba(0.1)
-                    : accentRgba(0.05),
+                  : palette.isDark
+                    ? accentAlpha(0.1)
+                    : accentAlpha(0.05),
               },
               '&.Mui-disabled': {
-                color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)',
+                color: palette.textFaint,
               },
             }}
           >
-            <ArrowBackIcon sx={{ fontSize: 20 }} />
+            <ArrowBackIcon sx={{ fontSize: TYPO.xxl }} />
           </IconButton>
           <Typography
             sx={{
-              fontSize: 20,
-              fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              fontSize: TYPO.xxl,
+              fontWeight: FONT_WEIGHT.bold,
+              color: palette.textPrimary,
               letterSpacing: '-0.3px',
             }}
           >
@@ -239,7 +237,6 @@ export default function ExpressionsSection({
             <EmotionWheel
               ref={wheelRef}
               onAction={handleAction}
-              darkMode={darkMode}
               disabled={debouncedIsBusy || !isReady}
               isBusy={debouncedIsBusy}
               activeActionName={activeActionName}
@@ -263,8 +260,8 @@ export default function ExpressionsSection({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 1,
-                color: darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)',
-                fontSize: 11,
+                color: palette.textFaint,
+                fontSize: TYPO.xs,
               }}
             >
               <Box
@@ -273,16 +270,14 @@ export default function ExpressionsSection({
                   px: 1.5,
                   py: 0.25,
                   borderRadius: 1,
-                  border: spacePressed
-                    ? `1px solid ${ACCENT_ORANGE}`
-                    : `1px solid ${darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'}`,
-                  bgcolor: spacePressed ? accentRgba(0.15) : 'transparent',
-                  color: spacePressed ? ACCENT_ORANGE : 'inherit',
+                  border: spacePressed ? `1px solid ${ACCENT.main}` : `1px solid ${palette.border}`,
+                  bgcolor: spacePressed ? accentAlpha(0.15) : 'transparent',
+                  color: spacePressed ? ACCENT.main : 'inherit',
                   fontFamily: 'monospace',
                   fontSize: 8,
                   textTransform: 'uppercase',
                   letterSpacing: '0.1em',
-                  transition: 'all 0.15s ease',
+                  transition: transition('all', DURATION.fast),
                   transform: spacePressed ? 'scale(1.05)' : 'scale(1)',
                 }}
               >
@@ -298,7 +293,6 @@ export default function ExpressionsSection({
             emotions={EMOTIONS}
             dances={DANCES}
             onAction={handleAction}
-            darkMode={darkMode}
             disabled={debouncedIsBusy || !isReady}
             activeActionName={activeActionName}
             isExecuting={isExecuting}

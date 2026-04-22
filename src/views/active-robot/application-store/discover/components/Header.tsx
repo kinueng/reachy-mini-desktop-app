@@ -2,12 +2,15 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import hfLogo from '@assets/hf-logo.svg';
 import Reachies from '@assets/reachies.svg';
+import { FONT_WEIGHT, TYPO, useAppPalette } from '@styles';
 
 interface HeaderProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
 }
 
-export default function Header({ darkMode }: HeaderProps): React.ReactElement {
+export default function Header(_props: HeaderProps): React.ReactElement {
+  const palette = useAppPalette();
   return (
     <Box sx={{ mb: 0 }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 0 }}>
@@ -29,8 +32,8 @@ export default function Header({ darkMode }: HeaderProps): React.ReactElement {
             <Typography
               sx={{
                 fontSize: 32,
-                fontWeight: 700,
-                color: darkMode ? '#f5f5f5' : '#333',
+                fontWeight: FONT_WEIGHT.bold,
+                color: palette.textPrimary,
                 letterSpacing: '-0.5px',
                 lineHeight: 1.2,
                 mb: 0.5,
@@ -40,9 +43,9 @@ export default function Header({ darkMode }: HeaderProps): React.ReactElement {
             </Typography>
             <Typography
               sx={{
-                fontSize: 14,
-                color: darkMode ? '#888' : '#999',
-                fontWeight: 500,
+                fontSize: TYPO.md,
+                color: palette.textMuted,
+                fontWeight: FONT_WEIGHT.medium,
                 letterSpacing: '0.1px',
                 mb: 1,
               }}
@@ -51,28 +54,28 @@ export default function Header({ darkMode }: HeaderProps): React.ReactElement {
             </Typography>
             <Typography
               sx={{
-                fontSize: 12,
-                color: darkMode ? '#aaa' : '#666',
-                fontWeight: 400,
+                fontSize: TYPO.sm,
+                color: palette.textSecondary,
+                fontWeight: FONT_WEIGHT.regular,
                 lineHeight: 1.6,
                 maxWidth: '90%',
                 mb: 1.5,
               }}
             >
               Install apps created by the{' '}
-              <Box component="span" sx={{ fontWeight: 700 }}>
+              <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold }}>
                 community
               </Box>
               . Each app adds new{' '}
-              <Box component="span" sx={{ fontWeight: 700 }}>
+              <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold }}>
                 behaviors, interactions, or features
               </Box>{' '}
               to your robot&#8212;from{' '}
-              <Box component="span" sx={{ fontWeight: 700 }}>
+              <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold }}>
                 games and demos
               </Box>{' '}
               to advanced{' '}
-              <Box component="span" sx={{ fontWeight: 700 }}>
+              <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold }}>
                 AI-powered applications
               </Box>
               .
@@ -85,15 +88,15 @@ export default function Header({ darkMode }: HeaderProps): React.ReactElement {
                 alignItems: 'center',
                 gap: 0.5,
                 mt: 0.5,
-                fontSize: 9,
-                color: darkMode ? '#666' : '#999',
-                fontWeight: 500,
+                fontSize: TYPO.micro,
+                color: palette.textMuted,
+                fontWeight: FONT_WEIGHT.medium,
               }}
             >
               <Box
                 component="span"
                 sx={{
-                  color: darkMode ? '#555' : '#aaa',
+                  color: palette.textFaint,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                 }}

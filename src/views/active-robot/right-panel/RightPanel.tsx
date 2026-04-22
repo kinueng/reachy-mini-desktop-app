@@ -9,6 +9,8 @@ import EmbeddedAppView from './EmbeddedAppView';
 import { useActiveRobotContext } from '../context';
 import { useHfAuth } from '../../../hooks/auth';
 import type { ToastSeverity } from '../../../types/store';
+import { DURATION, EASING, whiteAlpha, blackAlpha } from '@styles/tokens';
+import { scrollbarSx, transition, useAppPalette } from '@styles';
 
 export type RightPanelQuickAction = Record<string, unknown>;
 
@@ -20,6 +22,7 @@ export interface RightPanelProps {
   isReady?: boolean;
   isActive?: boolean;
   isBusy?: boolean;
+  /** @deprecated Theme is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
 }
 
@@ -37,8 +40,8 @@ export default function RightPanel({
   isReady: _isReady = false,
   isActive = false,
   isBusy = false,
-  darkMode = false,
 }: RightPanelProps): React.ReactElement {
+  const palette = useAppPalette();
   const { robotState } = useActiveRobotContext();
   const { rightPanelView } = robotState;
 
@@ -89,6 +92,17 @@ export default function RightPanel({
     return () => clearTimeout(timer);
   }, [rightPanelView, updateGradients]);
 
+  const scrollbarThumb = palette.isDark ? whiteAlpha(0.1) : blackAlpha(0.1);
+  const scrollbarThumbHover = palette.isDark ? whiteAlpha(0.15) : blackAlpha(0.15);
+  // TODO(style-migration): scroll fade gradients rely on the app's background color stops;
+  // these exact tints don't have dedicated palette tokens yet.
+  const fadeGradientTop = palette.isDark
+    ? 'linear-gradient(to bottom, rgba(26, 26, 26, 1) 0%, rgba(26, 26, 26, 0.6) 40%, rgba(26, 26, 26, 0) 100%)'
+    : 'linear-gradient(to bottom, rgba(250, 250, 252, 1) 0%, rgba(250, 250, 252, 0.6) 40%, rgba(250, 250, 252, 0) 100%)';
+  const fadeGradientBottom = palette.isDark
+    ? 'linear-gradient(to top, rgba(26, 26, 26, 1) 0%, rgba(26, 26, 26, 0.6) 40%, rgba(26, 26, 26, 0) 100%)'
+    : 'linear-gradient(to top, rgba(250, 250, 252, 1) 0%, rgba(250, 250, 252, 0.6) 40%, rgba(250, 250, 252, 0) 100%)';
+
   return (
     <Box
       ref={scrollRef}
@@ -104,20 +118,10 @@ export default function RightPanel({
         bgcolor: 'transparent !important',
         backgroundColor: 'transparent !important',
         position: 'relative',
-        // Scrollbar styling
-        '&::-webkit-scrollbar': {
-          width: '6px',
-        },
-        '&::-webkit-scrollbar-track': {
-          background: 'transparent',
-        },
-        '&::-webkit-scrollbar-thumb': {
-          background: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-          borderRadius: '3px',
-        },
-        '&:hover::-webkit-scrollbar-thumb': {
-          background: darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)',
-        },
+        ...scrollbarSx(palette, {
+          thumb: scrollbarThumb,
+          thumbHover: scrollbarThumbHover,
+        }),
       }}
     >
       {/* Top gradient for depth effect on scroll - hidden for embedded apps */}
@@ -129,20 +133,18 @@ export default function RightPanel({
             left: 0,
             right: 0,
             height: '32px',
-            background: darkMode
-              ? 'linear-gradient(to bottom, rgba(26, 26, 26, 1) 0%, rgba(26, 26, 26, 0.6) 40%, rgba(26, 26, 26, 0) 100%)'
-              : 'linear-gradient(to bottom, rgba(250, 250, 252, 1) 0%, rgba(250, 250, 252, 0.6) 40%, rgba(250, 250, 252, 0) 100%)',
+            background: fadeGradientTop,
             pointerEvents: 'none',
             zIndex: 10,
             flexShrink: 0,
             marginBottom: '-32px',
             opacity: showTopGradient ? 1 : 0,
-            transition: 'opacity 0.2s ease-out',
+            transition: transition('opacity', DURATION.base, EASING.exit),
           }}
         />
       )}
 
-      {/* Content wrapper — relative so the login overlay can cover it */}
+      {/* Content wrapper - relative so the login overlay can cover it */}
       <Box
         sx={{
           position: 'relative',
@@ -152,10 +154,9 @@ export default function RightPanel({
           flexDirection: 'column',
         }}
       >
-        {/* HF Login Overlay — covers content when not authenticated */}
+        {/* HF Login Overlay - covers content when not authenticated */}
         {!isAuthenticated && !loginSkipped && (
           <HfLoginOverlay
-            darkMode={darkMode}
             onLogin={handleLogin}
             onSkip={() => setLoginSkipped(true)}
             isLoading={hfLoading}
@@ -166,11 +167,11 @@ export default function RightPanel({
 
         {/* Conditional rendering based on rightPanelView */}
         {isEmbeddedApp ? (
-          <EmbeddedAppView darkMode={darkMode} />
+          <EmbeddedAppView />
         ) : rightPanelView === 'controller' ? (
-          <ControllerSection showToast={showToast} isBusy={isBusy} darkMode={darkMode} />
+          <ControllerSection showToast={showToast} isBusy={isBusy} />
         ) : rightPanelView === 'expressions' ? (
-          <ExpressionsSection isBusy={isBusy} darkMode={darkMode} />
+          <ExpressionsSection isBusy={isBusy} />
         ) : (
           <>
             {/* Applications - Default view */}
@@ -180,13 +181,12 @@ export default function RightPanel({
               hasQuickActions={quickActions.length > 0 && handleQuickAction}
               isActive={isActive}
               isBusy={isBusy}
-              darkMode={darkMode}
               hfUser={hfUser}
               onLogout={handleLogout}
             />
 
             {/* Control Buttons - Opens Controller and Expressions in right panel */}
-            <ControlButtons isBusy={isBusy} darkMode={darkMode} />
+            <ControlButtons isBusy={isBusy} />
           </>
         )}
       </Box>
@@ -200,15 +200,13 @@ export default function RightPanel({
             left: 0,
             right: 0,
             height: '32px',
-            background: darkMode
-              ? 'linear-gradient(to top, rgba(26, 26, 26, 1) 0%, rgba(26, 26, 26, 0.6) 40%, rgba(26, 26, 26, 0) 100%)'
-              : 'linear-gradient(to top, rgba(250, 250, 252, 1) 0%, rgba(250, 250, 252, 0.6) 40%, rgba(250, 250, 252, 0) 100%)',
+            background: fadeGradientBottom,
             pointerEvents: 'none',
             zIndex: 10,
             flexShrink: 0,
             marginTop: '-32px',
             opacity: showBottomGradient ? 1 : 0,
-            transition: 'opacity 0.2s ease-out',
+            transition: transition('opacity', DURATION.base, EASING.exit),
           }}
         />
       )}

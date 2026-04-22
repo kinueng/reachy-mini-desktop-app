@@ -71,7 +71,6 @@ function App(): React.ReactElement {
     isInstalling,
     isStoppingApp,
     isCommandRunning,
-    darkMode,
     setPendingDeepLinkInstall,
     shouldStreamRobotState,
   } = useAppStore(
@@ -85,7 +84,6 @@ function App(): React.ReactElement {
       isInstalling: state.isInstalling,
       isStoppingApp: state.isStoppingApp,
       isCommandRunning: state.isCommandRunning,
-      darkMode: state.darkMode,
       setPendingDeepLinkInstall: state.setPendingDeepLinkInstall,
       shouldStreamRobotState: state.shouldStreamRobotState,
     }))
@@ -403,12 +401,7 @@ function App(): React.ReactElement {
     <>
       <ViewRouterWrapper viewConfig={viewConfig} />
       {/* 🍞 Global Toast - single instance for all notifications */}
-      <Toast
-        toast={toast}
-        toastProgress={toastProgress}
-        onClose={handleCloseToast}
-        darkMode={darkMode}
-      />
+      <Toast toast={toast} toastProgress={toastProgress} onClose={handleCloseToast} />
     </>
   );
 }

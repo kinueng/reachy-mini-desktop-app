@@ -1,6 +1,8 @@
 import React, { type ReactNode } from 'react';
 import { Button, type ButtonProps } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
+import { ACCENT, accentAlpha } from '@styles/tokens';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, DURATION, transition } from '@styles';
 
 /**
  * `PulseButton` - Reusable button with orange halo pulse animation.
@@ -18,14 +20,15 @@ export type PulseButtonSize = 'small' | 'medium' | 'large';
 export interface PulseButtonProps extends Omit<ButtonProps, 'size'> {
   children: ReactNode;
   pulse?: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   size?: PulseButtonSize;
 }
 
 const sizeStyles: Record<PulseButtonSize, Record<string, number | string>> = {
-  small: { px: 2, py: 0.75, fontSize: 12, borderRadius: '8px' },
-  medium: { px: 3, py: 1.25, fontSize: 14, borderRadius: '12px' },
-  large: { px: 4, py: 1.5, fontSize: 16, borderRadius: '14px' },
+  small: { px: 2, py: 0.75, fontSize: TYPO.sm, borderRadius: RADIUS.md },
+  medium: { px: 3, py: 1.25, fontSize: TYPO.md, borderRadius: RADIUS.xl },
+  large: { px: 4, py: 1.5, fontSize: TYPO.lg, borderRadius: '14px' },
 };
 
 export default function PulseButton({
@@ -36,42 +39,45 @@ export default function PulseButton({
   startIcon,
   endIcon,
   fullWidth = false,
-  darkMode = false,
   size = 'medium',
   sx,
   ...props
 }: PulseButtonProps): React.ReactElement {
+  const palette = useAppPalette();
   const currentSize = sizeStyles[size] ?? sizeStyles.medium;
+  const isDark = palette.isDark;
+
+  const pulseStart = accentAlpha(isDark ? 0.4 : 0.3);
+  const hoverShadow = `0 6px 16px ${accentAlpha(isDark ? 0.2 : 0.15)}`;
+  const disabledAlpha = accentAlpha(isDark ? 0.3 : 0.4);
 
   const sxArray: SxProps<Theme> = [
     {
       ...currentSize,
-      border: '1px solid #FF9500',
-      color: '#FF9500',
+      border: `1px solid ${ACCENT.main}`,
+      color: ACCENT.main,
       bgcolor: 'transparent',
-      fontWeight: 600,
+      fontWeight: FONT_WEIGHT.semibold,
       textTransform: 'none',
-      transition: 'all 0.2s ease',
+      transition: transition('all', DURATION.base),
       animation: disabled || !pulse ? 'none' : 'pulseHalo 3s ease-in-out infinite',
       '@keyframes pulseHalo': {
         '0%, 100%': {
-          boxShadow: darkMode ? '0 0 0 0 rgba(255, 149, 0, 0.4)' : '0 0 0 0 rgba(255, 149, 0, 0.3)',
+          boxShadow: `0 0 0 0 ${pulseStart}`,
         },
         '50%': {
-          boxShadow: darkMode ? '0 0 0 8px rgba(255, 149, 0, 0)' : '0 0 0 8px rgba(255, 149, 0, 0)',
+          boxShadow: `0 0 0 8px ${accentAlpha(0)}`,
         },
       },
       '&:hover': {
-        bgcolor: 'rgba(255, 149, 0, 0.1)',
-        border: '1px solid #FF9500',
-        boxShadow: darkMode
-          ? '0 6px 16px rgba(255, 149, 0, 0.2)'
-          : '0 6px 16px rgba(255, 149, 0, 0.15)',
+        bgcolor: accentAlpha(0.1),
+        border: `1px solid ${ACCENT.main}`,
+        boxShadow: hoverShadow,
         animation: 'none',
       },
       '&:disabled': {
-        border: `1px solid ${darkMode ? 'rgba(255, 149, 0, 0.3)' : 'rgba(255, 149, 0, 0.4)'}`,
-        color: darkMode ? 'rgba(255, 149, 0, 0.3)' : 'rgba(255, 149, 0, 0.4)',
+        border: `1px solid ${disabledAlpha}`,
+        color: disabledAlpha,
         animation: 'none',
       },
     },

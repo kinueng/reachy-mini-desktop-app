@@ -8,6 +8,16 @@
 import React from 'react';
 import { Box, Typography, keyframes } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
+import {
+  useAppPalette,
+  TYPO,
+  FONT_WEIGHT,
+  RADIUS,
+  DURATION,
+  STATUS,
+  STATUS_TEXT,
+  transition,
+} from '@styles';
 
 export interface StepsProgressStep {
   id: string;
@@ -18,6 +28,7 @@ export interface StepsProgressIndicatorProps {
   steps?: StepsProgressStep[];
   currentStep?: number;
   progress?: number;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
 }
 
@@ -50,17 +61,21 @@ function StepsProgressIndicator({
   steps = [],
   currentStep = 0,
   progress: progressOverride,
-  darkMode = false,
 }: StepsProgressIndicatorProps) {
+  const palette = useAppPalette();
+
   // Calculate progress from currentStep if not provided
   const progress =
     progressOverride ?? (steps.length > 1 ? (currentStep / (steps.length - 1)) * 100 : 0);
 
-  // Colors
-  const bgColor = darkMode ? '#1a1a1a' : '#fdfcfa';
-  const trackColor = darkMode ? '#2a2a2a' : '#e5e5e5';
-  const fillColor = darkMode ? '#22c55e' : '#16a34a'; // Green for completed
-  const activeColor = darkMode ? '#a3a3a3' : '#737373'; // Neutral grey for current
+  // TODO(style-migration): these greys are specific to this component and do not
+  // map to semantic surface / border / text tokens yet. Branching on
+  // `palette.isDark` keeps the visuals stable while staying darkMode-prop-free.
+  const bgColor = palette.isDark ? '#1a1a1a' : '#fdfcfa';
+  const trackColor = palette.isDark ? '#2a2a2a' : '#e5e5e5';
+  const fillColor = palette.isDark ? STATUS.success : STATUS_TEXT.success.dark;
+  const activeColor = palette.isDark ? '#a3a3a3' : '#737373'; // Neutral grey for current
+  const inactiveLabelColor = palette.isDark ? '#525252' : '#a3a3a3';
 
   // Fixed dimensions
   const barHeight = 2;
@@ -144,7 +159,7 @@ function StepsProgressIndicator({
                 sx={{
                   width: stepSize,
                   height: stepSize,
-                  borderRadius: '50%',
+                  borderRadius: RADIUS.circle,
                   bgcolor: bgColor,
                   border: `${borderWidth}px solid ${bgColor}`,
                   display: 'flex',
@@ -159,20 +174,20 @@ function StepsProgressIndicator({
                   sx={{
                     width: stepSize - borderWidth * 2,
                     height: stepSize - borderWidth * 2,
-                    borderRadius: '50%',
+                    borderRadius: RADIUS.circle,
                     bgcolor: bgColor,
                     border: `2px solid ${isCompleted ? fillColor : isCurrent ? activeColor : trackColor}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'all 0.3s ease',
+                    transition: transition('all', DURATION.slow),
                     animation: isCurrent ? `${pulse} 2s ease-in-out infinite` : 'none',
                   }}
                 >
                   {isCompleted ? (
                     <CheckIcon
                       sx={{
-                        fontSize: 12,
+                        fontSize: TYPO.sm,
                         color: fillColor,
                         animation: `${popIn} 0.35s ease-out`,
                       }}
@@ -182,7 +197,7 @@ function StepsProgressIndicator({
                       sx={{
                         width: 5,
                         height: 5,
-                        borderRadius: '50%',
+                        borderRadius: RADIUS.circle,
                         bgcolor: activeColor,
                       }}
                     />
@@ -193,18 +208,16 @@ function StepsProgressIndicator({
               {/* Label */}
               <Typography
                 sx={{
-                  fontSize: 10,
-                  fontWeight: isCurrent ? 600 : isCompleted ? 500 : 400,
-                  color: isCompleted
-                    ? fillColor
-                    : isCurrent
-                      ? activeColor
-                      : darkMode
-                        ? '#525252'
-                        : '#a3a3a3',
+                  fontSize: TYPO.tiny,
+                  fontWeight: isCurrent
+                    ? FONT_WEIGHT.semibold
+                    : isCompleted
+                      ? FONT_WEIGHT.medium
+                      : FONT_WEIGHT.regular,
+                  color: isCompleted ? fillColor : isCurrent ? activeColor : inactiveLabelColor,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
-                  transition: 'all 0.3s ease',
+                  transition: transition('all', DURATION.slow),
                   userSelect: 'none',
                 }}
               >

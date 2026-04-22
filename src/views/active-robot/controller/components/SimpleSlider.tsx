@@ -1,5 +1,15 @@
 import React, { useMemo, memo, useRef } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
+import {
+  ACCENT,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
+import { useAppPalette } from '@styles';
 import { telemetry } from '../../../../utils/telemetry';
 
 interface SimpleSliderProps {
@@ -9,7 +19,8 @@ interface SimpleSliderProps {
   min?: number;
   max?: number;
   unit?: string;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   disabled?: boolean;
   centered?: boolean;
   showRollVisualization?: boolean;
@@ -23,12 +34,12 @@ const SimpleSlider = memo(function SimpleSlider({
   min = -1,
   max = 1,
   unit = 'rad',
-  darkMode,
   disabled = false,
   centered = false,
   showRollVisualization = false,
   smoothedValue,
 }: SimpleSliderProps): React.ReactElement {
+  const palette = useAppPalette();
   const hasTrackedUsageRef = useRef<boolean>(false);
 
   const displayValue =
@@ -86,6 +97,11 @@ const SimpleSlider = memo(function SimpleSlider({
     };
   }, [value, min, max, showRollVisualization]);
 
+  const trackBgStroke = palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.04);
+  const trackBgStrokeMid = palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.06);
+  const trackBgStrokeHalo = palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05);
+  const progressStroke = palette.isDark ? whiteAlpha(0.5) : blackAlpha(0.5);
+
   return (
     <Box
       sx={{
@@ -113,9 +129,9 @@ const SimpleSlider = memo(function SimpleSlider({
         >
           <Typography
             sx={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              fontSize: TYPO.tiny,
+              fontWeight: FONT_WEIGHT.bold,
+              color: palette.textPrimary,
               letterSpacing: '-0.2px',
             }}
           >
@@ -123,10 +139,10 @@ const SimpleSlider = memo(function SimpleSlider({
           </Typography>
           <Typography
             sx={{
-              fontSize: 9,
+              fontSize: TYPO.micro,
               fontFamily: 'monospace',
-              fontWeight: 500,
-              color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+              fontWeight: FONT_WEIGHT.medium,
+              color: palette.textFaint,
               letterSpacing: '0.02em',
             }}
           >
@@ -138,9 +154,9 @@ const SimpleSlider = memo(function SimpleSlider({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
           <Typography
             sx={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              fontSize: TYPO.tiny,
+              fontWeight: FONT_WEIGHT.bold,
+              color: palette.textPrimary,
               letterSpacing: '-0.2px',
             }}
           >
@@ -148,10 +164,10 @@ const SimpleSlider = memo(function SimpleSlider({
           </Typography>
           <Typography
             sx={{
-              fontSize: 9,
+              fontSize: TYPO.micro,
               fontFamily: 'monospace',
-              fontWeight: 500,
-              color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+              fontWeight: FONT_WEIGHT.medium,
+              color: palette.textFaint,
               letterSpacing: '0.02em',
             }}
           >
@@ -210,7 +226,7 @@ const SimpleSlider = memo(function SimpleSlider({
               <path
                 d={`M ${rollVisualization.startX} ${rollVisualization.startY} Q ${rollVisualization.controlX} ${rollVisualization.controlY} ${rollVisualization.endX} ${rollVisualization.endY}`}
                 fill="none"
-                stroke={darkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)'}
+                stroke={trackBgStroke}
                 strokeWidth={rollVisualization.strokeWidth}
                 strokeLinecap="round"
                 style={{
@@ -221,7 +237,7 @@ const SimpleSlider = memo(function SimpleSlider({
               <path
                 d={`M ${rollVisualization.startX} ${rollVisualization.startY} Q ${rollVisualization.controlX} ${rollVisualization.controlY} ${rollVisualization.endX} ${rollVisualization.endY}`}
                 fill="none"
-                stroke={darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'}
+                stroke={trackBgStrokeMid}
                 strokeWidth={rollVisualization.strokeWidth}
                 strokeLinecap="round"
               />
@@ -229,7 +245,7 @@ const SimpleSlider = memo(function SimpleSlider({
               <path
                 d={`M ${rollVisualization.startX} ${rollVisualization.startY - rollVisualization.strokeWidth / 2 - 0.5} Q ${rollVisualization.controlX} ${rollVisualization.controlY - rollVisualization.strokeWidth / 2 - 0.5} ${rollVisualization.endX} ${rollVisualization.endY - rollVisualization.strokeWidth / 2 - 0.5}`}
                 fill="none"
-                stroke={darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}
+                stroke={trackBgStrokeHalo}
                 strokeWidth={1}
                 strokeLinecap="round"
               />
@@ -237,7 +253,7 @@ const SimpleSlider = memo(function SimpleSlider({
               <path
                 d={`M ${rollVisualization.startX} ${rollVisualization.startY} Q ${rollVisualization.controlX} ${rollVisualization.controlY} ${rollVisualization.endX} ${rollVisualization.endY}`}
                 fill="none"
-                stroke={darkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)'}
+                stroke={progressStroke}
                 strokeWidth={rollVisualization.innerStrokeWidth}
                 strokeLinecap="round"
                 strokeDasharray={rollVisualization.approximateLength}
@@ -265,9 +281,9 @@ const SimpleSlider = memo(function SimpleSlider({
                 transform: 'translate(-50%, -50%)',
                 width: 12,
                 height: 12,
-                borderRadius: '50%',
-                bgcolor: 'rgba(255, 149, 0, 0.2)',
-                border: '1.5px solid rgba(255, 149, 0, 0.5)',
+                borderRadius: RADIUS.circle,
+                bgcolor: accentAlpha(0.2),
+                border: `1.5px solid ${accentAlpha(0.5)}`,
                 zIndex: 1,
                 pointerEvents: 'none',
                 transition: 'left 0.05s linear',
@@ -289,21 +305,21 @@ const SimpleSlider = memo(function SimpleSlider({
             step={0.01}
             disabled={disabled}
             sx={{
-              color: '#FF9500',
+              color: ACCENT.main,
               height: 3,
               position: 'relative',
               zIndex: 2,
               '& .MuiSlider-thumb': {
                 width: 12,
                 height: 12,
-                boxShadow: '0 2px 6px rgba(255, 149, 0, 0.4)',
+                boxShadow: `0 2px 6px ${accentAlpha(0.4)}`,
               },
               '& .MuiSlider-track': {
                 height: 3,
               },
               '& .MuiSlider-rail': {
                 height: 3,
-                opacity: darkMode ? 0.2 : 0.3,
+                opacity: palette.isDark ? 0.2 : 0.3,
               },
             }}
           />

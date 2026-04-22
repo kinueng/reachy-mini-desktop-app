@@ -3,6 +3,8 @@ import { Box, Typography, CircularProgress } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
 import WifiIcon from '@mui/icons-material/Wifi';
 import SectionHeader from './SectionHeader';
+import { STATUS } from '@styles/tokens';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS } from '@styles';
 
 export interface WifiStatus {
   mode?: 'wlan' | 'hotspot' | 'disconnected' | string;
@@ -12,7 +14,8 @@ export interface WifiStatus {
 }
 
 export interface SettingsWifiCardProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   wifiStatus: WifiStatus | null;
   isLoadingWifi: boolean;
   onRefresh: () => void;
@@ -22,16 +25,16 @@ export interface SettingsWifiCardProps {
 }
 
 export default function SettingsWifiCard({
-  darkMode,
   wifiStatus,
   isLoadingWifi,
   onChangeNetwork,
   onClearAllNetworks,
   cardStyle,
 }: SettingsWifiCardProps): React.ReactElement {
-  const textPrimary = darkMode ? '#f5f5f5' : '#333';
-  const textSecondary = darkMode ? '#888' : '#666';
-  const textMuted = darkMode ? '#666' : '#999';
+  const palette = useAppPalette();
+  const textPrimary = palette.textPrimary;
+  const textSecondary = palette.textSecondary;
+  const textMuted = palette.textMuted;
 
   const isConnected = wifiStatus?.mode === 'wlan';
   const isHotspot = wifiStatus?.mode === 'hotspot';
@@ -43,13 +46,13 @@ export default function SettingsWifiCard({
       <SectionHeader
         title="WiFi Network"
         icon={WifiIcon}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         action={
           wifiStatus && (
             <Typography
               onClick={onChangeNetwork}
               sx={{
-                fontSize: 11,
+                fontSize: TYPO.xs,
                 color: textMuted,
                 textDecoration: 'underline',
                 cursor: 'pointer',
@@ -75,7 +78,7 @@ export default function SettingsWifiCard({
             }}
           >
             <CircularProgress size={24} color="primary" />
-            <Typography sx={{ fontSize: 12, color: textSecondary }}>
+            <Typography sx={{ fontSize: TYPO.sm, color: textSecondary }}>
               Scanning networks...
             </Typography>
           </Box>
@@ -94,8 +97,8 @@ export default function SettingsWifiCard({
             <Box>
               <Typography
                 sx={{
-                  fontSize: 14,
-                  fontWeight: 600,
+                  fontSize: TYPO.md,
+                  fontWeight: FONT_WEIGHT.semibold,
                   color: textPrimary,
                   mb: 0.5,
                 }}
@@ -110,8 +113,8 @@ export default function SettingsWifiCard({
               </Typography>
               <Typography
                 sx={{
-                  fontSize: 12,
-                  color: isConnected ? '#22c55e' : isHotspot ? '#f59e0b' : textMuted,
+                  fontSize: TYPO.sm,
+                  color: isConnected ? STATUS.success : isHotspot ? STATUS.warning : textMuted,
                 }}
               >
                 {isConnected
@@ -135,8 +138,8 @@ export default function SettingsWifiCard({
                 >
                   <Typography
                     sx={{
-                      fontSize: 10,
-                      fontWeight: 600,
+                      fontSize: TYPO.tiny,
+                      fontWeight: FONT_WEIGHT.semibold,
                       color: textMuted,
                       textTransform: 'uppercase',
                       letterSpacing: '0.5px',
@@ -144,12 +147,12 @@ export default function SettingsWifiCard({
                   >
                     Saved ({knownNetworks.length})
                   </Typography>
-                  <Typography sx={{ color: textMuted, fontSize: 10 }}>•</Typography>
+                  <Typography sx={{ color: textMuted, fontSize: TYPO.tiny }}>•</Typography>
                   <Typography
                     onClick={onClearAllNetworks}
                     sx={{
-                      fontSize: 10,
-                      color: '#ef4444',
+                      fontSize: TYPO.tiny,
+                      color: STATUS.error,
                       cursor: 'pointer',
                       '&:hover': { textDecoration: 'underline' },
                     }}
@@ -175,24 +178,22 @@ export default function SettingsWifiCard({
                           alignItems: 'center',
                           py: 0.25,
                           px: 0.75,
-                          borderRadius: '6px',
+                          borderRadius: RADIUS.sm,
                           bgcolor: isActive
-                            ? darkMode
+                            ? palette.isDark
                               ? 'rgba(34, 197, 94, 0.15)'
                               : 'rgba(34, 197, 94, 0.1)'
-                            : darkMode
-                              ? 'rgba(255,255,255,0.05)'
-                              : 'rgba(0,0,0,0.04)',
+                            : palette.surfaceSubtle,
                           border: isActive
                             ? '1px solid rgba(34, 197, 94, 0.3)'
-                            : `1px solid ${darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
+                            : `1px solid ${palette.border}`,
                         }}
                       >
                         <Typography
                           sx={{
-                            fontSize: 11,
-                            color: isActive ? '#22c55e' : textSecondary,
-                            fontWeight: isActive ? 600 : 400,
+                            fontSize: TYPO.xs,
+                            color: isActive ? STATUS.success : textSecondary,
+                            fontWeight: isActive ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular,
                             maxWidth: 100,
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',

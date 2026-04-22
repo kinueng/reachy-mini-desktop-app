@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Box, Typography, CircularProgress } from '@mui/material';
 import { getAppWindow } from '../../utils/windowUtils';
-import useAppStore from '../../store/useAppStore';
+import { BLUR, FONT_WEIGHT, TYPO, useAppPalette } from '@styles';
 
 // 💤 Random messages for closing
 const CLOSING_MESSAGES: string[] = [
@@ -23,7 +23,7 @@ const CLOSING_MESSAGES: string[] = [
  */
 export default function ClosingView() {
   const appWindow = getAppWindow();
-  const { darkMode } = useAppStore();
+  const palette = useAppPalette();
 
   // Choose a random message (memoized to not change during display)
   const randomMessage = useMemo<string>(() => {
@@ -35,9 +35,11 @@ export default function ClosingView() {
       sx={{
         width: '100vw',
         height: '100vh',
-        background: darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(253, 252, 250, 0.85)',
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
+        // TODO(style-migration): bespoke backdrop alphas don't map to a
+        // single surface token; `surfaceCard` is the closest match.
+        background: palette.surfaceCard,
+        backdropFilter: BLUR.lg,
+        WebkitBackdropFilter: BLUR.lg,
         overflow: 'hidden',
       }}
     >
@@ -77,12 +79,12 @@ export default function ClosingView() {
           gap: 2,
         }}
       >
-        <CircularProgress size={32} thickness={4} sx={{ color: darkMode ? '#666' : '#999' }} />
+        <CircularProgress size={32} thickness={4} sx={{ color: palette.textMuted }} />
         <Typography
           sx={{
-            fontSize: 13,
-            fontWeight: 500,
-            color: darkMode ? '#aaa' : '#666',
+            fontSize: TYPO.body,
+            fontWeight: FONT_WEIGHT.medium,
+            color: palette.textSecondary,
           }}
         >
           {randomMessage}

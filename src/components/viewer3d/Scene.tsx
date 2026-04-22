@@ -7,6 +7,7 @@ import PremiumScanEffect from './effects/PremiumScanEffect';
 import ErrorHighlight from './effects/ErrorHighlight';
 import CinematicCamera from './CinematicCamera';
 import { findErrorMeshes } from '../../utils/viewer3d/findErrorMeshes';
+import { useAppPalette, STATUS_TEXT } from '@styles';
 
 // TODO(ts): URDFLoader augments the robot root with `links` and joint helpers.
 // These aren't exposed in the upstream RobotModel type, widen locally.
@@ -43,6 +44,7 @@ export interface SceneProps {
   useCinematicCamera?: boolean;
   errorFocusMesh?: THREE.Mesh | null;
   hideEffects?: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   allowZeroPose?: boolean;
   dataVersion?: number;
@@ -76,7 +78,7 @@ const GRID_COLORS = {
 } as const;
 
 const SCAN_COLORS = {
-  standard: '#16a34a',
+  standard: STATUS_TEXT.success.dark,
   premium: '#00ff88',
 } as const;
 
@@ -116,10 +118,10 @@ function Scene({
   cameraConfig = {},
   useCinematicCamera = false,
   errorFocusMesh = null,
-  darkMode = false,
   allowZeroPose,
   dataVersion = 0,
 }: SceneProps): React.ReactElement {
+  const { isDark } = useAppPalette();
   const [outlineMeshes, setOutlineMeshes] = useState<THREE.Mesh[]>([]);
   const [robotRef, setRobotRef] = useState<URDFLinkedObject | null>(null);
 
@@ -147,22 +149,22 @@ function Scene({
     lastHasPassiveJointsRef.current = hasPassiveJoints;
   }, [headJoints, passiveJoints, headPose]);
 
-  const xrayOpacity = darkMode ? XRAY_OPACITY_DARK : XRAY_OPACITY_LIGHT;
-  const fogColor = darkMode ? FOG_COLOR_DARK : FOG_COLOR_LIGHT;
+  const xrayOpacity = isDark ? XRAY_OPACITY_DARK : XRAY_OPACITY_LIGHT;
+  const fogColor = isDark ? FOG_COLOR_DARK : FOG_COLOR_LIGHT;
 
   const gridHelper = useMemo(() => {
-    const palette = darkMode ? GRID_COLORS.dark : GRID_COLORS.light;
-    const grid = new THREE.GridHelper(2, 20, palette.major, palette.minor);
+    const gridColors = isDark ? GRID_COLORS.dark : GRID_COLORS.light;
+    const grid = new THREE.GridHelper(2, 20, gridColors.major, gridColors.minor);
     const gridMat = grid.material as THREE.Material & {
       opacity: number;
       transparent: boolean;
       fog: boolean;
     };
-    gridMat.opacity = palette.opacity;
+    gridMat.opacity = gridColors.opacity;
     gridMat.transparent = true;
     gridMat.fog = true;
     return grid;
-  }, [darkMode]);
+  }, [isDark]);
 
   const errorMeshes = useMemo(
     () => findErrorMeshes(errorFocusMesh, robotRef, outlineMeshes),

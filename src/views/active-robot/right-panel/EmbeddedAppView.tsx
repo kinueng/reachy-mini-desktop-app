@@ -6,8 +6,11 @@ import { useActiveRobotContext } from '../context';
 import { openAppWindow, closeAppWindow } from '../../../utils/windowManager';
 import useAppStore from '../../../store/useAppStore';
 import { buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '../../../config/daemon';
+import { ACCENT, STATUS, blackAlpha, whiteAlpha } from '@styles/tokens';
+import { FONT_WEIGHT, RADIUS, TYPO, useAppPalette } from '@styles';
 
 export interface EmbeddedAppViewProps {
+  /** @deprecated Theme is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
 }
 
@@ -15,20 +18,20 @@ export interface EmbeddedAppViewProps {
  * Build the iframe URL with theme query parameters so apps can adapt their styling.
  *
  * Apps receive:
- *   ?embedded=1          — signals the app is rendered inside the desktop panel
- *   &theme=dark|light    — current theme
- *   &accent=FF9500       — primary accent color (hex without #)
- *   &bg=1a1a1a|fafafc    — panel background color
- *   &fg=f5f5f5|333333    — foreground text color
+ *   ?embedded=1          - signals the app is rendered inside the desktop panel
+ *   &theme=dark|light    - current theme
+ *   &accent=FF9500       - primary accent color (hex without #)
+ *   &bg=1a1a1a|fafafc    - panel background color
+ *   &fg=f5f5f5|333333    - foreground text color
  */
-function buildEmbeddedUrl(baseUrl: string, darkMode: boolean): string {
+function buildEmbeddedUrl(baseUrl: string, isDark: boolean): string {
   try {
     const url = new URL(baseUrl);
     url.searchParams.set('embedded', '1');
-    url.searchParams.set('theme', darkMode ? 'dark' : 'light');
-    url.searchParams.set('accent', 'FF9500');
-    url.searchParams.set('bg', darkMode ? '1a1a1a' : 'fafafc');
-    url.searchParams.set('fg', darkMode ? 'f5f5f5' : '333333');
+    url.searchParams.set('theme', isDark ? 'dark' : 'light');
+    url.searchParams.set('accent', ACCENT.main.replace('#', ''));
+    url.searchParams.set('bg', isDark ? '1a1a1a' : 'fafafc');
+    url.searchParams.set('fg', isDark ? 'f5f5f5' : '333333');
     url.searchParams.set('_t', String(Date.now())); // cache-bust: apps often reuse the same port
     return url.toString();
   } catch {
@@ -69,23 +72,25 @@ async function bustCacheForApp(baseUrl: string): Promise<void> {
       })
     );
   } catch {
-    // Best-effort — if this fails the iframe still loads normally
+    // Best-effort - if this fails the iframe still loads normally
   }
 }
 
 /**
- * Embedded App View — displays a running app's web UI in an iframe
+ * Embedded App View - displays a running app's web UI in an iframe
  * inside the right panel, with a toolbar for stop / pop-out actions.
  */
-export default function EmbeddedAppView({
-  darkMode = false,
-}: EmbeddedAppViewProps): React.ReactElement | null {
+export default function EmbeddedAppView(
+  _props: EmbeddedAppViewProps = {}
+): React.ReactElement | null {
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
   const { robotState } = useActiveRobotContext();
   const { embeddedAppUrl, currentAppName } = robotState;
   const [cacheReady, setCacheReady] = useState<boolean>(false);
   const bustKeyRef = useRef<string | null>(null);
 
-  // Bust cache before showing iframe — ensures subresources match the current app
+  // Bust cache before showing iframe - ensures subresources match the current app
   useEffect(() => {
     if (!embeddedAppUrl) {
       setCacheReady(false);
@@ -106,9 +111,9 @@ export default function EmbeddedAppView({
   }, [embeddedAppUrl, currentAppName]);
 
   const iframeSrc = useMemo(
-    () => (embeddedAppUrl && cacheReady ? buildEmbeddedUrl(embeddedAppUrl, darkMode) : null),
+    () => (embeddedAppUrl && cacheReady ? buildEmbeddedUrl(embeddedAppUrl, isDark) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [embeddedAppUrl, darkMode, currentAppName, cacheReady]
+    [embeddedAppUrl, isDark, currentAppName, cacheReady]
   );
 
   const handleClose = async (): Promise<void> => {
@@ -136,7 +141,7 @@ export default function EmbeddedAppView({
         closeAppWindow(appInfo.name).catch(() => {});
       }
     } catch {
-      // Stop failed — status polling will eventually clean up
+      // Stop failed - status polling will eventually clean up
     } finally {
       // Always unlock regardless of success/failure
       const s = useAppStore.getState();
@@ -153,6 +158,15 @@ export default function EmbeddedAppView({
   };
 
   if (!iframeSrc) return null;
+
+  // TODO(style-migration): toolbar surface tints don't map to palette tokens yet.
+  const toolbarBg = isDark ? whiteAlpha(0.02) : blackAlpha(0.02);
+  const toolbarBorder = isDark ? whiteAlpha(0.06) : blackAlpha(0.06);
+  const iconHoverBg = isDark ? whiteAlpha(0.06) : blackAlpha(0.04);
+  const iframeBg = isDark ? '#1a1a1a' : '#fafafc';
+  const leftEdgeGradient = isDark
+    ? `linear-gradient(to right, ${blackAlpha(0.25)} 0%, ${blackAlpha(0)} 100%)`
+    : `linear-gradient(to right, ${blackAlpha(0.06)} 0%, ${blackAlpha(0)} 100%)`;
 
   return (
     <Box
@@ -172,9 +186,7 @@ export default function EmbeddedAppView({
           left: 0,
           bottom: 0,
           width: '12px',
-          background: darkMode
-            ? 'linear-gradient(to right, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0) 100%)'
-            : 'linear-gradient(to right, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0) 100%)',
+          background: leftEdgeGradient,
           pointerEvents: 'none',
           zIndex: 2,
         }}
@@ -188,17 +200,17 @@ export default function EmbeddedAppView({
           px: 2,
           py: 0.75,
           flexShrink: 0,
-          borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-          bgcolor: darkMode ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+          borderBottom: `1px solid ${toolbarBorder}`,
+          bgcolor: toolbarBg,
         }}
       >
-        {/* Green dot — running indicator */}
+        {/* Green dot - running indicator */}
         <Box
           sx={{
             width: 6,
             height: 6,
-            borderRadius: '50%',
-            bgcolor: '#22c55e',
+            borderRadius: RADIUS.circle,
+            bgcolor: STATUS.success,
             flexShrink: 0,
           }}
         />
@@ -206,9 +218,9 @@ export default function EmbeddedAppView({
         <Typography
           sx={{
             flex: 1,
-            fontSize: 12,
-            fontWeight: 600,
-            color: darkMode ? '#ccc' : '#555',
+            fontSize: TYPO.sm,
+            fontWeight: FONT_WEIGHT.semibold,
+            color: palette.textSecondary,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -225,14 +237,14 @@ export default function EmbeddedAppView({
             sx={{
               width: 24,
               height: 24,
-              color: darkMode ? '#888' : '#999',
+              color: palette.textMuted,
               '&:hover': {
-                color: darkMode ? '#ddd' : '#333',
-                bgcolor: darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                color: palette.textPrimary,
+                bgcolor: iconHoverBg,
               },
             }}
           >
-            <OpenInNewIcon sx={{ fontSize: 14 }} />
+            <OpenInNewIcon sx={{ fontSize: TYPO.md }} />
           </IconButton>
         </Tooltip>
 
@@ -243,9 +255,9 @@ export default function EmbeddedAppView({
             sx={{
               width: 24,
               height: 24,
-              color: darkMode ? '#888' : '#999',
+              color: palette.textMuted,
               '&:hover': {
-                color: '#ef4444',
+                color: STATUS.error,
                 bgcolor: 'rgba(239, 68, 68, 0.08)',
               },
             }}
@@ -260,7 +272,7 @@ export default function EmbeddedAppView({
         sx={{
           flex: 1,
           minHeight: 0,
-          bgcolor: darkMode ? '#1a1a1a' : '#fafafc',
+          bgcolor: iframeBg,
         }}
       >
         <iframe
@@ -272,7 +284,7 @@ export default function EmbeddedAppView({
             height: '100%',
             border: 'none',
             display: 'block',
-            colorScheme: darkMode ? 'dark' : 'light',
+            colorScheme: isDark ? 'dark' : 'light',
           }}
         />
       </Box>

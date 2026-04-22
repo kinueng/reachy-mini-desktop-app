@@ -34,6 +34,30 @@ import { invoke } from '@tauri-apps/api/core';
 import { useToast } from '../../hooks/useToast';
 import { probeWifiHost, type WifiProbeResult } from '../../utils/probeWifiHost';
 import reachyBuste from '../../assets/reachy-buste.png';
+import {
+  ACCENT,
+  accentAlpha,
+  STATUS,
+  DANGER,
+  blackAlpha,
+  whiteAlpha,
+  hexToRgba,
+  useAppPalette,
+  BLUR,
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  transition,
+} from '@styles';
+
+// TODO(style-migration): the "external daemon" banner and the selected-card
+// highlight both rely on an indigo-ish tone (`#6366f1`). There is no shared
+// info-accent token yet; keep the literal centralised here and use it via
+// `hexToRgba()` so we at least avoid scattering `rgba(99,102,241,…)` strings.
+const INDIGO = '#6366f1';
+const INDIGO_LIGHT = '#c4c6f7';
+const INDIGO_DARK = '#5b5fc7';
 
 // LocalStorage key for persisting last connection mode
 const LAST_CONNECTION_MODE_KEY = 'reachy-mini-last-connection-mode';
@@ -47,7 +71,8 @@ interface ConnectionCardProps {
   selected: boolean;
   onClick?: () => void;
   disabled?: boolean;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   alwaysAvailable?: boolean;
   betaTag?: boolean;
   scanning?: boolean;
@@ -65,13 +90,17 @@ function ConnectionCard({
   selected,
   onClick,
   disabled,
-  darkMode,
   alwaysAvailable = false,
   betaTag = false,
   scanning = false,
 }: ConnectionCardProps) {
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
   const isClickable = (available || alwaysAvailable) && !disabled;
   const isAvailable = available || alwaysAvailable;
+
+  const activeLabelColor = palette.textSecondary;
+  const inactiveLabelColor = palette.textMuted;
 
   return (
     <Box
@@ -84,29 +113,21 @@ function ConnectionCard({
         justifyContent: 'center',
         gap: 0.5,
         p: 2,
-        borderRadius: '12px',
+        borderRadius: RADIUS.xl,
         border: '1px solid',
-        borderColor: selected
-          ? 'primary.main'
-          : darkMode
-            ? 'rgba(255, 255, 255, 0.1)'
-            : 'rgba(0, 0, 0, 0.08)',
-        bgcolor: selected
-          ? darkMode
-            ? 'rgba(99, 102, 241, 0.1)'
-            : 'rgba(99, 102, 241, 0.05)'
-          : 'transparent',
+        borderColor: selected ? 'primary.main' : palette.border,
+        bgcolor: selected ? hexToRgba(INDIGO, isDark ? 0.1 : 0.05) : 'transparent',
         cursor: isClickable ? 'pointer' : 'default',
         opacity: isAvailable ? 1 : 0.5,
-        transition: 'all 0.2s ease',
+        transition: transition('all', DURATION.base),
         flex: 1,
         minWidth: 110,
         minHeight: 110,
         '&:hover':
           isClickable && !selected
             ? {
-                borderColor: darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)',
-                bgcolor: darkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
+                borderColor: palette.borderStrong,
+                bgcolor: palette.surfaceSubtle,
               }
             : {},
       }}
@@ -120,8 +141,8 @@ function ConnectionCard({
             right: 6,
             width: 16,
             height: 16,
-            borderRadius: '50%',
-            bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+            borderRadius: RADIUS.circle,
+            bgcolor: isDark ? whiteAlpha(0.06) : blackAlpha(0.04),
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -131,8 +152,8 @@ function ConnectionCard({
             sx={{
               width: 6,
               height: 6,
-              borderRadius: '50%',
-              bgcolor: available ? '#22c55e' : '#ef4444',
+              borderRadius: RADIUS.circle,
+              bgcolor: available ? STATUS.success : STATUS.error,
             }}
           />
         </Box>
@@ -153,7 +174,7 @@ function ConnectionCard({
           <CircularProgress
             size={10}
             thickness={4}
-            sx={{ color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }}
+            sx={{ color: isDark ? whiteAlpha(0.3) : blackAlpha(0.2) }}
           />
         </Box>
       )}
@@ -167,16 +188,16 @@ function ConnectionCard({
             left: 6,
             px: 0.5,
             py: 0.15,
-            borderRadius: '4px',
-            bgcolor: darkMode ? 'rgba(255, 149, 0, 0.15)' : 'rgba(255, 149, 0, 0.1)',
-            border: `1px solid ${darkMode ? 'rgba(255, 149, 0, 0.3)' : 'rgba(255, 149, 0, 0.25)'}`,
+            borderRadius: RADIUS.xs,
+            bgcolor: accentAlpha(isDark ? 0.15 : 0.1),
+            border: `1px solid ${palette.accentBorder}`,
           }}
         >
           <Typography
             sx={{
               fontSize: 8,
-              fontWeight: 600,
-              color: '#FF9500',
+              fontWeight: FONT_WEIGHT.semibold,
+              color: ACCENT.main,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
               lineHeight: 1,
@@ -196,8 +217,11 @@ function ConnectionCard({
             right: 6,
             width: 16,
             height: 16,
-            borderRadius: '50%',
-            bgcolor: darkMode ? 'rgba(26, 26, 26, 1)' : 'rgba(253, 252, 250, 1)',
+            borderRadius: RADIUS.circle,
+            // TODO(style-migration): the checkmark "hole" uses the raw page
+            // background (`#1a1a1a` / `#fdfcfa`); `surfaceBg` is the closest
+            // semantic match even though the light-mode hex differs slightly.
+            bgcolor: palette.surfaceBg,
             border: '1.5px solid',
             borderColor: 'primary.main',
             display: 'flex',
@@ -212,7 +236,7 @@ function ConnectionCard({
         >
           <CheckRoundedIcon
             sx={{
-              fontSize: 10,
+              fontSize: TYPO.tiny,
               color: 'primary.main',
             }}
           />
@@ -223,32 +247,16 @@ function ConnectionCard({
       <Icon
         sx={{
           fontSize: 28,
-          color: selected
-            ? 'primary.main'
-            : isAvailable
-              ? darkMode
-                ? '#e0e0e0'
-                : '#444'
-              : darkMode
-                ? '#666'
-                : '#999',
+          color: selected ? 'primary.main' : isAvailable ? activeLabelColor : inactiveLabelColor,
         }}
       />
 
       {/* Label */}
       <Typography
         sx={{
-          fontSize: 13,
-          fontWeight: selected ? 600 : 500,
-          color: selected
-            ? 'primary.main'
-            : isAvailable
-              ? darkMode
-                ? '#e0e0e0'
-                : '#444'
-              : darkMode
-                ? '#666'
-                : '#999',
+          fontSize: TYPO.body,
+          fontWeight: selected ? FONT_WEIGHT.semibold : FONT_WEIGHT.medium,
+          color: selected ? 'primary.main' : isAvailable ? activeLabelColor : inactiveLabelColor,
           textAlign: 'center',
           lineHeight: 1.2,
         }}
@@ -261,9 +269,9 @@ function ConnectionCard({
         <Typography
           title={fullSubtitle || undefined}
           sx={{
-            fontSize: 10,
-            fontWeight: 400,
-            color: darkMode ? '#666' : '#999',
+            fontSize: TYPO.tiny,
+            fontWeight: FONT_WEIGHT.regular,
+            color: inactiveLabelColor,
             textAlign: 'center',
             lineHeight: 1.1,
             maxWidth: '100%',
@@ -287,8 +295,9 @@ function ConnectionCard({
  * Uses useConnection hook for unified connection handling
  */
 export default function FindingRobotView() {
-  const { darkMode, setShowFirstTimeWifiSetup, setShowBluetoothSupportView, clearApps } =
-    useAppStore();
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
+  const { setShowFirstTimeWifiSetup, setShowBluetoothSupportView, clearApps } = useAppStore();
   const { isScanning, usbRobot, wifiRobot, wifiRobots, selectWifiRobot } = useRobotDiscovery();
   const { connect, isConnecting, isDisconnecting } = useConnection();
   const [selectedMode, setSelectedMode] = useState<ConnectionModeType | null>(null);
@@ -498,16 +507,7 @@ export default function FindingRobotView() {
         await connect(ConnectionMode.SIMULATION);
         break;
     }
-  }, [
-    selectedMode,
-    isBusy,
-    usbRobot,
-    wifiRobots,
-    manualIp,
-    connect,
-    verifyWifiHost,
-    showToast,
-  ]);
+  }, [selectedMode, isBusy, usbRobot, wifiRobots, manualIp, connect, verifyWifiHost, showToast]);
 
   const canStart =
     // Manual IP always allows starting (as WiFi)
@@ -522,9 +522,12 @@ export default function FindingRobotView() {
       sx={{
         width: '100vw',
         height: '100vh',
-        background: darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(253, 252, 250, 0.85)',
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
+        // TODO(style-migration): the translucent page chrome uses bespoke
+        // alphas (0.95 / 0.85) that don't map to an existing surface token;
+        // `surfaceCard` is the closest semantic match.
+        background: palette.surfaceCard,
+        backdropFilter: BLUR.lg,
+        WebkitBackdropFilter: BLUR.lg,
         overflow: 'hidden',
         position: 'relative',
       }}
@@ -538,15 +541,15 @@ export default function FindingRobotView() {
           top: 40,
           right: 12,
           zIndex: 10,
-          color: darkMode ? '#666' : '#999',
-          '&:hover': { color: darkMode ? '#aaa' : '#666' },
+          color: palette.textMuted,
+          '&:hover': { color: palette.textSecondary },
         }}
         size="small"
       >
         {isResetting ? (
           <CircularProgress size={18} sx={{ color: 'inherit' }} />
         ) : (
-          <SettingsOutlinedIcon sx={{ fontSize: 18 }} />
+          <SettingsOutlinedIcon sx={{ fontSize: TYPO.xl }} />
         )}
       </IconButton>
       <Menu
@@ -558,15 +561,13 @@ export default function FindingRobotView() {
         slotProps={{
           paper: {
             sx: {
-              bgcolor: darkMode ? 'rgba(32, 32, 32, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+              bgcolor: palette.surfaceCard,
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
               border: '1px solid',
-              borderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
-              borderRadius: '10px',
-              boxShadow: darkMode
-                ? '0 8px 32px rgba(0, 0, 0, 0.5)'
-                : '0 8px 32px rgba(0, 0, 0, 0.08)',
+              borderColor: palette.border,
+              borderRadius: RADIUS.lg,
+              boxShadow: palette.shadowLg,
               minWidth: 220,
               py: 0.5,
             },
@@ -576,9 +577,9 @@ export default function FindingRobotView() {
         <Box sx={{ px: 1.5, pt: 0.75, pb: 0.75 }}>
           <Typography
             sx={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: darkMode ? '#777' : '#999',
+              fontSize: TYPO.xs,
+              fontWeight: FONT_WEIGHT.medium,
+              color: palette.textMuted,
               letterSpacing: '0.2px',
             }}
           >
@@ -588,14 +589,14 @@ export default function FindingRobotView() {
         <MenuItem
           onClick={handleResetAppsVenv}
           sx={{
-            fontSize: 12,
+            fontSize: TYPO.sm,
             fontWeight: 450,
-            color: darkMode ? '#ccc' : '#444',
-            borderRadius: '6px',
+            color: palette.textSecondary,
+            borderRadius: RADIUS.sm,
             mx: 0.5,
             px: 1,
             minHeight: 32,
-            '&:hover': { bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)' },
+            '&:hover': { bgcolor: palette.surfaceSubtle },
           }}
         >
           Reset apps environment
@@ -603,14 +604,14 @@ export default function FindingRobotView() {
         <MenuItem
           onClick={handleResetPythonEnv}
           sx={{
-            fontSize: 12,
+            fontSize: TYPO.sm,
             fontWeight: 450,
-            color: '#ef4444',
-            borderRadius: '6px',
+            color: STATUS.error,
+            borderRadius: RADIUS.sm,
             mx: 0.5,
             px: 1,
             minHeight: 32,
-            '&:hover': { bgcolor: darkMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)' },
+            '&:hover': { bgcolor: hexToRgba(STATUS.error, isDark ? 0.1 : 0.06) },
           }}
         >
           Full environment reset
@@ -624,23 +625,21 @@ export default function FindingRobotView() {
         slotProps={{
           backdrop: {
             sx: {
-              bgcolor: darkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.2)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
+              bgcolor: palette.overlayScrim,
+              backdropFilter: BLUR.sm,
+              WebkitBackdropFilter: BLUR.sm,
             },
           },
         }}
         PaperProps={{
           sx: {
-            bgcolor: darkMode ? 'rgba(32, 32, 32, 0.95)' : 'rgba(255, 255, 255, 0.97)',
+            bgcolor: palette.surfaceCard,
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             border: '1px solid',
-            borderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+            borderColor: palette.border,
             borderRadius: '14px',
-            boxShadow: darkMode
-              ? '0 16px 48px rgba(0, 0, 0, 0.5)'
-              : '0 16px 48px rgba(0, 0, 0, 0.1)',
+            boxShadow: palette.shadowLg,
             maxWidth: 340,
             p: 1,
           },
@@ -648,9 +647,9 @@ export default function FindingRobotView() {
       >
         <DialogTitle
           sx={{
-            fontWeight: 600,
-            fontSize: 16,
-            color: darkMode ? '#f5f5f5' : '#222',
+            fontWeight: FONT_WEIGHT.semibold,
+            fontSize: TYPO.lg,
+            color: palette.textPrimary,
             pb: 0.5,
           }}
         >
@@ -659,8 +658,8 @@ export default function FindingRobotView() {
         <DialogContent>
           <DialogContentText
             sx={{
-              color: darkMode ? '#999' : '#666',
-              fontSize: 13,
+              color: palette.textSecondary,
+              fontSize: TYPO.body,
               lineHeight: 1.5,
             }}
           >
@@ -673,14 +672,14 @@ export default function FindingRobotView() {
           <Button
             onClick={() => setPendingReset(null)}
             sx={{
-              color: darkMode ? '#999' : '#666',
-              fontSize: 12,
-              fontWeight: 500,
+              color: palette.textSecondary,
+              fontSize: TYPO.sm,
+              fontWeight: FONT_WEIGHT.medium,
               textTransform: 'none',
-              borderRadius: '8px',
+              borderRadius: RADIUS.md,
               px: 2,
               '&:hover': {
-                bgcolor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+                bgcolor: palette.surfaceSubtle,
               },
             }}
           >
@@ -690,13 +689,13 @@ export default function FindingRobotView() {
             onClick={confirmReset}
             sx={{
               color: '#fff',
-              bgcolor: '#ef4444',
-              fontSize: 12,
-              fontWeight: 600,
+              bgcolor: STATUS.error,
+              fontSize: TYPO.sm,
+              fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
-              borderRadius: '8px',
+              borderRadius: RADIUS.md,
               px: 2,
-              '&:hover': { bgcolor: '#dc2626' },
+              '&:hover': { bgcolor: DANGER.dark },
             }}
           >
             Reset
@@ -742,8 +741,8 @@ export default function FindingRobotView() {
         <Typography
           sx={{
             fontSize: 26,
-            fontWeight: 600,
-            color: darkMode ? '#f5f5f5' : '#333',
+            fontWeight: FONT_WEIGHT.semibold,
+            color: palette.textPrimary,
             mb: 0.5,
             textAlign: 'center',
           }}
@@ -754,8 +753,8 @@ export default function FindingRobotView() {
         {/* Subtitle - scanning status */}
         <Typography
           sx={{
-            fontSize: 14,
-            color: darkMode ? '#888' : '#666',
+            fontSize: TYPO.md,
+            color: palette.textSecondary,
             textAlign: 'center',
             mb: 2.5,
             minHeight: 20,
@@ -780,17 +779,17 @@ export default function FindingRobotView() {
               mb: 1.5,
               px: 2,
               py: 1,
-              borderRadius: '10px',
-              bgcolor: darkMode ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.05)',
+              borderRadius: RADIUS.lg,
+              bgcolor: hexToRgba(INDIGO, isDark ? 0.08 : 0.05),
               border: '1px solid',
-              borderColor: darkMode ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.2)',
+              borderColor: hexToRgba(INDIGO, isDark ? 0.25 : 0.2),
             }}
           >
             <Typography
               sx={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: darkMode ? '#c4c6f7' : '#5b5fc7',
+                fontSize: TYPO.sm,
+                fontWeight: FONT_WEIGHT.medium,
+                color: isDark ? INDIGO_LIGHT : INDIGO_DARK,
               }}
             >
               External daemon detected on localhost:8000
@@ -802,17 +801,17 @@ export default function FindingRobotView() {
                 ml: 1.5,
                 px: 1.5,
                 py: 0.5,
-                borderRadius: '6px',
+                borderRadius: RADIUS.sm,
                 border: '1px solid',
                 borderColor: 'primary.main',
                 bgcolor: 'transparent',
                 color: 'primary.main',
-                fontSize: 12,
-                fontWeight: 600,
+                fontSize: TYPO.sm,
+                fontWeight: FONT_WEIGHT.semibold,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 '&:hover': {
-                  bgcolor: darkMode ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+                  bgcolor: hexToRgba(INDIGO, isDark ? 0.15 : 0.08),
                 },
               }}
             >
@@ -841,7 +840,6 @@ export default function FindingRobotView() {
             selected={selectedMode === ConnectionMode.USB}
             onClick={() => usbRobot.available && handleSelectMode(ConnectionMode.USB)}
             disabled={isBusy}
-            darkMode={darkMode}
           />
 
           <ConnectionCard
@@ -859,7 +857,6 @@ export default function FindingRobotView() {
             selected={selectedMode === ConnectionMode.WIFI}
             onClick={() => wifiRobots.available && handleSelectMode(ConnectionMode.WIFI)}
             disabled={isBusy}
-            darkMode={darkMode}
             scanning={isScanning}
           />
 
@@ -872,7 +869,6 @@ export default function FindingRobotView() {
             selected={selectedMode === ConnectionMode.SIMULATION}
             onClick={() => handleSelectMode(ConnectionMode.SIMULATION)}
             disabled={isBusy}
-            darkMode={darkMode}
           />
         </Box>
 
@@ -890,23 +886,26 @@ export default function FindingRobotView() {
               width: '100%',
               maxWidth: 380,
               mb: 2.5,
-              fontSize: 13,
-              color: darkMode ? '#e0e0e0' : '#333',
+              fontSize: TYPO.body,
+              color: palette.textPrimary,
               '.MuiOutlinedInput-notchedOutline': {
-                borderColor: darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)',
+                borderColor: palette.border,
               },
               '&:hover .MuiOutlinedInput-notchedOutline': {
-                borderColor: darkMode ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)',
+                borderColor: palette.borderStrong,
               },
               '.MuiSvgIcon-root': {
-                color: darkMode ? '#888' : '#666',
+                color: palette.textSecondary,
               },
             }}
             MenuProps={{
               PaperProps: {
                 sx: {
-                  bgcolor: darkMode ? '#2a2a2a' : '#fff',
-                  color: darkMode ? '#e0e0e0' : '#333',
+                  // TODO(style-migration): the raw menu-paper tones `#2a2a2a`
+                  // / `#fff` don't map 1:1 to palette surfaces; `surfaceCard`
+                  // is the closest token.
+                  bgcolor: palette.surfaceCard,
+                  color: palette.textPrimary,
                 },
               },
             }}
@@ -917,8 +916,10 @@ export default function FindingRobotView() {
             {wifiRobots.robots.map(robot => (
               <MenuItem key={robot.ip} value={robot.ip}>
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{robot.name}</Typography>
-                  <Typography sx={{ fontSize: 11, color: darkMode ? '#888' : '#999' }}>
+                  <Typography sx={{ fontSize: TYPO.body, fontWeight: FONT_WEIGHT.medium }}>
+                    {robot.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: TYPO.xs, color: palette.textMuted }}>
                     {robot.displayHost}
                   </Typography>
                 </Box>
@@ -952,7 +953,7 @@ export default function FindingRobotView() {
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <WifiOutlinedIcon sx={{ fontSize: 16, color: darkMode ? '#555' : '#bbb' }} />
+                <WifiOutlinedIcon sx={{ fontSize: TYPO.lg, color: palette.textFaint }} />
               </InputAdornment>
             ),
           }}
@@ -961,23 +962,23 @@ export default function FindingRobotView() {
             maxWidth: 380,
             mb: 2.5,
             '& .MuiOutlinedInput-root': {
-              fontSize: 13,
-              color: darkMode ? '#e0e0e0' : '#333',
-              bgcolor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-              borderRadius: '10px',
+              fontSize: TYPO.body,
+              color: palette.textPrimary,
+              bgcolor: palette.surfaceSubtle,
+              borderRadius: RADIUS.lg,
               '& fieldset': {
-                borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                borderColor: palette.border,
               },
               '&:hover fieldset': {
-                borderColor: darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+                borderColor: palette.borderStrong,
               },
               '&.Mui-focused fieldset': {
-                borderColor: '#FF9500',
+                borderColor: ACCENT.main,
                 borderWidth: 1,
               },
             },
             '& .MuiInputBase-input::placeholder': {
-              color: darkMode ? '#555' : '#bbb',
+              color: palette.textFaint,
               opacity: 1,
             },
           }}
@@ -994,7 +995,7 @@ export default function FindingRobotView() {
               <PlayArrowOutlinedIcon sx={{ fontSize: 22 }} />
             )
           }
-          darkMode={darkMode}
+          darkMode={isDark}
           sx={{ minWidth: 140, minHeight: 44 }}
         >
           {isConnecting ? 'Connecting...' : isDisconnecting ? 'Stopping...' : 'Start'}
@@ -1018,10 +1019,10 @@ export default function FindingRobotView() {
             component="span"
             onClick={() => setShowFirstTimeWifiSetup(true)}
             sx={{
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: 'primary.main',
               cursor: 'pointer',
-              fontWeight: 500,
+              fontWeight: FONT_WEIGHT.medium,
               textDecoration: 'underline',
             }}
           >
@@ -1030,7 +1031,7 @@ export default function FindingRobotView() {
           <Box
             component="span"
             sx={{
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: 'text.secondary',
               userSelect: 'none',
             }}
@@ -1041,10 +1042,10 @@ export default function FindingRobotView() {
             component="span"
             onClick={() => setShowBluetoothSupportView(true)}
             sx={{
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: 'primary.main',
               cursor: 'pointer',
-              fontWeight: 500,
+              fontWeight: FONT_WEIGHT.medium,
               textDecoration: 'underline',
             }}
           >

@@ -22,7 +22,8 @@ import {
   type HardwareErrorConfig,
   type MeshLike,
 } from '../utils/hardwareErrors';
-import useAppStore from '../store/useAppStore';
+import { ACCENT, STATUS, STATUS_TEXT, hexToRgba } from '@styles/tokens';
+import { useAppPalette, TYPO, FONT_WEIGHT } from '@styles';
 
 type ScanState = 'idle' | 'scanning' | 'complete' | 'error';
 type ErrorType = 'none' | 'camera' | 'no_motors' | 'motor_communication';
@@ -53,7 +54,7 @@ interface StartupErrorDisplay {
  * Automatic access via http://localhost:5173/#dev
  */
 export default function DevPlayground(): React.ReactElement {
-  const { darkMode } = useAppStore();
+  const palette = useAppPalette();
   const theme = useTheme();
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [errorType, setErrorType] = useState<ErrorType>('none');
@@ -225,7 +226,7 @@ export default function DevPlayground(): React.ReactElement {
         sx={{
           width: '500px',
           maxHeight: '400px',
-          border: '2px solid #FF9500',
+          border: `2px solid ${ACCENT.main}`,
           borderRadius: 2,
           overflow: 'auto',
           mb: 2,
@@ -236,7 +237,6 @@ export default function DevPlayground(): React.ReactElement {
           emotions={sampleActions.emotions}
           dances={sampleActions.dances}
           onAction={handleActionClick}
-          darkMode={darkMode}
           disabled={false}
         />
       </Box>
@@ -296,7 +296,7 @@ export default function DevPlayground(): React.ReactElement {
               flexDirection: 'column',
               gap: 1,
               p: 1,
-              bgcolor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+              bgcolor: palette.surfaceSubtle,
               borderRadius: 1,
             }}
           >
@@ -349,15 +349,17 @@ export default function DevPlayground(): React.ReactElement {
                       gap: 1,
                       width: '100%',
                       p: 2,
-                      bgcolor: darkMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+                      bgcolor: palette.isDark
+                        ? 'rgba(239, 68, 68, 0.1)'
+                        : 'rgba(239, 68, 68, 0.05)',
                       borderRadius: 2,
                     }}
                   >
                     <Typography
                       sx={{
-                        fontSize: 16,
+                        fontSize: TYPO.lg,
                         fontWeight: 900,
-                        color: '#ef4444',
+                        color: STATUS.error,
                         letterSpacing: '0.3px',
                         textAlign: 'center',
                       }}
@@ -365,7 +367,7 @@ export default function DevPlayground(): React.ReactElement {
                       {startupError.messageParts ? (
                         <>
                           {startupError.messageParts.text && `${startupError.messageParts.text} `}
-                          <Box component="span" sx={{ fontWeight: 700 }}>
+                          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold }}>
                             {startupError.messageParts.bold}
                           </Box>
                           {startupError.messageParts.suffix &&
@@ -380,9 +382,11 @@ export default function DevPlayground(): React.ReactElement {
                     {startupError.code && (
                       <Typography
                         sx={{
-                          fontSize: 11,
-                          fontWeight: 500,
-                          color: darkMode ? 'rgba(239, 68, 68, 0.7)' : '#dc2626',
+                          fontSize: TYPO.xs,
+                          fontWeight: FONT_WEIGHT.medium,
+                          color: palette.isDark
+                            ? hexToRgba(STATUS.error, 0.7)
+                            : STATUS_TEXT.error.dark,
                           fontFamily: 'monospace',
                         }}
                       >
@@ -397,15 +401,15 @@ export default function DevPlayground(): React.ReactElement {
                         <CheckCircleOutlinedIcon
                           sx={{
                             fontSize: 18,
-                            color: '#16a34a',
+                            color: STATUS_TEXT.success.dark,
                           }}
                         />
                       )}
                       <Typography
                         sx={{
-                          fontSize: 16,
+                          fontSize: TYPO.lg,
                           fontWeight: 900,
-                          color: darkMode ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.85)',
+                          color: palette.textPrimary,
                           letterSpacing: '0.3px',
                         }}
                       >
@@ -424,7 +428,7 @@ export default function DevPlayground(): React.ReactElement {
                           sx={{
                             height: 4,
                             borderRadius: 2,
-                            backgroundColor: darkMode
+                            backgroundColor: palette.isDark
                               ? `${theme.palette.primary.main}33`
                               : `${theme.palette.primary.main}1A`,
                             '& .MuiLinearProgress-bar': {
@@ -435,9 +439,9 @@ export default function DevPlayground(): React.ReactElement {
                         />
                         <Typography
                           sx={{
-                            fontSize: 11,
-                            fontWeight: 500,
-                            color: darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.65)',
+                            fontSize: TYPO.xs,
+                            fontWeight: FONT_WEIGHT.medium,
+                            color: palette.textSecondary,
                             opacity: 1,
                             textAlign: 'center',
                             mt: 1,

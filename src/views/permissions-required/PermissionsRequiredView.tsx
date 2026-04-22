@@ -10,8 +10,9 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import useAppStore from '../../store/useAppStore';
 import { usePermissions } from '../../hooks/system';
+import { BLUR, FONT_WEIGHT, RADIUS, TYPO, useAppPalette } from '@styles';
+import { DURATION, EASING } from '@styles/tokens';
 
 import { isMacOS } from '../../utils/platform';
 import LockedReachy from '../../assets/locked-reachy.svg';
@@ -23,23 +24,19 @@ interface PermissionRowProps {
   subtitle?: string;
   granted: boolean;
   onClick?: () => void;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
 }
 
 /**
  * Permission Row Component - horizontal list item design that scales to any number of permissions
  */
-const PermissionRow = ({
-  icon: Icon,
-  label,
-  subtitle,
-  granted,
-  onClick,
-  darkMode,
-}: PermissionRowProps) => {
+const PermissionRow = ({ icon: Icon, label, subtitle, granted, onClick }: PermissionRowProps) => {
   const theme = useTheme();
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
   const primaryColor = theme.palette.primary.main;
-  const successColor = theme.palette.success?.main || '#22c55e';
+  const successColor = theme.palette.success?.main || palette.statusSuccess;
   const rowColor = granted ? successColor : primaryColor;
   const isClickable = !granted;
 
@@ -52,13 +49,13 @@ const PermissionRow = ({
         gap: 1.5,
         px: 1.5,
         py: 0.875,
-        borderRadius: '10px',
+        borderRadius: RADIUS.lg,
         border: '1px solid',
         borderColor: alpha(rowColor, granted ? 0.4 : 0.35),
-        bgcolor: alpha(rowColor, darkMode ? 0.08 : 0.04),
+        bgcolor: alpha(rowColor, isDark ? 0.08 : 0.04),
         cursor: isClickable ? 'pointer' : 'default',
-        transition: 'all 0.2s ease',
-        '&:hover': isClickable ? { bgcolor: alpha(rowColor, darkMode ? 0.14 : 0.09) } : {},
+        transition: `all ${DURATION.base}ms ${EASING.standard}`,
+        '&:hover': isClickable ? { bgcolor: alpha(rowColor, isDark ? 0.14 : 0.09) } : {},
       }}
     >
       {/* Icon badge */}
@@ -66,8 +63,8 @@ const PermissionRow = ({
         sx={{
           width: 34,
           height: 34,
-          borderRadius: '8px',
-          bgcolor: alpha(rowColor, darkMode ? 0.18 : 0.12),
+          borderRadius: RADIUS.md,
+          bgcolor: alpha(rowColor, isDark ? 0.18 : 0.12),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -79,13 +76,20 @@ const PermissionRow = ({
 
       {/* Labels */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontSize: 12, fontWeight: 600, color: rowColor, lineHeight: 1.25 }}>
+        <Typography
+          sx={{
+            fontSize: TYPO.sm,
+            fontWeight: FONT_WEIGHT.semibold,
+            color: rowColor,
+            lineHeight: 1.25,
+          }}
+        >
           {label}
         </Typography>
         {subtitle && (
           <Typography
             sx={{
-              fontSize: 10,
+              fontSize: TYPO.tiny,
               color: granted ? alpha(successColor, 0.8) : alpha(primaryColor, 0.6),
               lineHeight: 1.25,
             }}
@@ -101,7 +105,7 @@ const PermissionRow = ({
           sx={{
             width: 20,
             height: 20,
-            borderRadius: '50%',
+            borderRadius: RADIUS.circle,
             bgcolor: alpha(successColor, 0.15),
             border: `1.5px solid ${successColor}`,
             display: 'flex',
@@ -115,11 +119,11 @@ const PermissionRow = ({
             },
           }}
         >
-          <CheckRoundedIcon sx={{ fontSize: 11, color: successColor }} />
+          <CheckRoundedIcon sx={{ fontSize: TYPO.xs, color: successColor }} />
         </Box>
       ) : (
         <KeyboardArrowRightRoundedIcon
-          sx={{ fontSize: 18, color: alpha(primaryColor, 0.45), flexShrink: 0 }}
+          sx={{ fontSize: TYPO.xl, color: alpha(primaryColor, 0.45), flexShrink: 0 }}
         />
       )}
     </Box>
@@ -179,7 +183,7 @@ type PermissionType = 'camera' | 'microphone';
 export default function PermissionsRequiredView({
   isRestarting: externalIsRestarting,
 }: PermissionsRequiredViewProps) {
-  const { darkMode } = useAppStore();
+  const palette = useAppPalette();
   const {
     cameraGranted,
     microphoneGranted,
@@ -544,7 +548,9 @@ export default function PermissionsRequiredView({
     }
   }, []);
 
-  const bgColor = darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(253, 252, 250, 0.85)';
+  // TODO(style-migration): the off-white backdrop `rgba(253,252,250,0.85)`
+  // doesn't map exactly to a token; `surfaceCard` is the closest match.
+  const bgColor = palette.surfaceCard;
 
   return (
     <Box
@@ -552,8 +558,8 @@ export default function PermissionsRequiredView({
         width: '100vw',
         height: '100vh',
         background: bgColor,
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
+        backdropFilter: BLUR.lg,
+        WebkitBackdropFilter: BLUR.lg,
         overflow: 'hidden',
         position: 'relative',
       }}
@@ -591,9 +597,9 @@ export default function PermissionsRequiredView({
             </Box>
             <Typography
               sx={{
-                fontSize: 20,
-                fontWeight: 600,
-                color: darkMode ? '#f5f5f5' : '#333',
+                fontSize: TYPO.xxl,
+                fontWeight: FONT_WEIGHT.semibold,
+                color: palette.textPrimary,
                 mb: 0.25,
                 textAlign: 'center',
               }}
@@ -601,7 +607,12 @@ export default function PermissionsRequiredView({
               Restarting...
             </Typography>
             <Typography
-              sx={{ fontSize: 12, color: darkMode ? '#888' : '#666', textAlign: 'center', mb: 2.5 }}
+              sx={{
+                fontSize: TYPO.sm,
+                color: palette.textSecondary,
+                textAlign: 'center',
+                mb: 2.5,
+              }}
             >
               All permissions granted. The app will restart in a moment.
             </Typography>
@@ -628,9 +639,9 @@ export default function PermissionsRequiredView({
 
             <Typography
               sx={{
-                fontSize: 20,
-                fontWeight: 600,
-                color: darkMode ? '#f5f5f5' : '#333',
+                fontSize: TYPO.xxl,
+                fontWeight: FONT_WEIGHT.semibold,
+                color: palette.textPrimary,
                 mb: 0.25,
                 textAlign: 'center',
               }}
@@ -639,7 +650,12 @@ export default function PermissionsRequiredView({
             </Typography>
 
             <Typography
-              sx={{ fontSize: 12, color: darkMode ? '#888' : '#666', textAlign: 'center', mb: 2.5 }}
+              sx={{
+                fontSize: TYPO.sm,
+                color: palette.textSecondary,
+                textAlign: 'center',
+                mb: 2.5,
+              }}
             >
               Grant permissions to use Reachy
             </Typography>
@@ -667,7 +683,6 @@ export default function PermissionsRequiredView({
                     requestPermission('camera');
                   }
                 }}
-                darkMode={darkMode}
               />
 
               <PermissionRow
@@ -682,7 +697,6 @@ export default function PermissionsRequiredView({
                     requestPermission('microphone');
                   }
                 }}
-                darkMode={darkMode}
               />
 
               {/* Local Network - macOS Sequoia+ requires this permission for LAN communication */}
@@ -699,7 +713,6 @@ export default function PermissionsRequiredView({
                       requestLocalNetworkPermission();
                     }
                   }}
-                  darkMode={darkMode}
                 />
               )}
 
@@ -717,7 +730,6 @@ export default function PermissionsRequiredView({
                       requestLocationPermission();
                     }
                   }}
-                  darkMode={darkMode}
                 />
               )}
 
@@ -735,13 +747,12 @@ export default function PermissionsRequiredView({
                       requestBluetoothPermission();
                     }
                   }}
-                  darkMode={darkMode}
                 />
               )}
             </Box>
 
             {/* Helper text */}
-            <Typography sx={{ fontSize: 11, color: darkMode ? '#555' : '#aaa' }}>
+            <Typography sx={{ fontSize: TYPO.xs, color: palette.textFaint }}>
               Click on a card to grant access
             </Typography>
           </>

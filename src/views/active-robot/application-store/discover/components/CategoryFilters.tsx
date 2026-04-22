@@ -1,5 +1,7 @@
 import React from 'react';
 import { Box, Typography, Chip } from '@mui/material';
+import { ACCENT, FONT_WEIGHT, TYPO, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface Category {
   name: string;
@@ -7,7 +9,8 @@ interface Category {
 }
 
 interface CategoryFiltersProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   categories: Category[];
   selectedCategory: string | null;
   setSelectedCategory: (category: string | null) => void;
@@ -15,12 +18,12 @@ interface CategoryFiltersProps {
 }
 
 export default function CategoryFilters({
-  darkMode,
   categories,
   selectedCategory,
   setSelectedCategory,
   totalAppsCount,
 }: CategoryFiltersProps): React.ReactElement {
+  const palette = useAppPalette();
   return (
     <Box
       sx={{
@@ -35,9 +38,9 @@ export default function CategoryFilters({
     >
       <Typography
         sx={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: darkMode ? '#aaa' : '#666',
+          fontSize: TYPO.sm,
+          fontWeight: FONT_WEIGHT.semibold,
+          color: palette.textSecondary,
         }}
       >
         Tags
@@ -56,9 +59,9 @@ export default function CategoryFilters({
               <span>All</span>
               <Typography
                 sx={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: selectedCategory === null ? '#FF9500' : darkMode ? '#888' : '#999',
+                  fontSize: TYPO.xs,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  color: selectedCategory === null ? ACCENT.main : palette.textMuted,
                   opacity: 0.8,
                 }}
               >
@@ -70,29 +73,25 @@ export default function CategoryFilters({
           size="small"
           sx={{
             height: 28,
-            fontSize: 12,
-            fontWeight: selectedCategory === null ? 700 : 500,
+            fontSize: TYPO.sm,
+            fontWeight: selectedCategory === null ? FONT_WEIGHT.bold : FONT_WEIGHT.medium,
             bgcolor:
               selectedCategory === null
-                ? darkMode
-                  ? 'rgba(255, 149, 0, 0.2)'
-                  : 'rgba(255, 149, 0, 0.15)'
-                : darkMode
+                ? accentAlpha(palette.isDark ? 0.2 : 0.15)
+                : palette.isDark
                   ? 'rgba(255, 255, 255, 0.08)'
                   : 'rgba(0, 0, 0, 0.05)',
-            color: selectedCategory === null ? '#FF9500' : darkMode ? '#aaa' : '#666',
+            color: selectedCategory === null ? ACCENT.main : palette.textSecondary,
             border:
               selectedCategory === null
-                ? '1px solid #FF9500'
-                : `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+                ? `1px solid ${ACCENT.main}`
+                : `1px solid ${palette.border}`,
             cursor: 'pointer',
             '&:hover': {
               bgcolor:
                 selectedCategory === null
-                  ? darkMode
-                    ? 'rgba(255, 149, 0, 0.25)'
-                    : 'rgba(255, 149, 0, 0.2)'
-                  : darkMode
+                  ? accentAlpha(palette.isDark ? 0.25 : 0.2)
+                  : palette.isDark
                     ? 'rgba(255, 255, 255, 0.12)'
                     : 'rgba(0, 0, 0, 0.08)',
             },
@@ -115,9 +114,9 @@ export default function CategoryFilters({
                     <span>{displayName}</span>
                     <Typography
                       sx={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: isSelected ? '#FF9500' : darkMode ? '#888' : '#999',
+                        fontSize: TYPO.xs,
+                        fontWeight: FONT_WEIGHT.semibold,
+                        color: isSelected ? ACCENT.main : palette.textMuted,
                         opacity: 0.8,
                       }}
                     >
@@ -129,26 +128,20 @@ export default function CategoryFilters({
                 size="small"
                 sx={{
                   height: 28,
-                  fontSize: 12,
-                  fontWeight: isSelected ? 700 : 500,
+                  fontSize: TYPO.sm,
+                  fontWeight: isSelected ? FONT_WEIGHT.bold : FONT_WEIGHT.medium,
                   bgcolor: isSelected
-                    ? darkMode
-                      ? 'rgba(255, 149, 0, 0.2)'
-                      : 'rgba(255, 149, 0, 0.15)'
-                    : darkMode
+                    ? accentAlpha(palette.isDark ? 0.2 : 0.15)
+                    : palette.isDark
                       ? 'rgba(255, 255, 255, 0.08)'
                       : 'rgba(0, 0, 0, 0.05)',
-                  color: isSelected ? '#FF9500' : darkMode ? '#aaa' : '#666',
-                  border: isSelected
-                    ? '1px solid #FF9500'
-                    : `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+                  color: isSelected ? ACCENT.main : palette.textSecondary,
+                  border: isSelected ? `1px solid ${ACCENT.main}` : `1px solid ${palette.border}`,
                   cursor: 'pointer',
                   '&:hover': {
                     bgcolor: isSelected
-                      ? darkMode
-                        ? 'rgba(255, 149, 0, 0.25)'
-                        : 'rgba(255, 149, 0, 0.2)'
-                      : darkMode
+                      ? accentAlpha(palette.isDark ? 0.25 : 0.2)
+                      : palette.isDark
                         ? 'rgba(255, 255, 255, 0.12)'
                         : 'rgba(0, 0, 0, 0.08)',
                   },

@@ -11,9 +11,21 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import {
+  ACCENT,
+  BLUR,
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  transition,
+} from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface SearchBarProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   officialOnly: boolean;
@@ -27,7 +39,6 @@ interface SearchBarProps {
 }
 
 export default function SearchBar({
-  darkMode,
   searchQuery,
   setSearchQuery,
   officialOnly,
@@ -39,6 +50,7 @@ export default function SearchBar({
   totalAppsCount,
   isFiltered,
 }: SearchBarProps): React.ReactElement {
+  const palette = useAppPalette();
   const [isSticky, setIsSticky] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -88,6 +100,10 @@ export default function SearchBar({
     };
   }, []);
 
+  // TODO(style-migration): `#8b5cf6` purple is not in the palette; keep literal
+  // until a `statusPrivate`/`accentPurple` token is added.
+  const PRIVATE_COLOR = '#8b5cf6';
+
   return (
     <>
       <Box
@@ -110,13 +126,13 @@ export default function SearchBar({
           mb: 2,
           zIndex: 10,
           bgcolor: isSticky
-            ? darkMode
+            ? palette.isDark
               ? 'rgba(18, 18, 18, 0.92)'
               : 'rgba(255, 255, 255, 0.95)'
             : 'transparent',
-          backdropFilter: isSticky ? 'blur(10px)' : 'none',
-          WebkitBackdropFilter: isSticky ? 'blur(10px)' : 'none',
-          transition: 'background-color 0.2s ease, backdrop-filter 0.2s ease',
+          backdropFilter: isSticky ? BLUR.md : 'none',
+          WebkitBackdropFilter: isSticky ? BLUR.md : 'none',
+          transition: transition(['background-color', 'backdrop-filter'], DURATION.base),
         }}
       >
         <Box
@@ -127,18 +143,18 @@ export default function SearchBar({
             px: 1.5,
             py: 1.5,
             mt: 3,
-            borderRadius: '12px',
-            bgcolor: darkMode ? '#262626' : 'white',
-            border: '1px solid #FF9500',
-            transition: 'box-shadow 0.2s ease',
+            borderRadius: RADIUS.xl,
+            bgcolor: palette.isDark ? '#262626' : 'white',
+            border: `1px solid ${ACCENT.main}`,
+            transition: transition('box-shadow', DURATION.base),
             '&:focus-within': {
-              borderColor: '#FF9500',
-              boxShadow: '0 0 0 3px rgba(255, 149, 0, 0.08)',
+              borderColor: ACCENT.main,
+              boxShadow: `0 0 0 3px ${accentAlpha(0.08)}`,
             },
           }}
         >
           <Tooltip title="Search for apps by name or description" arrow placement="top">
-            <SearchIcon sx={{ fontSize: 18, color: darkMode ? '#666' : '#999', cursor: 'help' }} />
+            <SearchIcon sx={{ fontSize: TYPO.xl, color: palette.textMuted, cursor: 'help' }} />
           </Tooltip>
           <InputBase
             placeholder="Search apps..."
@@ -146,11 +162,11 @@ export default function SearchBar({
             onChange={e => setSearchQuery(e.target.value)}
             sx={{
               flex: 1,
-              fontSize: 14,
-              fontWeight: 500,
-              color: darkMode ? '#f5f5f5' : '#333',
+              fontSize: TYPO.md,
+              fontWeight: FONT_WEIGHT.medium,
+              color: palette.textPrimary,
               '& input::placeholder': {
-                color: darkMode ? '#666' : '#999',
+                color: palette.textMuted,
                 opacity: 1,
               },
             }}
@@ -162,7 +178,7 @@ export default function SearchBar({
                 sx={{
                   width: '1px',
                   height: '18px',
-                  bgcolor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                  bgcolor: palette.border,
                 }}
               />
               <IconButton
@@ -170,15 +186,15 @@ export default function SearchBar({
                 size="small"
                 sx={{
                   p: 0.5,
-                  color: darkMode ? '#888' : '#999',
+                  color: palette.textMuted,
                   '&:hover': {
-                    color: darkMode ? '#aaa' : '#666',
-                    bgcolor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+                    color: palette.textSecondary,
+                    bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
                   },
                 }}
                 title="Clear search"
               >
-                <CloseIcon sx={{ fontSize: 18 }} />
+                <CloseIcon sx={{ fontSize: TYPO.xl }} />
               </IconButton>
             </>
           )}
@@ -190,23 +206,21 @@ export default function SearchBar({
           >
             <Typography
               sx={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: isFiltered ? '#FF9500' : darkMode ? '#666' : '#999',
+                fontSize: TYPO.xs,
+                fontWeight: FONT_WEIGHT.bold,
+                color: isFiltered ? ACCENT.main : palette.textMuted,
                 letterSpacing: '0.2px',
                 cursor: 'help',
                 px: 1.5,
                 py: 0.5,
-                borderRadius: '6px',
+                borderRadius: RADIUS.sm,
                 bgcolor: isFiltered
-                  ? darkMode
-                    ? 'rgba(255, 149, 0, 0.15)'
-                    : 'rgba(255, 149, 0, 0.08)'
-                  : darkMode
+                  ? accentAlpha(palette.isDark ? 0.15 : 0.08)
+                  : palette.isDark
                     ? 'rgba(255, 255, 255, 0.03)'
                     : 'rgba(0, 0, 0, 0.02)',
                 border: isFiltered
-                  ? `1px solid ${darkMode ? 'rgba(255, 149, 0, 0.3)' : 'rgba(255, 149, 0, 0.2)'}`
+                  ? `1px solid ${accentAlpha(palette.isDark ? 0.3 : 0.2)}`
                   : 'none',
               }}
             >
@@ -220,7 +234,7 @@ export default function SearchBar({
                 sx={{
                   width: '1px',
                   height: '18px',
-                  bgcolor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                  bgcolor: palette.border,
                 }}
               />
               <Tooltip
@@ -246,8 +260,8 @@ export default function SearchBar({
               >
                 <InfoOutlinedIcon
                   sx={{
-                    fontSize: 16,
-                    color: darkMode ? '#888' : '#999',
+                    fontSize: TYPO.lg,
+                    color: palette.textMuted,
                     cursor: 'help',
                     flexShrink: 0,
                   }}
@@ -260,7 +274,7 @@ export default function SearchBar({
             sx={{
               width: '1px',
               height: '18px',
-              bgcolor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+              bgcolor: palette.border,
             }}
           />
           <FormControlLabel
@@ -271,16 +285,16 @@ export default function SearchBar({
                 disabled={isLoading}
                 size="small"
                 sx={{
-                  color: darkMode ? '#888' : '#999',
+                  color: palette.textMuted,
                   '&.Mui-checked': {
-                    color: '#8b5cf6',
+                    color: PRIVATE_COLOR,
                   },
                   '&.Mui-disabled': {
-                    color: darkMode ? '#444' : '#ccc',
+                    color: palette.textDisabled,
                     opacity: 0.5,
                   },
                   '& .MuiSvgIcon-root': {
-                    fontSize: 18,
+                    fontSize: TYPO.xl,
                   },
                 }}
               />
@@ -288,9 +302,9 @@ export default function SearchBar({
             label={
               <Typography
                 sx={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: darkMode ? '#888' : '#999',
+                  fontSize: TYPO.sm,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  color: palette.textMuted,
                   userSelect: 'none',
                   whiteSpace: 'nowrap',
                 }}
@@ -310,7 +324,7 @@ export default function SearchBar({
             sx={{
               width: '1px',
               height: '18px',
-              bgcolor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+              bgcolor: palette.border,
             }}
           />
           <FormControlLabel
@@ -321,16 +335,16 @@ export default function SearchBar({
                 disabled={isLoading}
                 size="small"
                 sx={{
-                  color: darkMode ? '#888' : '#999',
+                  color: palette.textMuted,
                   '&.Mui-checked': {
-                    color: '#FF9500',
+                    color: ACCENT.main,
                   },
                   '&.Mui-disabled': {
-                    color: darkMode ? '#444' : '#ccc',
+                    color: palette.textDisabled,
                     opacity: 0.5,
                   },
                   '& .MuiSvgIcon-root': {
-                    fontSize: 18,
+                    fontSize: TYPO.xl,
                   },
                 }}
               />
@@ -338,9 +352,9 @@ export default function SearchBar({
             label={
               <Typography
                 sx={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: darkMode ? '#888' : '#999',
+                  fontSize: TYPO.sm,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  color: palette.textMuted,
                   userSelect: 'none',
                   pr: 1.5,
                 }}

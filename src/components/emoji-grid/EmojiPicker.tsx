@@ -17,6 +17,7 @@ export interface EmojiPickerProps {
   emotions?: readonly NamedItem[];
   dances?: readonly NamedItem[];
   onAction?: (action: EmojiGridAction) => void;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   disabled?: boolean;
   searchQuery?: string;
@@ -57,7 +58,6 @@ export function EmojiPicker({
   emotions = [],
   dances = [],
   onAction,
-  darkMode = false,
   disabled = false,
   searchQuery = '',
   activeActionName = null,
@@ -101,7 +101,6 @@ export function EmojiPicker({
           items={emotionItems}
           title="Emotions"
           onAction={onAction}
-          darkMode={darkMode}
           disabled={disabled}
           searchQuery={searchQuery}
           activeActionName={activeActionName}
@@ -114,7 +113,6 @@ export function EmojiPicker({
           items={danceItems}
           title="Dances"
           onAction={onAction}
-          darkMode={darkMode}
           disabled={disabled}
           searchQuery={searchQuery}
           activeActionName={activeActionName}

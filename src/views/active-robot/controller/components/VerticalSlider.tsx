@@ -1,5 +1,7 @@
 import React, { memo } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
+import { ACCENT, FONT_WEIGHT, RADIUS, TYPO, accentAlpha, blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface VerticalSliderProps {
   label: string;
@@ -8,7 +10,8 @@ interface VerticalSliderProps {
   min?: number;
   max?: number;
   unit?: string;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   disabled?: boolean;
   centered?: boolean;
   smoothedValue?: number | null;
@@ -22,12 +25,12 @@ const VerticalSlider = memo(function VerticalSlider({
   min = -1,
   max = 1,
   unit = 'm',
-  darkMode,
   disabled = false,
   centered = false,
   smoothedValue,
   height = 135,
 }: VerticalSliderProps): React.ReactElement {
+  const palette = useAppPalette();
   const displayValue =
     typeof value === 'number'
       ? value.toFixed(unit === 'deg' ? 1 : 3)
@@ -62,9 +65,9 @@ const VerticalSlider = memo(function VerticalSlider({
         >
           <Typography
             sx={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              fontSize: TYPO.tiny,
+              fontWeight: FONT_WEIGHT.bold,
+              color: palette.textPrimary,
               letterSpacing: '-0.2px',
             }}
           >
@@ -72,10 +75,10 @@ const VerticalSlider = memo(function VerticalSlider({
           </Typography>
           <Typography
             sx={{
-              fontSize: 9,
+              fontSize: TYPO.micro,
               fontFamily: 'monospace',
-              fontWeight: 500,
-              color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+              fontWeight: FONT_WEIGHT.medium,
+              color: palette.textFaint,
               letterSpacing: '0.02em',
             }}
           >
@@ -87,9 +90,9 @@ const VerticalSlider = memo(function VerticalSlider({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', mb: 0.5 }}>
           <Typography
             sx={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              fontSize: TYPO.tiny,
+              fontWeight: FONT_WEIGHT.bold,
+              color: palette.textPrimary,
               letterSpacing: '-0.2px',
             }}
           >
@@ -97,10 +100,10 @@ const VerticalSlider = memo(function VerticalSlider({
           </Typography>
           <Typography
             sx={{
-              fontSize: 9,
+              fontSize: TYPO.micro,
               fontFamily: 'monospace',
-              fontWeight: 500,
-              color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+              fontWeight: FONT_WEIGHT.medium,
+              color: palette.textFaint,
               letterSpacing: '0.02em',
             }}
           >
@@ -141,9 +144,9 @@ const VerticalSlider = memo(function VerticalSlider({
                 transform: 'translate(-50%, -50%)',
                 width: 12,
                 height: 12,
-                borderRadius: '50%',
-                bgcolor: 'rgba(255, 149, 0, 0.2)',
-                border: '1.5px solid rgba(255, 149, 0, 0.5)',
+                borderRadius: RADIUS.circle,
+                bgcolor: accentAlpha(0.2),
+                border: `1.5px solid ${accentAlpha(0.5)}`,
                 zIndex: 1,
                 pointerEvents: 'none',
                 transition: 'top 0.05s linear',
@@ -160,7 +163,7 @@ const VerticalSlider = memo(function VerticalSlider({
             step={0.001}
             disabled={disabled}
             sx={{
-              color: '#FF9500',
+              color: ACCENT.main,
               width: 4,
               height: '100%',
               position: 'relative',
@@ -168,14 +171,14 @@ const VerticalSlider = memo(function VerticalSlider({
               '& .MuiSlider-thumb': {
                 width: 12,
                 height: 12,
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                boxShadow: `0 2px 4px ${blackAlpha(0.2)}`,
                 '&:hover': {
-                  boxShadow: '0 2px 8px rgba(255, 149, 0, 0.4)',
+                  boxShadow: `0 2px 8px ${accentAlpha(0.4)}`,
                   width: 14,
                   height: 14,
                 },
                 '&:active': {
-                  boxShadow: '0 2px 8px rgba(255, 149, 0, 0.6)',
+                  boxShadow: `0 2px 8px ${accentAlpha(0.6)}`,
                 },
                 '&::before': {
                   boxShadow: 'none',
@@ -187,7 +190,7 @@ const VerticalSlider = memo(function VerticalSlider({
               },
               '& .MuiSlider-rail': {
                 width: 4,
-                opacity: darkMode ? 0.2 : 0.3,
+                opacity: palette.isDark ? 0.2 : 0.3,
               },
             }}
           />

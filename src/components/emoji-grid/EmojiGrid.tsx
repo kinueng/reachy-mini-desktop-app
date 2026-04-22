@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Collapse, CircularProgress } from '@mui/material';
 import type { EmojiGridAction } from '@constants/choreographies';
-import { ACCENT_ORANGE, accentRgba, getEmojiGridPalette } from './theme';
+import { ACCENT, accentAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 const ROWS_VISIBLE = 3;
 const COLUMNS = 6;
@@ -20,6 +21,7 @@ export interface EmojiGridProps {
   items?: EmojiGridItem[];
   title?: string;
   onAction?: (action: EmojiGridAction) => void;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   disabled?: boolean;
   searchQuery?: string;
@@ -38,14 +40,13 @@ export function EmojiGrid({
   items = [],
   title = '',
   onAction,
-  darkMode = false,
   disabled = false,
   searchQuery = '',
   activeActionName = null,
   isExecuting = false,
 }: EmojiGridProps) {
   const [expanded, setExpanded] = useState<boolean>(false);
-  const palette = getEmojiGridPalette(darkMode);
+  const palette = useAppPalette();
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const matchesSearch = (item: EmojiGridItem): boolean => {
@@ -68,11 +69,10 @@ export function EmojiGrid({
     const showSpinner = isActiveItem && isExecuting;
     const isInteractive = !disabled && !isGhosted;
 
-    const itemBorderColor = isGhosted ? palette.ghostBorder : palette.border;
-    const itemBgColor = isGhosted ? palette.ghostBg : palette.bg;
+    const itemBorderColor = isGhosted ? palette.ghostBorder : palette.accentBorder;
+    const itemBgColor = isGhosted ? palette.ghostBg : palette.accentSurface;
     const itemOpacity = isGhosted ? 0.25 : disabled ? 0.5 : 1;
-    // Highlight border when the item is the one currently executing.
-    const borderColor = isActiveItem && disabled ? ACCENT_ORANGE : itemBorderColor;
+    const borderColor = isActiveItem && disabled ? ACCENT.main : itemBorderColor;
 
     const handleClick = () => {
       if (isInteractive && onAction && item.originalAction) {
@@ -98,7 +98,7 @@ export function EmojiGrid({
         }}
       >
         {showSpinner ? (
-          <CircularProgress size={SPINNER_SIZE} thickness={3} sx={{ color: ACCENT_ORANGE }} />
+          <CircularProgress size={SPINNER_SIZE} thickness={3} sx={{ color: ACCENT.main }} />
         ) : (
           <span className="emoji-grid-item__emoji">{item.emoji}</span>
         )}
@@ -134,15 +134,15 @@ export function EmojiGrid({
           line-height: 1;
         }
         .emoji-grid-item[data-interactive="true"]:hover {
-          background: ${palette.hoverBg} !important;
-          border-color: ${palette.hoverBorder} !important;
+          background: ${palette.accentSurfaceHover} !important;
+          border-color: ${palette.accentBorderStrong} !important;
           transform: scale(1.03);
-          box-shadow: 0 2px 8px ${accentRgba(0.15)};
+          box-shadow: 0 2px 8px ${accentAlpha(0.15)};
         }
         .emoji-grid-item[data-interactive="true"]:active {
-          background: ${palette.activeBg} !important;
+          background: ${palette.accentSurfaceActive} !important;
           transform: scale(0.97);
-          box-shadow: 0 1px 4px ${accentRgba(0.2)};
+          box-shadow: 0 1px 4px ${accentAlpha(0.2)};
         }
         .emoji-grid-toggle {
           display: inline-flex;
@@ -156,10 +156,10 @@ export function EmojiGrid({
           font-weight: 400;
           cursor: pointer;
           transition: color 0.15s;
-          color: ${palette.muted};
+          color: ${palette.textMuted};
         }
         .emoji-grid-toggle:hover {
-          color: ${ACCENT_ORANGE};
+          color: ${ACCENT.main};
         }
       `}</style>
 
@@ -178,7 +178,7 @@ export function EmojiGrid({
             style={{
               fontSize: 12,
               fontWeight: 600,
-              color: palette.muted,
+              color: palette.textMuted,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
             }}

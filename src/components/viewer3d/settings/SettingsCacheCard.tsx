@@ -5,9 +5,11 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SectionHeader from './SectionHeader';
 import { buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '../../../config/daemon';
 import { useToast } from '../../../hooks/useToast';
+import { useAppPalette, TYPO, RADIUS } from '@styles';
 
 export interface SettingsCacheCardProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   cardStyle?: SxProps<Theme>;
   buttonStyle?: SxProps<Theme>;
   onResetAppsClick: () => void;
@@ -15,12 +17,12 @@ export interface SettingsCacheCardProps {
 }
 
 export default function SettingsCacheCard({
-  darkMode,
   cardStyle,
   buttonStyle,
   onResetAppsClick,
   isResettingApps,
 }: SettingsCacheCardProps): React.ReactElement {
+  const palette = useAppPalette();
   const [isClearing, setIsClearing] = useState<boolean>(false);
   const { showToast } = useToast();
 
@@ -50,37 +52,31 @@ export default function SettingsCacheCard({
     }
   };
 
-  const textSecondary = darkMode ? '#888' : '#666';
-  const dangerColor = darkMode ? '#f87171' : '#dc2626';
-  const dangerBorder = darkMode ? 'rgba(248, 113, 113, 0.5)' : 'rgba(220, 38, 38, 0.5)';
-  const dangerHoverBg = darkMode ? 'rgba(248, 113, 113, 0.1)' : 'rgba(220, 38, 38, 0.08)';
-  const disabledBorder = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
-  const disabledColor = darkMode ? '#555' : '#bbb';
-
+  const textSecondary = palette.textSecondary;
   const dangerButtonStyle = {
     ...buttonStyle,
-    fontSize: 12,
+    fontSize: TYPO.sm,
     py: 0.75,
     px: 2,
-    borderRadius: '8px',
-    color: dangerColor,
-    borderColor: dangerBorder,
+    borderRadius: RADIUS.md,
+    color: palette.dangerText,
+    borderColor: palette.dangerBorder,
     '&:hover': {
-      borderColor: dangerColor,
-      bgcolor: dangerHoverBg,
+      borderColor: palette.dangerText,
+      bgcolor: palette.dangerSurfaceHover,
     },
     '&:disabled': {
-      borderColor: disabledBorder,
-      color: disabledColor,
+      borderColor: palette.border,
+      color: palette.textDisabled,
     },
   };
 
   return (
     <Box sx={cardStyle}>
-      <SectionHeader title="Maintenance" icon={DeleteOutlineIcon} darkMode={darkMode} />
+      <SectionHeader title="Maintenance" icon={DeleteOutlineIcon} darkMode={palette.isDark} />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
+        <Typography sx={{ fontSize: TYPO.sm, color: textSecondary, lineHeight: 1.5 }}>
           Free up disk space by clearing cached AI models.
         </Typography>
 
@@ -96,7 +92,7 @@ export default function SettingsCacheCard({
           {isClearing ? 'Clearing...' : 'Clear HuggingFace Cache'}
         </Button>
 
-        <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
+        <Typography sx={{ fontSize: TYPO.sm, color: textSecondary, lineHeight: 1.5 }}>
           Uninstall all apps.
         </Typography>
 

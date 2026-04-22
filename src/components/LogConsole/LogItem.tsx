@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { TEXT_SELECT_STYLES } from './constants';
 import { CATEGORY_META } from '../../utils/logging/constants';
+import { ACCENT, whiteAlpha, blackAlpha } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 import type { LogEntry, LogMode, LogCategory } from '../../types/store';
 
 const WRAP_STYLES = {
@@ -10,7 +12,7 @@ const WRAP_STYLES = {
   minWidth: 0,
 } as const;
 
-const getLogColor = (log: LogEntry, darkMode: boolean): string => {
+const getLogColor = (log: LogEntry, isDark: boolean): string => {
   const { level, category } = log;
   const msg = log.message || '';
 
@@ -24,21 +26,24 @@ const getLogColor = (log: LogEntry, darkMode: boolean): string => {
     (level as string) === 'warning' || msg.includes('WARNING') || msg.includes('[WARNING]');
   const isSuccess = (level as string) === 'success' || msg.includes('✓');
 
-  if (isError) return darkMode ? '#ff5555' : '#cc0000';
-  if (isWarning) return darkMode ? '#fbbf24' : '#d97706';
-  if (isSuccess) return darkMode ? '#55ff55' : '#00aa00';
+  // TODO(style-migration): severity text colors here use log-console-specific
+  // shades that don't match STATUS tokens; keep the isDark branches.
+  if (isError) return isDark ? '#ff5555' : '#cc0000';
+  if (isWarning) return isDark ? '#fbbf24' : '#d97706';
+  if (isSuccess) return isDark ? '#55ff55' : '#00aa00';
 
   const meta = category ? CATEGORY_META[category] : undefined;
   if (meta) return meta.color;
 
-  return darkMode ? '#f0f0f0' : '#1a1a1a';
+  return isDark ? '#f0f0f0' : '#1a1a1a';
 };
 
 export interface LogItemProps {
   log: LogEntry | null | undefined;
   index: number;
   totalCount: number;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   fontSize: number;
   compact: boolean;
   showTimestamp: boolean;
@@ -55,13 +60,14 @@ export const LogItem = React.memo(
     log,
     index,
     totalCount,
-    darkMode,
     fontSize,
     compact,
     showTimestamp,
     simpleStyle,
     logMode,
   }: LogItemProps) => {
+    const palette = useAppPalette();
+    const isDark = palette.isDark;
     const itemSpacing = compact ? 1.6 : 2.4;
 
     const memoizedValues = useMemo(() => {
@@ -69,14 +75,21 @@ export const LogItem = React.memo(
 
       const isApp = log.source === 'app';
       const displayMessage = isApp && log.appName ? `[app] ${log.message}` : log.message;
-      const color = getLogColor(log, darkMode);
+      const color = getLogColor(log, isDark);
 
       return { displayMessage, color };
-    }, [log, darkMode]);
+    }, [log, isDark]);
 
     if (!log || !memoizedValues) return null;
 
     const { displayMessage, color } = memoizedValues;
+
+    // TODO(style-migration): message text shades (#d1d5db/#666 and #d1d5db/#555)
+    // are specific to log rendering and don't map cleanly to palette.text*.
+    const simpleMessageColor = isDark ? '#d1d5db' : '#666';
+    const devMessageColor = isDark ? '#d1d5db' : '#555';
+    const simpleTimestampColor = isDark ? whiteAlpha(0.35) : blackAlpha(0.35);
+    const devTimestampColor = isDark ? whiteAlpha(0.5) : blackAlpha(0.5);
 
     // Simple style (inline in small console, minimal)
     if (simpleStyle) {
@@ -94,7 +107,7 @@ export const LogItem = React.memo(
               width: 4,
               height: 4,
               borderRadius: '50%',
-              bgcolor: '#FF9500',
+              bgcolor: ACCENT.main,
               mt: 0.75,
               flexShrink: 0,
             }}
@@ -103,7 +116,7 @@ export const LogItem = React.memo(
             sx={{
               fontSize,
               fontFamily: 'monospace',
-              color: darkMode ? '#d1d5db' : '#666',
+              color: simpleMessageColor,
               lineHeight: 1.6,
               flex: 1,
               ...WRAP_STYLES,
@@ -141,7 +154,7 @@ export const LogItem = React.memo(
             sx={{
               fontSize,
               fontFamily: 'inherit',
-              color: darkMode ? '#d1d5db' : '#555',
+              color: devMessageColor,
               lineHeight: 1.6,
               flex: 1,
               ...WRAP_STYLES,
@@ -154,7 +167,7 @@ export const LogItem = React.memo(
             <Typography
               sx={{
                 fontSize: fontSize - 1,
-                color: darkMode ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)',
+                color: simpleTimestampColor,
                 fontFamily: 'inherit',
                 lineHeight: 1.6,
                 flexShrink: 0,
@@ -240,7 +253,7 @@ export const LogItem = React.memo(
           <Typography
             sx={{
               fontSize: fontSize - 1,
-              color: darkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
+              color: devTimestampColor,
               fontFamily: 'inherit',
               lineHeight: compact ? 1.4 : 1.6,
               flexShrink: 0,

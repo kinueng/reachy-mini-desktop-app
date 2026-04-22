@@ -1,9 +1,11 @@
 import { Box, CircularProgress, Typography } from '@mui/material';
 import reachySetupSvg from '../../../assets/reachy-how-to-create-app.svg';
 import TipsCarousel from './TipsCarousel';
+import { FONT_WEIGHT, TYPO, useAppPalette } from '@styles';
 
 export interface BootstrapOverlayProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   /**
    * `null` = we haven't decided yet (briefly shows a lightweight spinner),
    * `true` = we're actively bootstrapping (shows the friendly explainer),
@@ -21,10 +23,10 @@ export interface BootstrapOverlayProps {
  * on top of it would hurt without any benefit.
  */
 export default function BootstrapOverlay({
-  darkMode,
   isBootstrapping,
   bootstrapMessage,
 }: BootstrapOverlayProps): React.ReactElement {
+  const palette = useAppPalette();
   return (
     <Box
       sx={{
@@ -45,7 +47,7 @@ export default function BootstrapOverlay({
         sx={{
           width: 140,
           height: 'auto',
-          opacity: darkMode ? 0.9 : 1,
+          opacity: palette.isDark ? 0.9 : 1,
           mb: 1,
         }}
       />
@@ -53,9 +55,9 @@ export default function BootstrapOverlay({
         <Box sx={{ textAlign: 'center' }}>
           <Typography
             sx={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: darkMode ? '#f5f5f5' : '#333',
+              fontSize: TYPO.xl,
+              fontWeight: FONT_WEIGHT.bold,
+              color: palette.textPrimary,
               mb: 0.5,
               letterSpacing: '-0.3px',
             }}
@@ -64,9 +66,9 @@ export default function BootstrapOverlay({
           </Typography>
           <Typography
             sx={{
-              fontSize: 13,
-              fontWeight: 400,
-              color: darkMode ? '#999' : '#666',
+              fontSize: TYPO.body,
+              fontWeight: FONT_WEIGHT.regular,
+              color: palette.textSecondary,
               mb: 0.5,
             }}
           >
@@ -74,18 +76,18 @@ export default function BootstrapOverlay({
           </Typography>
           <Typography
             sx={{
-              fontSize: 11,
-              fontWeight: 400,
-              color: darkMode ? '#555' : '#aaa',
+              fontSize: TYPO.xs,
+              fontWeight: FONT_WEIGHT.regular,
+              color: palette.textFaint,
               fontStyle: 'italic',
             }}
           >
             This only happens once
           </Typography>
-          <TipsCarousel darkMode={darkMode} interval={5000} />
+          <TipsCarousel interval={5000} />
         </Box>
       ) : (
-        <CircularProgress size={24} thickness={3} sx={{ color: darkMode ? '#555' : '#bbb' }} />
+        <CircularProgress size={24} thickness={3} sx={{ color: palette.textMuted }} />
       )}
     </Box>
   );

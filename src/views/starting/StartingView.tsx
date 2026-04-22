@@ -3,6 +3,7 @@ import { Box } from '@mui/material';
 import StartupView from './StartupView';
 import useAppStore from '../../store/useAppStore';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl, getWsBaseUrl } from '../../config/daemon';
+import { BLUR, useAppPalette } from '@styles';
 
 export interface StartingViewProps {
   startupError?: unknown;
@@ -15,7 +16,8 @@ export interface StartingViewProps {
  * triggered right after the startup pipeline completes.
  */
 function StartingView({ startupError, startDaemon }: StartingViewProps) {
-  const { darkMode, transitionTo, setHardwareError } = useAppStore();
+  const palette = useAppPalette();
+  const { transitionTo, setHardwareError } = useAppStore();
 
   const handleScanComplete = useCallback(async () => {
     setHardwareError(null);
@@ -100,9 +102,12 @@ function StartingView({ startupError, startDaemon }: StartingViewProps) {
       sx={{
         width: '100vw',
         height: '100vh',
-        background: darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(250, 250, 252, 0.85)',
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
+        // TODO(style-migration): the bespoke backdrop colours
+        // `rgba(26,26,26,0.95)` / `rgba(250,250,252,0.85)` don't map cleanly
+        // to an existing surface token; `surfaceCard` is the closest match.
+        background: palette.surfaceCard,
+        backdropFilter: BLUR.lg,
+        WebkitBackdropFilter: BLUR.lg,
         overflow: 'hidden',
       }}
     >

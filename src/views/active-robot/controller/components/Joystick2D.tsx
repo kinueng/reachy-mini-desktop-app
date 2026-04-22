@@ -1,6 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { telemetry } from '../../../../utils/telemetry';
+import {
+  ACCENT,
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  transition,
+  whiteAlpha,
+} from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface Joystick2DProps {
   label: string;
@@ -13,7 +25,8 @@ interface Joystick2DProps {
   minY?: number;
   maxY?: number;
   size?: number;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   disabled?: boolean;
   smoothedValueX?: number | null;
   smoothedValueY?: number | null;
@@ -31,12 +44,12 @@ const Joystick2D = memo(function Joystick2D({
   minY = -1,
   maxY = 1,
   size = 100,
-  darkMode,
   disabled = false,
   smoothedValueX,
   smoothedValueY,
   labelAlign = 'left',
 }: Joystick2DProps): React.ReactElement {
+  const palette = useAppPalette();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [localStickX, setLocalStickX] = useState<number>(size / 2);
@@ -228,9 +241,9 @@ const Joystick2D = memo(function Joystick2D({
       >
         <Typography
           sx={{
-            fontSize: 10,
-            fontWeight: 700,
-            color: darkMode ? '#f5f5f5' : '#333',
+            fontSize: TYPO.tiny,
+            fontWeight: FONT_WEIGHT.bold,
+            color: palette.textPrimary,
             letterSpacing: '-0.2px',
           }}
         >
@@ -238,10 +251,10 @@ const Joystick2D = memo(function Joystick2D({
         </Typography>
         <Typography
           sx={{
-            fontSize: 9,
+            fontSize: TYPO.micro,
             fontFamily: 'monospace',
-            fontWeight: 500,
-            color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+            fontWeight: FONT_WEIGHT.medium,
+            color: palette.textFaint,
             letterSpacing: '0.02em',
           }}
         >
@@ -254,15 +267,15 @@ const Joystick2D = memo(function Joystick2D({
           width: size,
           height: size,
           overflow: 'hidden',
-          border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
-          borderRadius: '10px',
+          border: `1px solid ${palette.border}`,
+          borderRadius: RADIUS.lg,
           cursor: disabled ? 'not-allowed' : isDragging ? 'grabbing' : 'grab',
           opacity: disabled ? 0.5 : 1,
           position: 'relative',
           userSelect: 'none',
-          transition: 'all 0.2s ease',
+          transition: transition('all', DURATION.base),
           '&:hover': {
-            borderColor: 'rgba(255, 149, 0, 0.5)',
+            borderColor: accentAlpha(0.5),
           },
         }}
         onMouseDown={handleMouseDown}
@@ -270,22 +283,22 @@ const Joystick2D = memo(function Joystick2D({
         <svg width={size} height={size} style={{ display: 'block' }}>
           <defs>
             <radialGradient id={`stickGrad-${label}`}>
-              <stop offset="0%" stopColor="#FF9500" stopOpacity="1" />
-              <stop offset="100%" stopColor="#FF9500" stopOpacity="0.7" />
+              <stop offset="0%" stopColor={ACCENT.main} stopOpacity="1" />
+              <stop offset="100%" stopColor={ACCENT.main} stopOpacity="0.7" />
             </radialGradient>
             <pattern id={`grid-${label}`} width="10" height="10" patternUnits="userSpaceOnUse">
               <path
                 d="M 10 0 L 0 0 0 10"
                 fill="none"
-                stroke={darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'}
+                stroke={palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.06)}
                 strokeWidth="0.5"
               />
             </pattern>
           </defs>
 
           <g opacity={0.25}>
-            <line x1={centerX} y1={0} x2={centerX} y2={size} stroke="#FF9500" strokeWidth={1} />
-            <line x1={0} y1={centerY} x2={size} y2={centerY} stroke="#FF9500" strokeWidth={1} />
+            <line x1={centerX} y1={0} x2={centerX} y2={size} stroke={ACCENT.main} strokeWidth={1} />
+            <line x1={0} y1={centerY} x2={size} y2={centerY} stroke={ACCENT.main} strokeWidth={1} />
           </g>
 
           <circle
@@ -293,7 +306,7 @@ const Joystick2D = memo(function Joystick2D({
             cy={centerY}
             r={maxRadius}
             fill="none"
-            stroke="rgba(255, 149, 0, 0.3)"
+            stroke={accentAlpha(0.3)}
             strokeWidth={1.5}
             strokeDasharray="2 2"
           />
@@ -318,7 +331,7 @@ const Joystick2D = memo(function Joystick2D({
                       y1={centerY}
                       x2={ghostX}
                       y2={ghostY}
-                      stroke="rgba(255, 149, 0, 0.3)"
+                      stroke={accentAlpha(0.3)}
                       strokeWidth={1.5}
                       strokeLinecap="round"
                       strokeDasharray="3 3"
@@ -328,8 +341,8 @@ const Joystick2D = memo(function Joystick2D({
                       cx={ghostX}
                       cy={ghostY}
                       r={stickRadius * 0.8}
-                      fill="rgba(255, 149, 0, 0.2)"
-                      stroke="rgba(255, 149, 0, 0.5)"
+                      fill={accentAlpha(0.2)}
+                      stroke={accentAlpha(0.5)}
                       strokeWidth={1.5}
                     />
                   </>
@@ -342,7 +355,7 @@ const Joystick2D = memo(function Joystick2D({
             y1={centerY}
             x2={localStickX}
             y2={localStickY}
-            stroke="#FF9500"
+            stroke={ACCENT.main}
             strokeWidth={2}
             strokeLinecap="round"
             opacity={0.5}
@@ -351,8 +364,9 @@ const Joystick2D = memo(function Joystick2D({
             cx={localStickX}
             cy={localStickY}
             r={stickRadius}
-            fill="#FF9500"
-            stroke={darkMode ? 'rgba(26, 26, 26, 0.8)' : '#fff'}
+            fill={ACCENT.main}
+            // TODO(style-migration): stick outline uses custom dark tone (#1a1a1a @ 0.8) and pure white; no palette equivalent.
+            stroke={palette.isDark ? 'rgba(26, 26, 26, 0.8)' : '#fff'}
             strokeWidth={2}
           />
         </svg>

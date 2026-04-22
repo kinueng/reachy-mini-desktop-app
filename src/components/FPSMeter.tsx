@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
-import useAppStore from '../store/useAppStore';
+import { whiteAlpha, blackAlpha } from '@styles/tokens';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, BLUR } from '@styles';
 
 export interface FPSMeterProps {
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
 }
 
@@ -11,7 +13,9 @@ export interface FPSMeterProps {
  * status tag in the 3D viewer. Should be rendered inside `Viewer3D` with
  * `position: absolute`.
  */
-export function FPSMeter({ darkMode = false }: FPSMeterProps): React.ReactElement {
+export function FPSMeter(_props: FPSMeterProps = {}): React.ReactElement {
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
   const [fps, setFps] = useState<number>(0);
   const frameCount = useRef<number>(0);
   const lastTime = useRef<number>(performance.now());
@@ -42,23 +46,29 @@ export function FPSMeter({ darkMode = false }: FPSMeterProps): React.ReactElemen
     };
   }, []);
 
+  // TODO(style-migration): FPS pill uses a parametric 85% surface tint not
+  // captured by surfaceCard (95%); keep an isDark branch.
+  const bgColor = isDark ? 'rgba(26, 26, 26, 0.85)' : 'rgba(255, 255, 255, 0.85)';
+  const borderColor = isDark ? whiteAlpha(0.1) : blackAlpha(0.1);
+  const textColor = isDark ? whiteAlpha(0.6) : blackAlpha(0.5);
+
   return (
     <Box
       sx={{
         px: 1.25,
         py: 0.75,
-        borderRadius: '8px',
-        bgcolor: darkMode ? 'rgba(26, 26, 26, 0.85)' : 'rgba(255, 255, 255, 0.85)',
-        border: darkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)',
-        backdropFilter: 'blur(10px)',
+        borderRadius: RADIUS.md,
+        bgcolor: bgColor,
+        border: `1px solid ${borderColor}`,
+        backdropFilter: BLUR.md,
         pointerEvents: 'none',
       }}
     >
       <Typography
         sx={{
-          fontSize: 9,
-          fontWeight: 500,
-          color: darkMode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.5)',
+          fontSize: TYPO.micro,
+          fontWeight: FONT_WEIGHT.medium,
+          color: textColor,
           fontFamily: 'SF Mono, Monaco, Menlo, monospace',
           letterSpacing: '0.02em',
           lineHeight: 1,
@@ -70,8 +80,8 @@ export function FPSMeter({ darkMode = false }: FPSMeterProps): React.ReactElemen
   );
 }
 
-/** Wrapper that gets `darkMode` from the store, for backward compatibility. */
+/** Wrapper kept for backward compatibility. The inner component now reads the
+ *  theme mode from `useAppPalette()` directly. */
 export default function FPSMeterWrapper(): React.ReactElement {
-  const { darkMode } = useAppStore();
-  return <FPSMeter darkMode={darkMode} />;
+  return <FPSMeter />;
 }

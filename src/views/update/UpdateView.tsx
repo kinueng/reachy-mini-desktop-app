@@ -7,6 +7,20 @@ import { DAEMON_CONFIG } from '../../config/daemon';
 import { useInternetHealthcheck } from './hooks';
 import PulseButton from '@components/PulseButton';
 import LogConsole from '@components/LogConsole';
+import {
+  ACCENT,
+  BLUR,
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  STATUS,
+  TYPO,
+  blackAlpha,
+  hexToRgba,
+  transition,
+  useAppPalette,
+  whiteAlpha,
+} from '@styles';
 
 export interface UpdateInfo {
   version: string;
@@ -36,7 +50,9 @@ export default function UpdateView({
   updateError,
   onInstallUpdate,
 }: UpdateViewProps) {
-  const { darkMode, skipUpdate } = useAppStore();
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
+  const { skipUpdate } = useAppStore();
   const [minDisplayTimeElapsed, setMinDisplayTimeElapsed] = useState<boolean>(false);
   const checkStartTimeRef = useRef<number>(Date.now());
   const { isOnline: isInternetOnline, hasChecked: hasInternetChecked } = useInternetHealthcheck({
@@ -100,9 +116,11 @@ export default function UpdateView({
       sx={{
         width: '100vw',
         height: '100vh',
-        background: darkMode ? 'rgba(26, 26, 26, 0.95)' : 'rgba(253, 252, 250, 0.85)',
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
+        // TODO(style-migration): bespoke 0.95 / 0.85 alpha stack doesn't map
+        // to a single surface token; `surfaceCard` is the closest match.
+        background: palette.surfaceCard,
+        backdropFilter: BLUR.lg,
+        WebkitBackdropFilter: BLUR.lg,
         overflow: 'hidden',
       }}
     >
@@ -132,16 +150,16 @@ export default function UpdateView({
               size={28}
               thickness={2.5}
               sx={{
-                color: darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)',
+                color: palette.border,
                 mb: 1.5,
               }}
             />
 
             <Typography
               sx={{
-                fontSize: 12,
-                fontWeight: 400,
-                color: darkMode ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)',
+                fontSize: TYPO.sm,
+                fontWeight: FONT_WEIGHT.regular,
+                color: palette.textFaint,
                 textAlign: 'center',
                 letterSpacing: '0.2px',
               }}
@@ -169,8 +187,8 @@ export default function UpdateView({
             <Typography
               sx={{
                 fontSize: 24,
-                fontWeight: 600,
-                color: darkMode ? '#f5f5f5' : '#333',
+                fontWeight: FONT_WEIGHT.semibold,
+                color: palette.textPrimary,
                 mb: 1,
                 mt: 0,
                 textAlign: 'center',
@@ -181,8 +199,8 @@ export default function UpdateView({
 
             <Typography
               sx={{
-                fontSize: 14,
-                color: darkMode ? '#aaa' : '#666',
+                fontSize: TYPO.md,
+                color: palette.textSecondary,
                 textAlign: 'center',
                 maxWidth: 360,
                 lineHeight: 1.6,
@@ -202,17 +220,17 @@ export default function UpdateView({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 0.5,
-                  color: darkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.45)',
-                  fontSize: 12,
+                  color: palette.textMuted,
+                  fontSize: TYPO.sm,
                   textDecoration: 'none',
                   mb: 2,
                   '&:hover': {
-                    color: '#FF9500',
+                    color: ACCENT.main,
                   },
                 }}
               >
                 View release notes
-                <OpenInNewIcon sx={{ fontSize: 14 }} />
+                <OpenInNewIcon sx={{ fontSize: TYPO.md }} />
               </Link>
             )}
 
@@ -226,14 +244,14 @@ export default function UpdateView({
                   sx={{
                     height: 6,
                     borderRadius: 3,
-                    bgcolor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                    bgcolor: isDark ? whiteAlpha(0.1) : blackAlpha(0.1),
                   }}
                 />
                 {isDownloading && (
                   <Typography
                     sx={{
-                      fontSize: 12,
-                      color: darkMode ? '#888' : '#666',
+                      fontSize: TYPO.sm,
+                      color: palette.textSecondary,
                       textAlign: 'center',
                       mt: 1,
                     }}
@@ -255,9 +273,9 @@ export default function UpdateView({
               >
                 <Typography
                   sx={{
-                    fontSize: 13,
-                    color: '#ef4444',
-                    fontWeight: 500,
+                    fontSize: TYPO.body,
+                    color: STATUS.error,
+                    fontWeight: FONT_WEIGHT.medium,
                     mb: 1,
                   }}
                 >
@@ -281,7 +299,7 @@ export default function UpdateView({
               >
                 <PulseButton
                   onClick={onInstallUpdate}
-                  darkMode={darkMode}
+                  darkMode={isDark}
                   pulse={true}
                   size="medium"
                   sx={{ minWidth: 180 }}
@@ -292,13 +310,13 @@ export default function UpdateView({
                   variant="text"
                   onClick={skipUpdate}
                   sx={{
-                    color: darkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.45)',
-                    fontWeight: 500,
-                    fontSize: 13,
+                    color: palette.textMuted,
+                    fontWeight: FONT_WEIGHT.medium,
+                    fontSize: TYPO.body,
                     py: 0.8,
                     textTransform: 'none',
                     '&:hover': {
-                      bgcolor: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+                      bgcolor: isDark ? whiteAlpha(0.05) : blackAlpha(0.04),
                     },
                   }}
                 >
@@ -326,7 +344,7 @@ export default function UpdateView({
                   width: 64,
                   height: 64,
                   borderRadius: '50%',
-                  bgcolor: darkMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.08)',
+                  bgcolor: hexToRgba(STATUS.error, isDark ? 0.1 : 0.08),
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -336,7 +354,7 @@ export default function UpdateView({
                 <Typography
                   sx={{
                     fontSize: 32,
-                    color: '#ef4444',
+                    color: STATUS.error,
                   }}
                 >
                   ⚠️
@@ -346,9 +364,9 @@ export default function UpdateView({
               {/* Error title - more specific based on error type */}
               <Typography
                 sx={{
-                  fontSize: 18,
-                  fontWeight: 600,
-                  color: darkMode ? '#f5f5f5' : '#333',
+                  fontSize: TYPO.xl,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  color: palette.textPrimary,
                   mb: 1,
                 }}
               >
@@ -369,8 +387,8 @@ export default function UpdateView({
               {/* Error message - use the detailed error message directly */}
               <Typography
                 sx={{
-                  fontSize: 13,
-                  color: darkMode ? '#aaa' : '#666',
+                  fontSize: TYPO.body,
+                  color: palette.textSecondary,
                   lineHeight: 1.6,
                   mb: 2,
                   maxWidth: 400,
@@ -402,17 +420,19 @@ export default function UpdateView({
       >
         <LogConsole
           logs={[]}
-          darkMode={darkMode}
+          darkMode={isDark}
           includeStoreLogs={true}
           compact={true}
           showTimestamp={false}
           lines={2}
           emptyMessage="Waiting for logs..."
           sx={{
-            bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
-            border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
+            // TODO(style-migration): translucent log-panel backdrops don't map
+            // to a shared surface token; derive them from alpha utilities.
+            bgcolor: isDark ? blackAlpha(0.6) : whiteAlpha(0.7),
+            border: `1px solid ${isDark ? whiteAlpha(0.15) : blackAlpha(0.12)}`,
+            backdropFilter: BLUR.sm,
+            WebkitBackdropFilter: BLUR.sm,
           }}
         />
       </Box>
@@ -437,32 +457,24 @@ export default function UpdateView({
             sx={{
               width: 8,
               height: 8,
-              borderRadius: '50%',
+              borderRadius: RADIUS.circle,
               bgcolor: isInternetOnline
-                ? darkMode
-                  ? 'rgba(34, 197, 94, 0.6)'
-                  : 'rgba(34, 197, 94, 0.5)'
-                : darkMode
-                  ? 'rgba(239, 68, 68, 0.6)'
-                  : 'rgba(239, 68, 68, 0.5)',
+                ? hexToRgba(STATUS.success, isDark ? 0.6 : 0.5)
+                : hexToRgba(STATUS.error, isDark ? 0.6 : 0.5),
               boxShadow: isInternetOnline
-                ? darkMode
-                  ? '0 0 4px rgba(34, 197, 94, 0.3)'
-                  : '0 0 3px rgba(34, 197, 94, 0.2)'
-                : darkMode
-                  ? '0 0 4px rgba(239, 68, 68, 0.3)'
-                  : '0 0 3px rgba(239, 68, 68, 0.2)',
-              transition: 'all 0.3s ease',
+                ? `0 0 ${isDark ? 4 : 3}px ${hexToRgba(STATUS.success, isDark ? 0.3 : 0.2)}`
+                : `0 0 ${isDark ? 4 : 3}px ${hexToRgba(STATUS.error, isDark ? 0.3 : 0.2)}`,
+              transition: transition('all', DURATION.slow),
               flexShrink: 0,
             }}
           />
           <Typography
             sx={{
-              fontSize: 12,
-              fontWeight: 400,
-              color: darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
+              fontSize: TYPO.sm,
+              fontWeight: FONT_WEIGHT.regular,
+              color: isDark ? whiteAlpha(0.7) : blackAlpha(0.7),
               whiteSpace: 'nowrap',
-              transition: 'color 0.3s ease',
+              transition: transition('color', DURATION.slow),
             }}
           >
             {isInternetOnline ? 'Online' : 'Offline'}

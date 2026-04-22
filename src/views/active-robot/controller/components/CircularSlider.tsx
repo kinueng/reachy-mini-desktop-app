@@ -1,5 +1,15 @@
 import React, { useMemo, memo } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
+import {
+  ACCENT,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface CircularSliderProps {
   label: string;
@@ -8,7 +18,8 @@ interface CircularSliderProps {
   min?: number;
   max?: number;
   unit?: string;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   disabled?: boolean;
   inverted?: boolean;
   reverse?: boolean;
@@ -23,13 +34,13 @@ const CircularSlider = memo(function CircularSlider({
   min = -Math.PI,
   max = Math.PI,
   unit = 'rad',
-  darkMode,
   disabled = false,
   inverted = false,
   reverse = false,
   alignRight = false,
   smoothedValue,
 }: CircularSliderProps): React.ReactElement {
+  const palette = useAppPalette();
   const ARC_START = 0.01;
   const ARC_END = 0.74;
   const ARC_SPAN = ARC_END - ARC_START;
@@ -91,6 +102,11 @@ const CircularSlider = memo(function CircularSlider({
         ? '0.0'
         : '0.000';
 
+  const trackBgStroke = palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.04);
+  const trackBgStrokeMid = palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.06);
+  const trackBgStrokeHalo = palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05);
+  const progressStroke = palette.isDark ? whiteAlpha(0.5) : blackAlpha(0.5);
+
   return (
     <Box
       sx={{
@@ -125,10 +141,10 @@ const CircularSlider = memo(function CircularSlider({
           <>
             <Typography
               sx={{
-                fontSize: 9,
+                fontSize: TYPO.micro,
                 fontFamily: 'monospace',
-                fontWeight: 500,
-                color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+                fontWeight: FONT_WEIGHT.medium,
+                color: palette.textFaint,
                 letterSpacing: '0.02em',
                 textAlign: 'right',
               }}
@@ -138,9 +154,9 @@ const CircularSlider = memo(function CircularSlider({
             </Typography>
             <Typography
               sx={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: darkMode ? '#f5f5f5' : '#333',
+                fontSize: TYPO.tiny,
+                fontWeight: FONT_WEIGHT.bold,
+                color: palette.textPrimary,
                 letterSpacing: '-0.2px',
                 textAlign: 'right',
               }}
@@ -152,9 +168,9 @@ const CircularSlider = memo(function CircularSlider({
           <>
             <Typography
               sx={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: darkMode ? '#f5f5f5' : '#333',
+                fontSize: TYPO.tiny,
+                fontWeight: FONT_WEIGHT.bold,
+                color: palette.textPrimary,
                 letterSpacing: '-0.2px',
               }}
             >
@@ -162,10 +178,10 @@ const CircularSlider = memo(function CircularSlider({
             </Typography>
             <Typography
               sx={{
-                fontSize: 9,
+                fontSize: TYPO.micro,
                 fontFamily: 'monospace',
-                fontWeight: 500,
-                color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+                fontWeight: FONT_WEIGHT.medium,
+                color: palette.textFaint,
                 letterSpacing: '0.02em',
               }}
             >
@@ -221,7 +237,7 @@ const CircularSlider = memo(function CircularSlider({
             </defs>
 
             <circle
-              stroke={darkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)'}
+              stroke={trackBgStroke}
               strokeLinecap="round"
               fill="none"
               strokeWidth={strokeWidth}
@@ -236,7 +252,7 @@ const CircularSlider = memo(function CircularSlider({
             />
 
             <circle
-              stroke={darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'}
+              stroke={trackBgStrokeMid}
               strokeLinecap="round"
               fill="none"
               strokeWidth={strokeWidth}
@@ -248,7 +264,7 @@ const CircularSlider = memo(function CircularSlider({
             />
 
             <circle
-              stroke={darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}
+              stroke={trackBgStrokeHalo}
               strokeLinecap="round"
               fill="none"
               strokeWidth={1}
@@ -260,7 +276,7 @@ const CircularSlider = memo(function CircularSlider({
             />
 
             <circle
-              stroke={darkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)'}
+              stroke={progressStroke}
               strokeLinecap="round"
               fill="none"
               strokeWidth={innerStrokeWidth}
@@ -291,9 +307,9 @@ const CircularSlider = memo(function CircularSlider({
                 transform: 'translate(-50%, -50%)',
                 width: 12,
                 height: 12,
-                borderRadius: '50%',
-                bgcolor: 'rgba(255, 149, 0, 0.2)',
-                border: '1.5px solid rgba(255, 149, 0, 0.5)',
+                borderRadius: RADIUS.circle,
+                bgcolor: accentAlpha(0.2),
+                border: `1.5px solid ${accentAlpha(0.5)}`,
                 zIndex: 1,
                 pointerEvents: 'none',
                 transition: 'left 0.05s linear',
@@ -310,21 +326,21 @@ const CircularSlider = memo(function CircularSlider({
             step={0.1}
             disabled={disabled}
             sx={{
-              color: '#FF9500',
+              color: ACCENT.main,
               height: 3,
               position: 'relative',
               zIndex: 2,
               '& .MuiSlider-thumb': {
                 width: 12,
                 height: 12,
-                boxShadow: '0 2px 6px rgba(255, 149, 0, 0.4)',
+                boxShadow: `0 2px 6px ${accentAlpha(0.4)}`,
                 '&:hover': {
-                  boxShadow: '0 4px 12px rgba(255, 149, 0, 0.6)',
+                  boxShadow: `0 4px 12px ${accentAlpha(0.6)}`,
                   width: 14,
                   height: 14,
                 },
                 '&:active': {
-                  boxShadow: '0 4px 12px rgba(255, 149, 0, 0.8)',
+                  boxShadow: `0 4px 12px ${accentAlpha(0.8)}`,
                 },
               },
               '& .MuiSlider-track': {
@@ -333,7 +349,7 @@ const CircularSlider = memo(function CircularSlider({
               },
               '& .MuiSlider-rail': {
                 height: 3,
-                opacity: darkMode ? 0.2 : 0.3,
+                opacity: palette.isDark ? 0.2 : 0.3,
               },
             }}
           />

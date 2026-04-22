@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import { listen, emit } from '../../utils/tauriCompat';
+import { FONT_WEIGHT, STATUS, TYPO, whiteAlpha } from '@styles';
+
+// TODO(style-migration): this journal window is intentionally always dark (it
+// mimics a terminal). Its bespoke grays (`#1a1a1a`, `#111`, `#d4d4d4`, `#555`,
+// `#888`, `#666`, `#f5f5f5`) have no direct palette equivalents; keep the
+// literals so the look matches a shell and only swap status colours for tokens.
 
 const MAX_LINES = 2000;
 
@@ -104,36 +110,40 @@ export default function JournalWindow(): React.ReactElement {
           gap: 1,
           px: 1.5,
           py: 0.75,
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          borderBottom: `1px solid ${whiteAlpha(0.1)}`,
           bgcolor: '#111',
           // Allow dragging the window from the toolbar
           WebkitAppRegion: 'drag',
         }}
       >
-        <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#f5f5f5', flex: 1 }}>
+        <Typography
+          sx={{ fontSize: TYPO.sm, fontWeight: FONT_WEIGHT.semibold, color: '#f5f5f5', flex: 1 }}
+        >
           Journal
           {streaming && (
             <Box
               component="span"
               sx={{
                 ml: 1,
-                fontSize: 10,
-                color: '#22c55e',
-                fontWeight: 400,
+                fontSize: TYPO.tiny,
+                color: STATUS.success,
+                fontWeight: FONT_WEIGHT.regular,
               }}
             >
               LIVE
             </Box>
           )}
         </Typography>
-        <Typography sx={{ fontSize: 10, color: '#666', mr: 1 }}>{lines.length} lines</Typography>
+        <Typography sx={{ fontSize: TYPO.tiny, color: '#666', mr: 1 }}>
+          {lines.length} lines
+        </Typography>
         <Button
           size="small"
           onClick={handleCopy}
           disabled={lines.length === 0}
           sx={{
-            fontSize: 10,
-            color: copied ? '#22c55e' : '#888',
+            fontSize: TYPO.tiny,
+            color: copied ? STATUS.success : '#888',
             textTransform: 'none',
             minWidth: 0,
             py: 0.25,
@@ -148,7 +158,7 @@ export default function JournalWindow(): React.ReactElement {
           size="small"
           onClick={handleClear}
           sx={{
-            fontSize: 10,
+            fontSize: TYPO.tiny,
             color: '#888',
             textTransform: 'none',
             minWidth: 0,
@@ -165,13 +175,14 @@ export default function JournalWindow(): React.ReactElement {
             size="small"
             onClick={handleStop}
             sx={{
-              fontSize: 10,
-              color: '#ef4444',
+              fontSize: TYPO.tiny,
+              color: STATUS.error,
               textTransform: 'none',
               minWidth: 0,
               py: 0.25,
               px: 1,
               WebkitAppRegion: 'no-drag',
+              // TODO(style-migration): darker hover shade for error lacks a token.
               '&:hover': { color: '#dc2626' },
             }}
           >
@@ -189,7 +200,7 @@ export default function JournalWindow(): React.ReactElement {
           overflow: 'auto',
           px: 1.5,
           py: 1,
-          fontSize: 11,
+          fontSize: TYPO.xs,
           lineHeight: 1.6,
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-all',
@@ -198,13 +209,13 @@ export default function JournalWindow(): React.ReactElement {
           cursor: 'text',
           '&::-webkit-scrollbar': { width: 6 },
           '&::-webkit-scrollbar-thumb': {
-            bgcolor: 'rgba(255,255,255,0.15)',
+            bgcolor: whiteAlpha(0.15),
             borderRadius: 3,
           },
         }}
       >
         {lines.length === 0 ? (
-          <Typography sx={{ fontSize: 11, color: '#555', fontStyle: 'italic' }}>
+          <Typography sx={{ fontSize: TYPO.xs, color: '#555', fontStyle: 'italic' }}>
             Waiting for journal data...
           </Typography>
         ) : (

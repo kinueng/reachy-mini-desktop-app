@@ -10,6 +10,16 @@ import reachyUpdateBoxSvg from '../../assets/reachy-update-box.svg';
 import { invoke } from '@tauri-apps/api/core';
 import { logSuccess } from '../../utils/logging';
 import { useToast } from '../../hooks/useToast';
+import {
+  ACCENT,
+  STATUS,
+  STATUS_TEXT,
+  DANGER,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, BLUR, scrollbarSx } from '@styles';
 
 import {
   SettingsUpdateCard,
@@ -32,14 +42,15 @@ type TrackedWebSocket = WebSocket & { _lastStatus?: UpdateJobStatus };
 export interface SettingsOverlayProps {
   open: boolean;
   onClose: () => void;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
 }
 
 export default function SettingsOverlay({
   open,
   onClose,
-  darkMode,
 }: SettingsOverlayProps): React.ReactElement {
+  const palette = useAppPalette();
   const { connectionMode, remoteHost, resetAll, clearApps } = useAppStore();
   const isWifiMode = connectionMode === 'wifi';
 
@@ -64,8 +75,8 @@ export default function SettingsOverlay({
     }
   };
 
-  const textPrimary = darkMode ? '#f5f5f5' : '#333';
-  const textMuted = darkMode ? '#666' : '#999';
+  const textPrimary = palette.textPrimary;
+  const textMuted = palette.textMuted;
 
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
@@ -534,17 +545,17 @@ export default function SettingsOverlay({
     }
   }, [preRelease]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const textSecondary = darkMode ? '#888' : '#666';
+  const textSecondary = palette.textSecondary;
 
   const inputStyles = {
     '& .MuiOutlinedInput-root': {
-      bgcolor: darkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.02)',
-      borderRadius: '10px',
+      bgcolor: palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.02),
+      borderRadius: RADIUS.lg,
       '& fieldset': {
-        borderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+        borderColor: palette.border,
       },
       '&:hover fieldset': {
-        borderColor: darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)',
+        borderColor: palette.borderStrong,
       },
       '&.Mui-focused fieldset': {
         borderColor: 'primary.main',
@@ -553,14 +564,14 @@ export default function SettingsOverlay({
     },
     '& .MuiInputLabel-root': {
       color: textSecondary,
-      fontSize: 13,
+      fontSize: TYPO.body,
       '&.Mui-focused': {
         color: 'primary.main',
       },
     },
     '& .MuiInputBase-input': {
       color: textPrimary,
-      fontSize: 13,
+      fontSize: TYPO.body,
     },
     '& .MuiSelect-icon': {
       color: textMuted,
@@ -574,20 +585,22 @@ export default function SettingsOverlay({
     textTransform: 'none' as const,
     '&:hover': {
       borderColor: 'primary.dark',
+      // TODO(style-migration): `rgba(99, 102, 241, 0.08)` is an indigo tint
+      // that doesn't match the app accent. Kept verbatim pending clarification.
       bgcolor: 'rgba(99, 102, 241, 0.08)',
     },
     '&:disabled': {
-      borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-      color: darkMode ? '#555' : '#bbb',
+      borderColor: palette.border,
+      color: palette.textDisabled,
     },
   };
 
   const cardStyle = {
     p: 2.5,
-    borderRadius: '16px',
-    bgcolor: darkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.8)',
-    border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'}`,
-    backdropFilter: 'blur(10px)',
+    borderRadius: RADIUS.xxl,
+    bgcolor: palette.isDark ? whiteAlpha(0.03) : 'rgba(255, 255, 255, 0.8)',
+    border: `1px solid ${palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.06)}`,
+    backdropFilter: BLUR.md,
   };
 
   const handleOverlayClose = useCallback((): void => {
@@ -601,7 +614,7 @@ export default function SettingsOverlay({
     <FullscreenOverlay
       open={open}
       onClose={handleOverlayClose}
-      darkMode={darkMode}
+      darkMode={palette.isDark}
       zIndex={10001}
       centeredX={true}
       debugName="Settings"
@@ -613,12 +626,7 @@ export default function SettingsOverlay({
           width: '100%',
           maxHeight: '85vh',
           overflowY: 'auto',
-          '&::-webkit-scrollbar': { width: 6 },
-          '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
-          '&::-webkit-scrollbar-thumb': {
-            bgcolor: darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
-            borderRadius: 3,
-          },
+          ...scrollbarSx(palette, { thumb: palette.borderStrong }),
         }}
       >
         <Box
@@ -641,8 +649,8 @@ export default function SettingsOverlay({
           >
             <Typography
               sx={{
-                fontSize: 20,
-                fontWeight: 700,
+                fontSize: TYPO.xxl,
+                fontWeight: FONT_WEIGHT.bold,
                 color: textPrimary,
                 letterSpacing: '-0.3px',
               }}
@@ -652,13 +660,13 @@ export default function SettingsOverlay({
             {connectionMode && (
               <Typography
                 sx={{
-                  fontSize: 11,
-                  fontWeight: 600,
+                  fontSize: TYPO.xs,
+                  fontWeight: FONT_WEIGHT.semibold,
                   color: textMuted,
-                  bgcolor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                  bgcolor: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05),
                   px: 1,
                   py: 0.25,
-                  borderRadius: '4px',
+                  borderRadius: RADIUS.xs,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                 }}
@@ -673,7 +681,7 @@ export default function SettingsOverlay({
             {isWifiMode && remoteHost && (
               <Typography
                 sx={{
-                  fontSize: 11,
+                  fontSize: TYPO.xs,
                   color: textMuted,
                   fontFamily: 'monospace',
                 }}
@@ -691,7 +699,7 @@ export default function SettingsOverlay({
             }}
           >
             <SettingsUpdateCard
-              darkMode={darkMode}
+              darkMode={palette.isDark}
               title={isWifiMode ? 'System Update' : 'Daemon Update'}
               updateInfo={updateInfo}
               isCheckingUpdate={isCheckingUpdate}
@@ -707,7 +715,7 @@ export default function SettingsOverlay({
 
             {isWifiMode ? (
               <SettingsWifiCard
-                darkMode={darkMode}
+                darkMode={palette.isDark}
                 wifiStatus={wifiStatus}
                 isLoadingWifi={isLoadingWifi}
                 onRefresh={fetchWifiStatus}
@@ -716,16 +724,16 @@ export default function SettingsOverlay({
                 cardStyle={cardStyle}
               />
             ) : (
-              <SettingsDaemonCard darkMode={darkMode} cardStyle={cardStyle} />
+              <SettingsDaemonCard darkMode={palette.isDark} cardStyle={cardStyle} />
             )}
 
-            <SettingsPreferencesCard darkMode={darkMode} cardStyle={cardStyle} />
+            <SettingsPreferencesCard darkMode={palette.isDark} cardStyle={cardStyle} />
 
             {isWifiMode ? (
-              <SettingsDaemonCard darkMode={darkMode} cardStyle={cardStyle} />
+              <SettingsDaemonCard darkMode={palette.isDark} cardStyle={cardStyle} />
             ) : (
               <SettingsCacheCard
-                darkMode={darkMode}
+                darkMode={palette.isDark}
                 cardStyle={cardStyle}
                 buttonStyle={buttonStyle}
                 onResetAppsClick={handleResetAppsClick}
@@ -735,7 +743,7 @@ export default function SettingsOverlay({
 
             {isWifiMode && (
               <SettingsCacheCard
-                darkMode={darkMode}
+                darkMode={palette.isDark}
                 cardStyle={cardStyle}
                 buttonStyle={buttonStyle}
                 onResetAppsClick={handleResetAppsClick}
@@ -749,7 +757,7 @@ export default function SettingsOverlay({
       <FullscreenOverlay
         open={showUpdateConfirm}
         onClose={() => setShowUpdateConfirm(false)}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         zIndex={10003}
         backdropOpacity={0.85}
         debugName="UpdateConfirm"
@@ -778,7 +786,7 @@ export default function SettingsOverlay({
           <Typography
             variant="h5"
             sx={{
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               color: 'text.primary',
               mb: 2,
             }}
@@ -789,21 +797,19 @@ export default function SettingsOverlay({
           <Typography
             sx={{
               color: 'text.secondary',
-              fontSize: 14,
+              fontSize: TYPO.md,
               lineHeight: 1.6,
               mb: 4,
             }}
           >
             Update to{' '}
-            <strong style={{ color: darkMode ? '#fff' : '#333' }}>
-              {updateInfo?.available_version}
-            </strong>
+            <strong style={{ color: palette.textPrimary }}>{updateInfo?.available_version}</strong>
             <br />
             <br />
             {isWifiMode ? (
               <>
                 The robot will restart and you will be{' '}
-                <strong style={{ color: darkMode ? '#fff' : '#333' }}>disconnected</strong>.
+                <strong style={{ color: palette.textPrimary }}>disconnected</strong>.
                 <br />
                 Reconnect after ~2 minutes when complete.
               </>
@@ -812,7 +818,7 @@ export default function SettingsOverlay({
                 The daemon will restart automatically.
                 <br />
                 This will take{' '}
-                <strong style={{ color: darkMode ? '#fff' : '#333' }}>
+                <strong style={{ color: palette.textPrimary }}>
                   between 30 seconds and 5 minutes
                 </strong>
                 .
@@ -825,17 +831,17 @@ export default function SettingsOverlay({
               sx={{
                 mb: 4,
                 p: 2,
-                borderRadius: '12px',
-                bgcolor: darkMode ? 'rgba(255, 152, 0, 0.15)' : 'rgba(255, 152, 0, 0.1)',
-                border: `1px solid ${darkMode ? 'rgba(255, 152, 0, 0.3)' : 'rgba(255, 152, 0, 0.2)'}`,
+                borderRadius: RADIUS.xl,
+                bgcolor: palette.isDark ? accentAlpha(0.15) : accentAlpha(0.1),
+                border: `1px solid ${palette.isDark ? accentAlpha(0.3) : accentAlpha(0.2)}`,
                 textAlign: 'center',
               }}
             >
               <Typography
                 sx={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: darkMode ? '#FFB74D' : '#F57C00',
+                  fontSize: TYPO.body,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  color: palette.isDark ? ACCENT.light : ACCENT.dark,
                   mb: 0.5,
                 }}
               >
@@ -843,8 +849,8 @@ export default function SettingsOverlay({
               </Typography>
               <Typography
                 sx={{
-                  fontSize: 12,
-                  color: darkMode ? '#FFB74D' : '#F57C00',
+                  fontSize: TYPO.sm,
+                  color: palette.isDark ? ACCENT.light : ACCENT.dark,
                   lineHeight: 1.5,
                 }}
               >
@@ -871,7 +877,7 @@ export default function SettingsOverlay({
             >
               Cancel
             </Button>
-            <PulseButton onClick={confirmUpdate} darkMode={darkMode} sx={{ minWidth: 160 }}>
+            <PulseButton onClick={confirmUpdate} darkMode={palette.isDark} sx={{ minWidth: 160 }}>
               Update now
             </PulseButton>
           </Box>
@@ -881,7 +887,7 @@ export default function SettingsOverlay({
       <FullscreenOverlay
         open={showClearNetworksConfirm}
         onClose={() => setShowClearNetworksConfirm(false)}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         zIndex={10003}
         backdropOpacity={0.85}
         debugName="ClearNetworksConfirm"
@@ -907,22 +913,22 @@ export default function SettingsOverlay({
               sx={{
                 width: 80,
                 height: 80,
-                borderRadius: '50%',
-                bgcolor: darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-                border: `2px solid ${darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+                borderRadius: RADIUS.circle,
+                bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+                border: `2px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <ErrorOutlineIcon sx={{ fontSize: 40, color: '#ef4444' }} />
+              <ErrorOutlineIcon sx={{ fontSize: TYPO.hero, color: STATUS.error }} />
             </Box>
           </Box>
 
           <Typography
             variant="h5"
             sx={{
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               color: 'text.primary',
               mb: 2,
             }}
@@ -933,7 +939,7 @@ export default function SettingsOverlay({
           <Typography
             sx={{
               color: 'text.secondary',
-              fontSize: 14,
+              fontSize: TYPO.md,
               lineHeight: 1.6,
               mb: 3,
             }}
@@ -945,17 +951,17 @@ export default function SettingsOverlay({
             sx={{
               mb: 4,
               p: 2,
-              borderRadius: '12px',
-              bgcolor: darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-              border: `1px solid ${darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+              borderRadius: RADIUS.xl,
+              bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+              border: `1px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
               textAlign: 'center',
             }}
           >
             <Typography
               sx={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: darkMode ? '#fca5a5' : '#dc2626',
+                fontSize: TYPO.body,
+                fontWeight: FONT_WEIGHT.semibold,
+                color: palette.statusErrorText,
                 mb: 0.5,
               }}
             >
@@ -963,8 +969,8 @@ export default function SettingsOverlay({
             </Typography>
             <Typography
               sx={{
-                fontSize: 12,
-                color: darkMode ? '#fca5a5' : '#dc2626',
+                fontSize: TYPO.sm,
+                color: palette.statusErrorText,
                 lineHeight: 1.5,
                 mb: 1,
               }}
@@ -974,8 +980,8 @@ export default function SettingsOverlay({
             </Typography>
             <Typography
               sx={{
-                fontSize: 11,
-                color: darkMode ? 'rgba(252, 165, 165, 0.7)' : 'rgba(220, 38, 38, 0.7)',
+                fontSize: TYPO.xs,
+                color: palette.isDark ? 'rgba(252, 165, 165, 0.7)' : 'rgba(220, 38, 38, 0.7)',
                 lineHeight: 1.5,
                 fontStyle: 'italic',
               }}
@@ -1008,16 +1014,16 @@ export default function SettingsOverlay({
               disabled={isClearingNetworks}
               sx={{
                 minWidth: 160,
-                bgcolor: '#ef4444',
+                bgcolor: STATUS.error,
                 color: '#fff',
                 textTransform: 'none',
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 '&:hover': {
-                  bgcolor: '#dc2626',
+                  bgcolor: DANGER.dark,
                 },
                 '&:disabled': {
-                  bgcolor: darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
-                  color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.8)',
+                  bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
+                  color: palette.isDark ? whiteAlpha(0.5) : whiteAlpha(0.8),
                 },
               }}
             >
@@ -1034,7 +1040,7 @@ export default function SettingsOverlay({
       <FullscreenOverlay
         open={showResetAppsConfirm}
         onClose={() => setShowResetAppsConfirm(false)}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         zIndex={10003}
         backdropOpacity={0.85}
         debugName="ResetAppsConfirm"
@@ -1060,22 +1066,22 @@ export default function SettingsOverlay({
               sx={{
                 width: 80,
                 height: 80,
-                borderRadius: '50%',
-                bgcolor: darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-                border: `2px solid ${darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+                borderRadius: RADIUS.circle,
+                bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+                border: `2px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <ErrorOutlineIcon sx={{ fontSize: 40, color: '#ef4444' }} />
+              <ErrorOutlineIcon sx={{ fontSize: TYPO.hero, color: STATUS.error }} />
             </Box>
           </Box>
 
           <Typography
             variant="h5"
             sx={{
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               color: 'text.primary',
               mb: 2,
             }}
@@ -1086,13 +1092,13 @@ export default function SettingsOverlay({
           <Typography
             sx={{
               color: 'text.secondary',
-              fontSize: 14,
+              fontSize: TYPO.md,
               lineHeight: 1.6,
               mb: 3,
             }}
           >
             This will{' '}
-            <strong style={{ color: darkMode ? '#fff' : '#333' }}>
+            <strong style={{ color: palette.textPrimary }}>
               remove all installed applications
             </strong>{' '}
             from the robot. You will need to reinstall them individually from the app store.
@@ -1121,16 +1127,16 @@ export default function SettingsOverlay({
               disabled={isResettingApps}
               sx={{
                 minWidth: 160,
-                bgcolor: '#ef4444',
+                bgcolor: STATUS.error,
                 color: '#fff',
                 textTransform: 'none',
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 '&:hover': {
-                  bgcolor: '#dc2626',
+                  bgcolor: DANGER.dark,
                 },
                 '&:disabled': {
-                  bgcolor: darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
-                  color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.8)',
+                  bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
+                  color: palette.isDark ? whiteAlpha(0.5) : whiteAlpha(0.8),
                 },
               }}
             >
@@ -1143,7 +1149,7 @@ export default function SettingsOverlay({
       <FullscreenOverlay
         open={showResetAppsVenvConfirm}
         onClose={() => setShowResetAppsVenvConfirm(false)}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         zIndex={10003}
         backdropOpacity={0.85}
         debugName="ResetAppsVenvConfirm"
@@ -1155,23 +1161,26 @@ export default function SettingsOverlay({
               sx={{
                 width: 80,
                 height: 80,
-                borderRadius: '50%',
-                bgcolor: darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-                border: `2px solid ${darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+                borderRadius: RADIUS.circle,
+                bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+                border: `2px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <ErrorOutlineIcon sx={{ fontSize: 40, color: '#ef4444' }} />
+              <ErrorOutlineIcon sx={{ fontSize: TYPO.hero, color: STATUS.error }} />
             </Box>
           </Box>
-          <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
+          <Typography
+            variant="h5"
+            sx={{ fontWeight: FONT_WEIGHT.semibold, color: 'text.primary', mb: 2 }}
+          >
             Reset Apps Environment?
           </Typography>
-          <Typography sx={{ color: 'text.secondary', fontSize: 14, lineHeight: 1.6, mb: 3 }}>
+          <Typography sx={{ color: 'text.secondary', fontSize: TYPO.md, lineHeight: 1.6, mb: 3 }}>
             This will{' '}
-            <strong style={{ color: darkMode ? '#fff' : '#333' }}>
+            <strong style={{ color: palette.textPrimary }}>
               delete the apps virtual environment
             </strong>
             . All installed apps will need to be reinstalled. The daemon will restart.
@@ -1196,14 +1205,14 @@ export default function SettingsOverlay({
               disabled={isResettingAppsVenv}
               sx={{
                 minWidth: 160,
-                bgcolor: '#ef4444',
+                bgcolor: STATUS.error,
                 color: '#fff',
                 textTransform: 'none',
-                fontWeight: 600,
-                '&:hover': { bgcolor: '#dc2626' },
+                fontWeight: FONT_WEIGHT.semibold,
+                '&:hover': { bgcolor: DANGER.dark },
                 '&:disabled': {
-                  bgcolor: darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
-                  color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.8)',
+                  bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
+                  color: palette.isDark ? whiteAlpha(0.5) : whiteAlpha(0.8),
                 },
               }}
             >
@@ -1220,7 +1229,7 @@ export default function SettingsOverlay({
       <FullscreenOverlay
         open={showResetPythonEnvConfirm}
         onClose={() => setShowResetPythonEnvConfirm(false)}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         zIndex={10003}
         backdropOpacity={0.85}
         debugName="ResetPythonEnvConfirm"
@@ -1232,37 +1241,40 @@ export default function SettingsOverlay({
               sx={{
                 width: 80,
                 height: 80,
-                borderRadius: '50%',
-                bgcolor: darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-                border: `2px solid ${darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+                borderRadius: RADIUS.circle,
+                bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+                border: `2px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <ErrorOutlineIcon sx={{ fontSize: 40, color: '#ef4444' }} />
+              <ErrorOutlineIcon sx={{ fontSize: TYPO.hero, color: STATUS.error }} />
             </Box>
           </Box>
-          <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
+          <Typography
+            variant="h5"
+            sx={{ fontWeight: FONT_WEIGHT.semibold, color: 'text.primary', mb: 2 }}
+          >
             Full Environment Reset?
           </Typography>
-          <Typography sx={{ color: 'text.secondary', fontSize: 14, lineHeight: 1.6, mb: 2 }}>
+          <Typography sx={{ color: 'text.secondary', fontSize: TYPO.md, lineHeight: 1.6, mb: 2 }}>
             This will{' '}
-            <strong style={{ color: darkMode ? '#fff' : '#333' }}>
+            <strong style={{ color: palette.textPrimary }}>
               delete all Python files, virtual environments, and the package manager
             </strong>
             . Everything will be re-downloaded on next connection.
           </Typography>
           <Typography
             sx={{
-              color: '#ef4444',
-              fontSize: 13,
-              fontWeight: 500,
+              color: STATUS.error,
+              fontSize: TYPO.body,
+              fontWeight: FONT_WEIGHT.medium,
               mb: 3,
               p: 1.5,
-              borderRadius: '8px',
-              bgcolor: darkMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
-              border: `1px solid ${darkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.15)'}`,
+              borderRadius: RADIUS.md,
+              bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+              border: `1px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.15)'}`,
             }}
           >
             This will require a full re-setup which may take a few minutes.
@@ -1287,14 +1299,14 @@ export default function SettingsOverlay({
               disabled={isResettingPythonEnv}
               sx={{
                 minWidth: 160,
-                bgcolor: '#ef4444',
+                bgcolor: STATUS.error,
                 color: '#fff',
                 textTransform: 'none',
-                fontWeight: 600,
-                '&:hover': { bgcolor: '#dc2626' },
+                fontWeight: FONT_WEIGHT.semibold,
+                '&:hover': { bgcolor: DANGER.dark },
                 '&:disabled': {
-                  bgcolor: darkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
-                  color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.8)',
+                  bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
+                  color: palette.isDark ? whiteAlpha(0.5) : whiteAlpha(0.8),
                 },
               }}
             >
@@ -1316,7 +1328,7 @@ export default function SettingsOverlay({
           setWifiPassword('');
           setWifiError(null);
         }}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         wifiStatus={wifiStatus}
         availableNetworks={availableNetworks}
         selectedSSID={selectedSSID}
@@ -1332,7 +1344,7 @@ export default function SettingsOverlay({
       <WifiConnectingOverlay
         open={wifiConnectingTo !== null}
         targetSsid={wifiConnectingTo ?? ''}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         onTimeout={handleWifiConnectingTimeout}
       />
 
@@ -1340,7 +1352,7 @@ export default function SettingsOverlay({
         <FullscreenOverlay
           open={isUpdating}
           onClose={() => {}}
-          darkMode={darkMode}
+          darkMode={palette.isDark}
           zIndex={10004}
           backdropOpacity={0.95}
           debugName="UpdateProgress"
@@ -1365,9 +1377,9 @@ export default function SettingsOverlay({
                 sx={{
                   width: 80,
                   height: 80,
-                  borderRadius: '50%',
-                  bgcolor: darkMode ? 'rgba(255, 149, 0, 0.15)' : 'rgba(255, 149, 0, 0.1)',
-                  border: `2px solid ${darkMode ? 'rgba(255, 149, 0, 0.3)' : 'rgba(255, 149, 0, 0.2)'}`,
+                  borderRadius: RADIUS.circle,
+                  bgcolor: palette.isDark ? accentAlpha(0.15) : accentAlpha(0.1),
+                  border: `2px solid ${palette.isDark ? accentAlpha(0.3) : accentAlpha(0.2)}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1375,13 +1387,13 @@ export default function SettingsOverlay({
                 }}
               >
                 {updateJobStatus === 'done' ? (
-                  <CheckCircleOutlinedIcon sx={{ fontSize: 40, color: '#10b981' }} />
+                  <CheckCircleOutlinedIcon sx={{ fontSize: TYPO.hero, color: STATUS.success }} />
                 ) : updateJobStatus === 'failed' ? (
-                  <ErrorOutlineIcon sx={{ fontSize: 40, color: '#ef4444' }} />
+                  <ErrorOutlineIcon sx={{ fontSize: TYPO.hero, color: STATUS.error }} />
                 ) : updateJobStatus === 'restarting' ? (
-                  <CircularProgress size={32} thickness={3} sx={{ color: '#10b981' }} />
+                  <CircularProgress size={32} thickness={3} sx={{ color: STATUS.success }} />
                 ) : (
-                  <CircularProgress size={32} thickness={3} sx={{ color: '#FF9500' }} />
+                  <CircularProgress size={32} thickness={3} sx={{ color: ACCENT.main }} />
                 )}
               </Box>
             </Box>
@@ -1389,7 +1401,7 @@ export default function SettingsOverlay({
             <Typography
               variant="h5"
               sx={{
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 color: 'text.primary',
                 mb: 1,
                 textAlign: 'center',
@@ -1407,7 +1419,7 @@ export default function SettingsOverlay({
             <Typography
               sx={{
                 color: 'text.secondary',
-                fontSize: 14,
+                fontSize: TYPO.md,
                 lineHeight: 1.6,
                 mb: 3,
                 textAlign: 'center',
@@ -1429,29 +1441,22 @@ export default function SettingsOverlay({
               sx={{
                 mb: 3,
                 p: 2,
-                borderRadius: '12px',
-                bgcolor: darkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.05)',
-                border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+                borderRadius: RADIUS.xl,
+                bgcolor: palette.isDark ? blackAlpha(0.3) : blackAlpha(0.05),
+                border: `1px solid ${palette.border}`,
                 height: 220,
                 overflowY: 'auto',
                 fontFamily: 'monospace',
-                fontSize: 12,
+                fontSize: TYPO.sm,
                 lineHeight: 1.6,
-                color: darkMode ? '#aaa' : '#666',
-                '&::-webkit-scrollbar': {
-                  width: '8px',
-                },
-                '&::-webkit-scrollbar-track': {
-                  bgcolor: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
-                  borderRadius: '4px',
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  bgcolor: darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
-                  borderRadius: '4px',
-                  '&:hover': {
-                    bgcolor: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
-                  },
-                },
+                color: palette.textSecondary,
+                ...scrollbarSx(palette, {
+                  width: 8,
+                  radius: 4,
+                  thumb: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
+                  thumbHover: palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3),
+                  track: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05),
+                }),
               }}
             >
               {updateLogs.length > 0 ? (
@@ -1473,17 +1478,19 @@ export default function SettingsOverlay({
                 <Box
                   sx={{
                     p: 2,
-                    borderRadius: '12px',
-                    bgcolor: darkMode ? 'rgba(251, 191, 36, 0.15)' : 'rgba(251, 191, 36, 0.1)',
-                    border: `1px solid ${darkMode ? 'rgba(251, 191, 36, 0.3)' : 'rgba(251, 191, 36, 0.2)'}`,
+                    borderRadius: RADIUS.xl,
+                    bgcolor: palette.isDark
+                      ? 'rgba(251, 191, 36, 0.15)'
+                      : 'rgba(251, 191, 36, 0.1)',
+                    border: `1px solid ${palette.isDark ? 'rgba(251, 191, 36, 0.3)' : 'rgba(251, 191, 36, 0.2)'}`,
                     textAlign: 'center',
                   }}
                 >
                   <Typography
                     sx={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: darkMode ? '#fbbf24' : '#d97706',
+                      fontSize: TYPO.body,
+                      fontWeight: FONT_WEIGHT.semibold,
+                      color: palette.isDark ? '#fbbf24' : '#d97706',
                       mb: 0.5,
                     }}
                   >
@@ -1491,8 +1498,8 @@ export default function SettingsOverlay({
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: 12,
-                      color: darkMode ? '#fbbf24' : '#d97706',
+                      fontSize: TYPO.sm,
+                      color: palette.isDark ? '#fbbf24' : '#d97706',
                       lineHeight: 1.5,
                     }}
                   >

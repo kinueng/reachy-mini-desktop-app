@@ -14,6 +14,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import useWebRTCStream, { StreamState } from '../../hooks/media/useWebRTCStream';
 import FullscreenOverlayUntyped from '../FullscreenOverlay';
 import type React from 'react';
+import { ACCENT, STATUS, accentAlpha, whiteAlpha } from '@styles/tokens';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, DURATION, transition } from '@styles';
 
 // TODO(ts): FullscreenOverlay lives outside this agent's migration scope; cast locally
 // to a React.FC shape that matches the runtime call signature we use.
@@ -29,6 +31,7 @@ const FullscreenOverlay = FullscreenOverlayUntyped as unknown as React.FC<{
 
 export interface CameraStreamProps {
   robotHost: string | null | undefined;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   autoConnect?: boolean;
   onClose?: () => void;
@@ -39,10 +42,10 @@ export interface CameraStreamProps {
  */
 export default function CameraStream({
   robotHost,
-  darkMode = true,
   autoConnect = false,
   onClose,
 }: CameraStreamProps) {
+  const palette = useAppPalette();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showControls, setShowControls] = useState<boolean>(true);
@@ -90,11 +93,6 @@ export default function CameraStream({
     setIsFullscreen(!isFullscreen);
   };
 
-  // Colors based on theme
-  const bgColor = darkMode ? 'rgba(0, 0, 0, 0.95)' : 'rgba(255, 255, 255, 0.95)';
-  const textColor = darkMode ? '#fff' : '#333';
-  const mutedColor = darkMode ? '#888' : '#666';
-
   const videoContent = (
     <Box
       onMouseMove={handleMouseMove}
@@ -107,7 +105,7 @@ export default function CameraStream({
         alignItems: 'center',
         justifyContent: 'center',
         bgcolor: '#000',
-        borderRadius: isFullscreen ? 0 : '12px',
+        borderRadius: isFullscreen ? 0 : RADIUS.xl,
         overflow: 'hidden',
       }}
     >
@@ -136,8 +134,8 @@ export default function CameraStream({
             gap: 2,
           }}
         >
-          <CircularProgress size={40} sx={{ color: '#FF9500' }} />
-          <Typography sx={{ color: '#fff', fontSize: 14 }}>Connecting to camera...</Typography>
+          <CircularProgress size={40} sx={{ color: ACCENT.main }} />
+          <Typography sx={{ color: '#fff', fontSize: TYPO.md }}>Connecting to camera...</Typography>
         </Box>
       )}
 
@@ -151,14 +149,16 @@ export default function CameraStream({
             gap: 2,
           }}
         >
-          <VideocamOffIcon sx={{ fontSize: 48, color: mutedColor }} />
-          <Typography sx={{ color: mutedColor, fontSize: 14 }}>Camera disconnected</Typography>
+          <VideocamOffIcon sx={{ fontSize: 48, color: palette.textMuted }} />
+          <Typography sx={{ color: palette.textMuted, fontSize: TYPO.md }}>
+            Camera disconnected
+          </Typography>
           <IconButton
             onClick={connect}
             sx={{
-              color: '#FF9500',
-              border: '1px solid #FF9500',
-              '&:hover': { bgcolor: 'rgba(255, 149, 0, 0.1)' },
+              color: ACCENT.main,
+              border: `1px solid ${ACCENT.main}`,
+              '&:hover': { bgcolor: accentAlpha(0.1) },
             }}
           >
             <RefreshIcon />
@@ -177,16 +177,16 @@ export default function CameraStream({
             p: 3,
           }}
         >
-          <VideocamOffIcon sx={{ fontSize: 48, color: '#ef4444' }} />
-          <Typography sx={{ color: '#ef4444', fontSize: 14, textAlign: 'center' }}>
+          <VideocamOffIcon sx={{ fontSize: 48, color: STATUS.error }} />
+          <Typography sx={{ color: STATUS.error, fontSize: TYPO.md, textAlign: 'center' }}>
             {error || 'Connection failed'}
           </Typography>
           <IconButton
             onClick={connect}
             sx={{
-              color: '#FF9500',
-              border: '1px solid #FF9500',
-              '&:hover': { bgcolor: 'rgba(255, 149, 0, 0.1)' },
+              color: ACCENT.main,
+              border: `1px solid ${ACCENT.main}`,
+              '&:hover': { bgcolor: accentAlpha(0.1) },
             }}
           >
             <RefreshIcon />
@@ -216,8 +216,12 @@ export default function CameraStream({
               sx={{
                 width: 8,
                 height: 8,
-                borderRadius: '50%',
-                bgcolor: isConnected ? '#22c55e' : isConnecting ? '#f59e0b' : '#ef4444',
+                borderRadius: RADIUS.circle,
+                bgcolor: isConnected
+                  ? STATUS.success
+                  : isConnecting
+                    ? STATUS.warning
+                    : STATUS.error,
                 animation: isConnecting ? 'pulse 1.5s infinite' : 'none',
                 '@keyframes pulse': {
                   '0%, 100%': { opacity: 1 },
@@ -225,7 +229,7 @@ export default function CameraStream({
                 },
               }}
             />
-            <Typography sx={{ color: '#fff', fontSize: 12, fontWeight: 500 }}>
+            <Typography sx={{ color: '#fff', fontSize: TYPO.sm, fontWeight: FONT_WEIGHT.medium }}>
               {isConnected ? 'Live' : isConnecting ? 'Connecting...' : 'Offline'}
             </Typography>
           </Box>
@@ -237,14 +241,14 @@ export default function CameraStream({
               size="small"
               sx={{
                 color: '#fff',
-                bgcolor: 'rgba(255,255,255,0.1)',
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' },
+                bgcolor: whiteAlpha(0.1),
+                '&:hover': { bgcolor: whiteAlpha(0.2) },
               }}
             >
               {isFullscreen ? (
-                <FullscreenExitIcon sx={{ fontSize: 20 }} />
+                <FullscreenExitIcon sx={{ fontSize: TYPO.xxl }} />
               ) : (
-                <FullscreenIcon sx={{ fontSize: 20 }} />
+                <FullscreenIcon sx={{ fontSize: TYPO.xxl }} />
               )}
             </IconButton>
             <IconButton
@@ -252,11 +256,11 @@ export default function CameraStream({
               size="small"
               sx={{
                 color: '#fff',
-                bgcolor: 'rgba(255,255,255,0.1)',
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' },
+                bgcolor: whiteAlpha(0.1),
+                '&:hover': { bgcolor: whiteAlpha(0.2) },
               }}
             >
-              <CloseIcon sx={{ fontSize: 20 }} />
+              <CloseIcon sx={{ fontSize: TYPO.xxl }} />
             </IconButton>
           </Box>
         </Box>
@@ -270,7 +274,6 @@ export default function CameraStream({
       <FullscreenOverlay
         open={true}
         onClose={() => setIsFullscreen(false)}
-        darkMode={darkMode}
         zIndex={10005}
         centeredX={true}
         centeredY={true}
@@ -286,6 +289,7 @@ export default function CameraStream({
 export interface CameraButtonProps {
   onClick: () => void;
   isActive?: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
   darkMode?: boolean;
   disabled?: boolean;
 }
@@ -293,12 +297,8 @@ export interface CameraButtonProps {
 /**
  * Camera button to toggle stream visibility
  */
-export function CameraButton({
-  onClick,
-  isActive = false,
-  darkMode = true,
-  disabled = false,
-}: CameraButtonProps) {
+export function CameraButton({ onClick, isActive = false, disabled = false }: CameraButtonProps) {
+  const palette = useAppPalette();
   return (
     <IconButton
       onClick={onClick}
@@ -307,25 +307,25 @@ export function CameraButton({
       sx={{
         width: 32,
         height: 32,
-        transition: 'all 0.2s ease',
+        transition: transition('all', DURATION.base),
         color: isActive ? '#fff' : 'primary.main',
         bgcolor: isActive ? 'primary.main' : 'transparent',
         border: '1px solid',
         borderColor: 'primary.main',
         '&:hover': {
           borderColor: 'primary.dark',
-          bgcolor: isActive ? 'primary.dark' : 'rgba(255, 149, 0, 0.08)',
+          bgcolor: isActive ? 'primary.dark' : accentAlpha(0.08),
         },
         '&:disabled': {
-          borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-          color: darkMode ? '#555' : '#bbb',
+          borderColor: palette.border,
+          color: palette.textDisabled,
         },
       }}
     >
       {isActive ? (
-        <VideocamIcon sx={{ fontSize: 20 }} />
+        <VideocamIcon sx={{ fontSize: TYPO.xxl }} />
       ) : (
-        <VideocamOffIcon sx={{ fontSize: 20 }} />
+        <VideocamOffIcon sx={{ fontSize: TYPO.xxl }} />
       )}
     </IconButton>
   );

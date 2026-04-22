@@ -6,6 +6,8 @@ import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import NewReleasesOutlinedIcon from '@mui/icons-material/NewReleasesOutlined';
 import SectionHeader from './SectionHeader';
+import { STATUS } from '@styles/tokens';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS } from '@styles';
 
 export interface UpdateInfo {
   is_available?: boolean;
@@ -15,7 +17,8 @@ export interface UpdateInfo {
 }
 
 export interface SettingsUpdateCardProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   title?: string;
   updateInfo: UpdateInfo | null;
   isCheckingUpdate: boolean;
@@ -30,7 +33,6 @@ export interface SettingsUpdateCardProps {
 }
 
 export default function SettingsUpdateCard({
-  darkMode,
   title = 'System Update',
   updateInfo,
   isCheckingUpdate,
@@ -43,16 +45,17 @@ export default function SettingsUpdateCard({
   buttonStyle,
   isOnline = true,
 }: SettingsUpdateCardProps): React.ReactElement {
-  const textPrimary = darkMode ? '#f5f5f5' : '#333';
-  const textSecondary = darkMode ? '#888' : '#666';
-  const textMuted = darkMode ? '#666' : '#999';
+  const palette = useAppPalette();
+  const textPrimary = palette.textPrimary;
+  const textSecondary = palette.textSecondary;
+  const textMuted = palette.textMuted;
 
   return (
     <Box sx={cardStyle}>
       <SectionHeader
         title={title}
         icon={SystemUpdateAltIcon}
-        darkMode={darkMode}
+        darkMode={palette.isDark}
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box
@@ -79,13 +82,13 @@ export default function SettingsUpdateCard({
                     },
                   },
                   '& .MuiSwitch-track': {
-                    bgcolor: darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+                    bgcolor: palette.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
                   },
                 }}
               />
               <Typography
                 sx={{
-                  fontSize: 10,
+                  fontSize: TYPO.tiny,
                   color: preRelease ? 'primary.main' : textMuted,
                   mr: 1,
                 }}
@@ -106,7 +109,7 @@ export default function SettingsUpdateCard({
             >
               <RefreshIcon
                 sx={{
-                  fontSize: 16,
+                  fontSize: TYPO.lg,
                   animation: isCheckingUpdate ? 'spin 1s linear infinite' : 'none',
                   '@keyframes spin': {
                     '0%': { transform: 'rotate(0deg)' },
@@ -132,7 +135,7 @@ export default function SettingsUpdateCard({
             }}
           >
             <CircularProgress size={24} color="primary" />
-            <Typography sx={{ fontSize: 12, color: textSecondary }}>
+            <Typography sx={{ fontSize: TYPO.sm, color: textSecondary }}>
               Checking for updates...
             </Typography>
           </Box>
@@ -154,8 +157,8 @@ export default function SettingsUpdateCard({
                 <Box>
                   <Typography
                     sx={{
-                      fontSize: 14,
-                      fontWeight: 600,
+                      fontSize: TYPO.md,
+                      fontWeight: FONT_WEIGHT.semibold,
                       color: textPrimary,
                       mb: 0.5,
                     }}
@@ -164,7 +167,7 @@ export default function SettingsUpdateCard({
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: 13,
+                      fontSize: TYPO.body,
                       color: textSecondary,
                       fontFamily: 'monospace',
                     }}
@@ -178,11 +181,11 @@ export default function SettingsUpdateCard({
                   disabled={isUpdating || !isOnline}
                   sx={{
                     ...buttonStyle,
-                    fontSize: 13,
-                    fontWeight: 600,
+                    fontSize: TYPO.body,
+                    fontWeight: FONT_WEIGHT.semibold,
                     py: 1,
                     px: 4,
-                    borderRadius: '10px',
+                    borderRadius: RADIUS.lg,
                   }}
                 >
                   {isUpdating ? <CircularProgress size={18} color="primary" /> : 'Update Now'}
@@ -190,8 +193,8 @@ export default function SettingsUpdateCard({
                 {!isOnline && (
                   <Typography
                     sx={{
-                      fontSize: 11,
-                      color: darkMode ? '#f59e0b' : '#d97706',
+                      fontSize: TYPO.xs,
+                      color: STATUS.warning,
                       fontStyle: 'italic',
                     }}
                   >
@@ -201,12 +204,12 @@ export default function SettingsUpdateCard({
               </>
             ) : (
               <>
-                <CheckCircleOutlineIcon sx={{ fontSize: 32, color: '#22c55e' }} />
+                <CheckCircleOutlineIcon sx={{ fontSize: 32, color: STATUS.success }} />
                 <Box>
                   <Typography
                     sx={{
-                      fontSize: 14,
-                      fontWeight: 600,
+                      fontSize: TYPO.md,
+                      fontWeight: FONT_WEIGHT.semibold,
                       color: textPrimary,
                       mb: 0.5,
                     }}
@@ -215,7 +218,7 @@ export default function SettingsUpdateCard({
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: 12,
+                      fontSize: TYPO.sm,
                       color: textMuted,
                       fontFamily: 'monospace',
                     }}
@@ -237,7 +240,7 @@ export default function SettingsUpdateCard({
               gap: 1.5,
             }}
           >
-            <Typography sx={{ fontSize: 12, color: textSecondary }}>
+            <Typography sx={{ fontSize: TYPO.sm, color: textSecondary }}>
               Check for available updates
             </Typography>
             <Button
@@ -245,15 +248,15 @@ export default function SettingsUpdateCard({
               onClick={onCheckUpdate}
               size="small"
               disabled={!isOnline}
-              sx={{ ...buttonStyle, fontSize: 12 }}
+              sx={{ ...buttonStyle, fontSize: TYPO.sm }}
             >
               Check now
             </Button>
             {!isOnline && (
               <Typography
                 sx={{
-                  fontSize: 11,
-                  color: darkMode ? '#f59e0b' : '#d97706',
+                  fontSize: TYPO.xs,
+                  color: STATUS.warning,
                   fontStyle: 'italic',
                   mt: 0.5,
                 }}

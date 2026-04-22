@@ -9,6 +9,7 @@
 
 import React, { useRef } from 'react';
 import StepsProgressIndicator from '../../../components/ui/StepsProgressIndicator';
+import { useAppPalette } from '@styles';
 
 export type DaemonStep =
   | 'connecting'
@@ -43,7 +44,8 @@ const DAEMON_STEP_MAP: Record<string, DaemonStepMapping> = {
 export interface ScanStepsIndicatorProps {
   scanComplete: boolean;
   daemonStep: DaemonStep;
-  darkMode: boolean;
+  /** @deprecated Theme mode is read by the underlying indicator via `useAppPalette()`. */
+  darkMode?: boolean;
   // Unused legacy props kept for call-site compat
   waitingForDaemon?: boolean;
   waitingForMovements?: boolean;
@@ -57,7 +59,6 @@ export interface ScanStepsIndicatorProps {
 function ScanStepsIndicator({
   scanComplete,
   daemonStep,
-  darkMode,
   // Unused legacy props kept for call-site compat
   waitingForDaemon,
   waitingForMovements,
@@ -67,6 +68,7 @@ function ScanStepsIndicator({
   daemonAttempts,
   movementAttempts,
 }: ScanStepsIndicatorProps) {
+  const palette = useAppPalette();
   const highWaterRef = useRef<DaemonStepMapping>({ step: 0, progress: 0 });
 
   // Reset watermark when scan restarts (e.g. retry)
@@ -89,7 +91,7 @@ function ScanStepsIndicator({
       steps={SCAN_STEPS}
       currentStep={currentStep}
       progress={progress}
-      darkMode={darkMode}
+      darkMode={palette.isDark}
     />
   );
 }

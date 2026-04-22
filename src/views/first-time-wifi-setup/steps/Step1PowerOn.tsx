@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import powerOnImage from '../../../assets/power-on.jpg';
+import { ACCENT, accentAlpha, FONT_WEIGHT, RADIUS, STATUS, TYPO, useAppPalette } from '@styles';
 
 interface Step1PowerOnProps {
   textPrimary: string;
@@ -11,7 +12,8 @@ interface Step1PowerOnProps {
   hotspotName?: string;
   isLocalScanning: boolean;
   onNext: () => void;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
 }
 
 export default function Step1PowerOn({
@@ -22,8 +24,8 @@ export default function Step1PowerOn({
   hotspotName,
   isLocalScanning,
   onNext,
-  darkMode,
 }: Step1PowerOnProps): React.ReactElement {
+  const palette = useAppPalette();
   const isWaiting = countdown > 0 && !hasReachyHotspot;
   const timeoutReached = countdown === 0 && !hasReachyHotspot;
 
@@ -32,7 +34,7 @@ export default function Step1PowerOn({
       {isWaiting ? (
         // Waiting for auto-detection
         <>
-          <Typography sx={{ fontSize: 12, color: textSecondary, mb: 2, lineHeight: 1.6 }}>
+          <Typography sx={{ fontSize: TYPO.sm, color: textSecondary, mb: 2, lineHeight: 1.6 }}>
             Turn on your Reachy and wait. We're automatically detecting the WiFi hotspot it creates.
           </Typography>
 
@@ -51,15 +53,15 @@ export default function Step1PowerOn({
               sx={{
                 width: 140,
                 height: 'auto',
-                borderRadius: '12px',
-                border: `1px solid ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+                borderRadius: RADIUS.xl,
+                border: `1px solid ${palette.border}`,
               }}
             />
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-            <CircularProgress size={16} sx={{ color: '#FF9500' }} />
-            <Typography sx={{ fontSize: 11, color: textSecondary }}>
+            <CircularProgress size={16} sx={{ color: ACCENT.main }} />
+            <Typography sx={{ fontSize: TYPO.xs, color: textSecondary }}>
               Detecting hotspot... ({countdown}s)
             </Typography>
           </Box>
@@ -67,7 +69,7 @@ export default function Step1PowerOn({
       ) : timeoutReached ? (
         // Timeout - hotspot not detected
         <>
-          <Typography sx={{ fontSize: 12, color: textSecondary, mb: 2, lineHeight: 1.6 }}>
+          <Typography sx={{ fontSize: TYPO.sm, color: textSecondary, mb: 2, lineHeight: 1.6 }}>
             Automatic detection didn't find a Reachy hotspot, but it may still exist on your
             network. Make sure your Reachy is powered on, then continue to the next step.
           </Typography>
@@ -76,17 +78,17 @@ export default function Step1PowerOn({
             variant="outlined"
             onClick={onNext}
             sx={{
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: TYPO.body,
+              fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
               px: 3,
               py: 0.75,
-              borderRadius: '8px',
-              borderColor: '#FF9500',
-              color: '#FF9500',
+              borderRadius: RADIUS.md,
+              borderColor: ACCENT.main,
+              color: ACCENT.main,
               '&:hover': {
-                borderColor: '#e68600',
-                bgcolor: 'rgba(255, 149, 0, 0.08)',
+                borderColor: ACCENT.dark,
+                bgcolor: accentAlpha(0.08),
               },
             }}
           >
@@ -96,12 +98,14 @@ export default function Step1PowerOn({
       ) : (
         // Hotspot detected (will auto-advance shortly)
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
-          <CheckCircleIcon sx={{ fontSize: 40, color: '#22c55e' }} />
+          <CheckCircleIcon sx={{ fontSize: TYPO.hero, color: STATUS.success }} />
           <Box sx={{ textAlign: 'center' }}>
-            <Typography sx={{ fontSize: 14, fontWeight: 600, color: '#22c55e' }}>
+            <Typography
+              sx={{ fontSize: TYPO.md, fontWeight: FONT_WEIGHT.semibold, color: STATUS.success }}
+            >
               {hotspotName || 'Hotspot'} detected!
             </Typography>
-            <Typography sx={{ fontSize: 11, color: textSecondary, mt: 0.5 }}>
+            <Typography sx={{ fontSize: TYPO.xs, color: textSecondary, mt: 0.5 }}>
               Moving to next step...
             </Typography>
           </Box>

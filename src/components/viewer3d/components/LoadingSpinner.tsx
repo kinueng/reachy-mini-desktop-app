@@ -1,7 +1,10 @@
 import { Box, CircularProgress } from '@mui/material';
+import { DURATION, transition } from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 export interface LoadingSpinnerProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   visible: boolean;
   /**
    * Background color of the overlay while visible. Should match the host
@@ -19,12 +22,11 @@ export interface LoadingSpinnerProps {
  * the pose is ready.
  */
 export default function LoadingSpinner({
-  darkMode,
   visible,
   backgroundColor,
 }: LoadingSpinnerProps): React.ReactElement {
-  const bg = backgroundColor ?? (darkMode ? '#1a1a1a' : '#e0e0e0');
-  const spinnerColor = darkMode ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.35)';
+  const palette = useAppPalette();
+  const bg = backgroundColor ?? (palette.isDark ? '#1a1a1a' : '#e0e0e0');
 
   return (
     <Box
@@ -36,7 +38,7 @@ export default function LoadingSpinner({
         justifyContent: 'center',
         pointerEvents: visible ? 'auto' : 'none',
         opacity: visible ? 1 : 0,
-        transition: 'opacity 250ms ease',
+        transition: transition('opacity', DURATION.medium),
         bgcolor: bg,
         borderRadius: 'inherit',
         // Keep the z-index LOW and scoped. The overlay only needs to sit
@@ -47,7 +49,7 @@ export default function LoadingSpinner({
         zIndex: 1,
       }}
     >
-      <CircularProgress size={32} thickness={3} sx={{ color: spinnerColor }} />
+      <CircularProgress size={32} thickness={3} sx={{ color: palette.textMuted }} />
     </Box>
   );
 }

@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
+import { DURATION, TYPO, transition, useAppPalette } from '@styles';
 
 interface Tip {
   icon: string;
@@ -29,11 +30,13 @@ const TIPS_DATA: Tip[] = [
 ];
 
 export interface TipsCarouselProps {
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   interval?: number;
 }
 
-function TipsCarousel({ darkMode, interval = 5000 }: TipsCarouselProps) {
+function TipsCarousel({ interval = 5000 }: TipsCarouselProps) {
+  const palette = useAppPalette();
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isVisible, setIsVisible] = useState<boolean>(true);
 
@@ -78,14 +81,14 @@ function TipsCarousel({ darkMode, interval = 5000 }: TipsCarouselProps) {
           gap: 1,
           opacity: isVisible ? 1 : 0,
           transform: isVisible ? 'translateY(0)' : 'translateY(4px)',
-          transition: 'opacity 0.3s ease, transform 0.3s ease',
+          transition: transition(['opacity', 'transform'], DURATION.slow),
           overflow: 'hidden',
         }}
       >
         <Box
           component="span"
           sx={{
-            fontSize: 16,
+            fontSize: TYPO.lg,
             lineHeight: 1,
             width: 20,
             textAlign: 'center',
@@ -96,9 +99,9 @@ function TipsCarousel({ darkMode, interval = 5000 }: TipsCarouselProps) {
         </Box>
         <Typography
           sx={{
-            fontSize: 12,
+            fontSize: TYPO.sm,
             fontWeight: 450,
-            color: darkMode ? '#a3a3a3' : '#666',
+            color: palette.textSecondary,
             letterSpacing: '0.2px',
             whiteSpace: 'nowrap',
           }}

@@ -1,5 +1,6 @@
 import React, { type ErrorInfo, type ReactNode } from 'react';
 import { Box, Typography, Button } from '@mui/material';
+import { buildAppPalette, whiteAlpha, blackAlpha, TYPO, FONT_WEIGHT, RADIUS } from '@styles';
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -15,7 +16,9 @@ interface ErrorBoundaryState {
  * recovery UI instead of a blank white screen.
  *
  * Class component because React error boundaries require `componentDidCatch`
- * and `getDerivedStateFromError` (no hook equivalent).
+ * and `getDerivedStateFromError` (no hook equivalent). The fallback UI builds
+ * the palette from `matchMedia` so we stay independent of the store, which
+ * may itself be part of the crash.
  */
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
@@ -64,8 +67,17 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       return this.props.children;
     }
 
+    // The React tree crashed, so we can't safely call hooks here. Build the
+    // palette manually from the OS theme preference.
     const isDark =
       typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+    const palette = buildAppPalette(Boolean(isDark));
+
+    // TODO(style-migration): recovery screen background uses a specific
+    // fallback shade (#fafafc / #1a1a1a) that doesn't match surfaceBg; keep as
+    // isDark branches so the fallback stays visually distinctive.
+    const recoveryBg = palette.isDark ? '#1a1a1a' : '#fafafc';
+    const recoveryText = palette.isDark ? '#fff' : '#1a1a1a';
 
     return (
       <Box
@@ -76,20 +88,20 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           alignItems: 'center',
           justifyContent: 'center',
           gap: 3,
-          bgcolor: isDark ? '#1a1a1a' : '#fafafc',
-          color: isDark ? '#fff' : '#1a1a1a',
+          bgcolor: recoveryBg,
+          color: recoveryText,
           px: 4,
           textAlign: 'center',
         }}
       >
-        <Typography variant="h5" fontWeight={600}>
+        <Typography variant="h5" fontWeight={FONT_WEIGHT.semibold}>
           Something went wrong
         </Typography>
 
         <Typography
           sx={{
-            fontSize: 13,
-            color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)',
+            fontSize: TYPO.body,
+            color: palette.isDark ? whiteAlpha(0.5) : blackAlpha(0.45),
             maxWidth: 420,
             lineHeight: 1.6,
           }}
@@ -105,8 +117,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               mt: 1,
               px: 2,
               py: 1.5,
-              borderRadius: '8px',
-              bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+              borderRadius: RADIUS.md,
+              bgcolor: palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.04),
               maxWidth: 500,
               overflow: 'auto',
             }}
@@ -114,8 +126,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             <Typography
               sx={{
                 fontFamily: 'monospace',
-                fontSize: 11,
-                color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)',
+                fontSize: TYPO.xs,
+                color: palette.isDark ? whiteAlpha(0.4) : blackAlpha(0.35),
                 wordBreak: 'break-word',
                 cursor: 'text',
               }}

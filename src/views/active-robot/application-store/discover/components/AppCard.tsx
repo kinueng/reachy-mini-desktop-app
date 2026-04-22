@@ -8,6 +8,18 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useActiveRobotContext } from '../../../context';
+import {
+  ACCENT,
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  transition,
+  whiteAlpha,
+} from '@styles/tokens';
+import { useAppPalette } from '@styles';
 
 interface AppLike {
   name: string;
@@ -33,7 +45,8 @@ interface AppLike {
 
 interface AppCardProps {
   app: AppLike;
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   isBusy: boolean;
   isInstalling: boolean;
   installFailed: boolean;
@@ -44,15 +57,28 @@ interface AppCardProps {
   index?: number;
 }
 
+// TODO(style-migration): purple/indigo/blue accents are not in the palette yet.
+const PRIVATE_COLOR = '#8b5cf6';
+const PRIVATE_BG_DARK = 'rgba(139, 92, 246, 0.15)';
+const PRIVATE_BG_LIGHT = 'rgba(139, 92, 246, 0.1)';
+const WEB_COLOR = '#6366f1';
+const WEB_BG_DARK = 'rgba(99, 102, 241, 0.15)';
+const WEB_BG_LIGHT = 'rgba(99, 102, 241, 0.1)';
+const WEB_HOVER_BG = 'rgba(99, 102, 241, 0.08)';
+const OFFICIAL_AVATAR_BG = 'rgba(59, 130, 246, 0.15)';
+const ERROR_BORDER = 'rgba(239, 68, 68, 0.4)';
+const ERROR_BORDER_HOVER = 'rgba(239, 68, 68, 0.6)';
+const ERROR_HOVER_BG = 'rgba(239, 68, 68, 0.08)';
+
 function AppCard({
   app,
-  darkMode,
   isBusy,
   isInstalling,
   installFailed,
   isInstalled,
   handleInstall,
 }: AppCardProps): React.ReactElement {
+  const palette = useAppPalette();
   const { shellApi } = useActiveRobotContext();
   const open = shellApi.open;
   const cardData = app.extra?.cardData || {};
@@ -81,26 +107,26 @@ function AppCard({
         width: 'calc((100% - 20px) / 2)',
         minWidth: 0,
         flexShrink: 0,
-        borderRadius: '16px',
+        borderRadius: RADIUS.xxl,
         position: 'relative',
         overflow: 'hidden',
-        bgcolor: darkMode ? '#1a1a1a' : '#ffffff',
+        bgcolor: palette.isDark ? '#1a1a1a' : '#ffffff',
         border: installFailed
-          ? '1px solid rgba(239, 68, 68, 0.4)'
+          ? `1px solid ${ERROR_BORDER}`
           : isInstalling
-            ? '1px solid rgba(255, 149, 0, 0.4)'
-            : `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
+            ? `1px solid ${accentAlpha(0.4)}`
+            : `1px solid ${palette.borderStrong}`,
         cursor: 'pointer',
-        transition: 'transform 0.2s ease, border-color 0.2s ease',
+        transition: transition(['transform', 'border-color'], DURATION.base),
         '&:hover': {
           transform: 'translateY(-2px)',
           borderColor: installFailed
-            ? 'rgba(239, 68, 68, 0.6)'
+            ? ERROR_BORDER_HOVER
             : isInstalling
-              ? 'rgba(255, 149, 0, 0.6)'
-              : darkMode
-                ? 'rgba(255, 255, 255, 0.18)'
-                : 'rgba(0, 0, 0, 0.18)',
+              ? accentAlpha(0.6)
+              : palette.isDark
+                ? whiteAlpha(0.18)
+                : blackAlpha(0.18),
         },
       }}
       onClick={
@@ -137,13 +163,13 @@ function AppCard({
                     width: 20,
                     height: 20,
                     bgcolor: isOfficial
-                      ? 'rgba(59, 130, 246, 0.15)'
-                      : darkMode
-                        ? 'rgba(255, 255, 255, 0.1)'
-                        : 'rgba(0, 0, 0, 0.08)',
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: isOfficial ? '#FF9500' : darkMode ? '#ffffff' : '#1a1a1a',
+                      ? OFFICIAL_AVATAR_BG
+                      : palette.isDark
+                        ? whiteAlpha(0.1)
+                        : blackAlpha(0.08),
+                    fontSize: TYPO.tiny,
+                    fontWeight: FONT_WEIGHT.semibold,
+                    color: isOfficial ? ACCENT.main : palette.textPrimary,
                     flexShrink: 0,
                   }}
                 >
@@ -151,9 +177,9 @@ function AppCard({
                 </Avatar>
                 <Typography
                   sx={{
-                    fontSize: 11,
-                    fontWeight: 500,
-                    color: darkMode ? '#aaaaaa' : '#666666',
+                    fontSize: TYPO.xs,
+                    fontWeight: FONT_WEIGHT.medium,
+                    color: palette.textSecondary,
                     fontFamily: 'monospace',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -166,34 +192,34 @@ function AppCard({
             )}
             {isOfficial && (
               <Chip
-                icon={<VerifiedIcon sx={{ fontSize: 11 }} />}
+                icon={<VerifiedIcon sx={{ fontSize: TYPO.xs }} />}
                 label="Official"
                 size="small"
                 sx={{
-                  bgcolor: darkMode ? 'rgba(255, 149, 0, 0.15)' : 'rgba(255, 149, 0, 0.1)',
-                  color: '#FF9500',
-                  fontWeight: 600,
-                  fontSize: 9,
+                  bgcolor: accentAlpha(palette.isDark ? 0.15 : 0.1),
+                  color: ACCENT.main,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  fontSize: TYPO.micro,
                   height: 18,
                   flexShrink: 0,
-                  '& .MuiChip-icon': { color: '#FF9500', ml: 0.5 },
+                  '& .MuiChip-icon': { color: ACCENT.main, ml: 0.5 },
                   '& .MuiChip-label': { px: 0.5 },
                 }}
               />
             )}
             {isPrivate && (
               <Chip
-                icon={<LockOutlinedIcon sx={{ fontSize: 11 }} />}
+                icon={<LockOutlinedIcon sx={{ fontSize: TYPO.xs }} />}
                 label="Private"
                 size="small"
                 sx={{
-                  bgcolor: darkMode ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)',
-                  color: '#8b5cf6',
-                  fontWeight: 600,
-                  fontSize: 9,
+                  bgcolor: palette.isDark ? PRIVATE_BG_DARK : PRIVATE_BG_LIGHT,
+                  color: PRIVATE_COLOR,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  fontSize: TYPO.micro,
                   height: 18,
                   flexShrink: 0,
-                  '& .MuiChip-icon': { color: '#8b5cf6', ml: 0.5 },
+                  '& .MuiChip-icon': { color: PRIVATE_COLOR, ml: 0.5 },
                   '& .MuiChip-label': { px: 0.5 },
                 }}
               />
@@ -203,10 +229,10 @@ function AppCard({
                 label="Web"
                 size="small"
                 sx={{
-                  bgcolor: darkMode ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
-                  color: '#6366f1',
-                  fontWeight: 600,
-                  fontSize: 9,
+                  bgcolor: palette.isDark ? WEB_BG_DARK : WEB_BG_LIGHT,
+                  color: WEB_COLOR,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  fontSize: TYPO.micro,
                   height: 18,
                   flexShrink: 0,
                   '& .MuiChip-label': { px: 0.75 },
@@ -216,12 +242,12 @@ function AppCard({
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <FavoriteBorderIcon sx={{ fontSize: 16, color: darkMode ? '#aaaaaa' : '#666666' }} />
+            <FavoriteBorderIcon sx={{ fontSize: TYPO.lg, color: palette.textSecondary }} />
             <Typography
               sx={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: darkMode ? '#aaaaaa' : '#666666',
+                fontSize: TYPO.sm,
+                fontWeight: FONT_WEIGHT.semibold,
+                color: palette.textSecondary,
                 lineHeight: 1,
               }}
             >
@@ -243,7 +269,7 @@ function AppCard({
         >
           <Box
             sx={{
-              borderBottom: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+              borderBottom: `1px solid ${palette.border}`,
             }}
           />
         </Box>
@@ -275,9 +301,9 @@ function AppCard({
           >
             <Typography
               sx={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: darkMode ? '#ffffff' : '#1a1a1a',
+                fontSize: TYPO.lg,
+                fontWeight: FONT_WEIGHT.bold,
+                color: palette.textPrimary,
                 letterSpacing: '-0.3px',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -290,8 +316,8 @@ function AppCard({
 
             <Typography
               sx={{
-                fontSize: 12,
-                color: darkMode ? '#aaaaaa' : '#666666',
+                fontSize: TYPO.sm,
+                color: palette.textSecondary,
                 lineHeight: 1.5,
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
@@ -307,12 +333,12 @@ function AppCard({
 
             {formattedDate && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <AccessTimeIcon sx={{ fontSize: 12, color: darkMode ? '#aaaaaa' : '#666666' }} />
+                <AccessTimeIcon sx={{ fontSize: TYPO.sm, color: palette.textSecondary }} />
                 <Typography
                   sx={{
-                    fontSize: 10,
-                    fontWeight: 500,
-                    color: darkMode ? '#aaaaaa' : '#666666',
+                    fontSize: TYPO.tiny,
+                    fontWeight: FONT_WEIGHT.medium,
+                    color: palette.textSecondary,
                   }}
                 >
                   {formattedDate}
@@ -347,57 +373,49 @@ function AppCard({
             }}
             endIcon={
               isInstalled ? (
-                <CheckCircleOutlineIcon sx={{ fontSize: 14 }} />
+                <CheckCircleOutlineIcon sx={{ fontSize: TYPO.md }} />
               ) : isInstalling ? (
-                <CircularProgress size={14} sx={{ color: '#FF9500' }} />
+                <CircularProgress size={14} sx={{ color: ACCENT.main }} />
               ) : (
-                <DownloadOutlinedIcon sx={{ fontSize: 14 }} />
+                <DownloadOutlinedIcon sx={{ fontSize: TYPO.md }} />
               )
             }
             sx={{
               mt: 'auto',
               width: '100%',
               py: 1,
-              fontSize: 12,
-              fontWeight: 600,
+              fontSize: TYPO.sm,
+              fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
-              borderRadius: '10px',
+              borderRadius: RADIUS.lg,
               bgcolor: 'transparent',
               color: isInstalled
-                ? darkMode
-                  ? 'rgba(255, 255, 255, 0.5)'
-                  : 'rgba(0, 0, 0, 0.5)'
+                ? palette.textMuted
                 : installFailed
-                  ? '#ef4444'
-                  : '#FF9500',
+                  ? palette.statusError
+                  : ACCENT.main,
               border: isInstalled
-                ? darkMode
-                  ? '1px solid rgba(255, 255, 255, 0.2)'
-                  : '1px solid rgba(0, 0, 0, 0.2)'
+                ? `1px solid ${palette.borderStrong}`
                 : installFailed
-                  ? '1px solid #ef4444'
-                  : isInstalling
-                    ? '1px solid #FF9500'
-                    : '1px solid #FF9500',
-              transition: 'all 0.2s ease',
+                  ? `1px solid ${palette.statusError}`
+                  : `1px solid ${ACCENT.main}`,
+              transition: transition('all', DURATION.base),
               '&:hover': {
                 bgcolor: isInstalled
                   ? 'transparent'
                   : installFailed
-                    ? 'rgba(239, 68, 68, 0.08)'
-                    : 'rgba(255, 149, 0, 0.08)',
+                    ? ERROR_HOVER_BG
+                    : accentAlpha(0.08),
                 borderColor: isInstalled
-                  ? darkMode
-                    ? 'rgba(255, 255, 255, 0.2)'
-                    : 'rgba(0, 0, 0, 0.2)'
+                  ? palette.borderStrong
                   : installFailed
-                    ? '#ef4444'
-                    : '#FF9500',
+                    ? palette.statusError
+                    : ACCENT.main,
               },
               '&:disabled': {
                 bgcolor: 'transparent',
-                color: darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
-                borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.12)',
+                color: palette.textDisabled,
+                borderColor: palette.border,
               },
             }}
           >
@@ -413,7 +431,7 @@ function AppCard({
           <Button
             variant="outlined"
             size="small"
-            endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+            endIcon={<OpenInNewIcon sx={{ fontSize: TYPO.md }} />}
             onClick={async e => {
               e.stopPropagation();
               try {
@@ -426,17 +444,17 @@ function AppCard({
               mt: 'auto',
               width: '100%',
               py: 1,
-              fontSize: 12,
-              fontWeight: 600,
+              fontSize: TYPO.sm,
+              fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
-              borderRadius: '10px',
+              borderRadius: RADIUS.lg,
               bgcolor: 'transparent',
-              color: '#6366f1',
-              border: '1px solid #6366f1',
-              transition: 'all 0.2s ease',
+              color: WEB_COLOR,
+              border: `1px solid ${WEB_COLOR}`,
+              transition: transition('all', DURATION.base),
               '&:hover': {
-                bgcolor: 'rgba(99, 102, 241, 0.08)',
-                borderColor: '#6366f1',
+                bgcolor: WEB_HOVER_BG,
+                borderColor: WEB_COLOR,
               },
             }}
           >

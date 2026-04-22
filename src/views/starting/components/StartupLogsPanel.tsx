@@ -2,6 +2,7 @@ import { Box } from '@mui/material';
 import type React from 'react';
 import LogConsoleUntyped from '@components/LogConsole';
 import FullscreenOverlayUntyped from '../../../components/FullscreenOverlay';
+import { BLUR, useAppPalette, blackAlpha, whiteAlpha } from '@styles';
 
 // These two components haven't migrated to TS yet - cast locally.
 const FullscreenOverlay = FullscreenOverlayUntyped as unknown as React.FC<{
@@ -16,7 +17,8 @@ const LogConsole = LogConsoleUntyped as unknown as React.FC<Record<string, unkno
 
 export interface StartupLogsPanelProps {
   logs: unknown[];
-  darkMode: boolean;
+  /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
+  darkMode?: boolean;
   /**
    * During bootstrap we make the mini console visible (it's the only
    * informative output users have during the long first-run setup).
@@ -41,19 +43,26 @@ export interface StartupLogsPanelProps {
  */
 export default function StartupLogsPanel({
   logs,
-  darkMode,
   prominentMini,
   hasError = false,
   expanded,
   onExpand,
   onClose,
 }: StartupLogsPanelProps): React.ReactElement {
+  const palette = useAppPalette();
+  const isDark = palette.isDark;
   // Mini console visibility:
   //   - crash         : UNMOUNT (the error card fully owns that state now)
   //   - bootstrap     : mount, opacity 0.8 (long-running, user reassurance)
   //   - normal connect: unmount entirely (nothing to look at, keeps the view clean)
   const showMini = !hasError && prominentMini;
   const miniOpacity = 0.8;
+
+  // TODO(style-migration): translucent backdrops for the mini-console don't
+  // have an exact palette entry; keep bespoke alpha compositions but derive
+  // them from the shared alpha utilities so the tones stay consistent.
+  const miniBg = isDark ? blackAlpha(0.6) : whiteAlpha(0.7);
+  const miniBorder = isDark ? whiteAlpha(0.15) : blackAlpha(0.12);
 
   return (
     <>
@@ -73,7 +82,7 @@ export default function StartupLogsPanel({
         >
           <LogConsole
             logs={logs}
-            darkMode={darkMode}
+            darkMode={isDark}
             includeStoreLogs={true}
             compact={true}
             showTimestamp={false}
@@ -81,10 +90,10 @@ export default function StartupLogsPanel({
             emptyMessage="Waiting for logs..."
             onExpand={onExpand}
             sx={{
-              bgcolor: darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)',
-              border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'}`,
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
+              bgcolor: miniBg,
+              border: `1px solid ${miniBorder}`,
+              backdropFilter: BLUR.sm,
+              WebkitBackdropFilter: BLUR.sm,
             }}
           />
         </Box>
@@ -93,7 +102,7 @@ export default function StartupLogsPanel({
       <FullscreenOverlay
         open={expanded}
         onClose={onClose}
-        darkMode={darkMode}
+        darkMode={isDark}
         showCloseButton={true}
         centeredY={false}
       >
@@ -113,7 +122,7 @@ export default function StartupLogsPanel({
           <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
             <LogConsole
               logs={logs}
-              darkMode={darkMode}
+              darkMode={isDark}
               includeStoreLogs={true}
               compact={false}
               showTimestamp={true}
