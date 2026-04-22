@@ -16,7 +16,7 @@ import CategoryFilters from './components/CategoryFilters';
 import AppCard from './components/AppCard';
 import EmptyState from './components/EmptyState';
 import Footer from './components/Footer';
-import { RADIUS, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
+import { FONT_WEIGHT, RADIUS, TYPO, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 const COLUMNS = 2;
@@ -191,9 +191,9 @@ export default function DiscoverModal({
             />
             <Typography
               sx={{
-                fontSize: 13,
+                fontSize: TYPO.body,
                 color: palette.textPrimary,
-                fontWeight: 500,
+                fontWeight: FONT_WEIGHT.medium,
                 flex: 1,
               }}
             >
@@ -219,7 +219,7 @@ export default function DiscoverModal({
               sx={{
                 fontSize: 15,
                 color: palette.textPrimary,
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 mb: 0.5,
               }}
             >
@@ -227,9 +227,9 @@ export default function DiscoverModal({
             </Typography>
             <Typography
               sx={{
-                fontSize: 13,
+                fontSize: TYPO.body,
                 color: palette.textSecondary,
-                fontWeight: 400,
+                fontWeight: FONT_WEIGHT.regular,
                 maxWidth: 320,
                 lineHeight: 1.6,
                 mb: 2,
@@ -243,8 +243,8 @@ export default function DiscoverModal({
               onClick={() => window.location.reload()}
               sx={{
                 textTransform: 'none',
-                fontSize: 13,
-                fontWeight: 500,
+                fontSize: TYPO.body,
+                fontWeight: FONT_WEIGHT.medium,
                 px: 3,
                 py: 1,
                 borderRadius: `${RADIUS.md}px`,
@@ -272,7 +272,9 @@ export default function DiscoverModal({
             }}
           >
             <CircularProgress size={40} sx={{ color: palette.textMuted }} />
-            <Typography sx={{ fontSize: 14, color: palette.textMuted, fontWeight: 500 }}>
+            <Typography
+              sx={{ fontSize: TYPO.md, color: palette.textMuted, fontWeight: FONT_WEIGHT.medium }}
+            >
               Loading apps...
             </Typography>
           </Box>

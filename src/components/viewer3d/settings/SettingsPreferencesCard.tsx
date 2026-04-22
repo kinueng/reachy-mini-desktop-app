@@ -7,8 +7,8 @@ import PrivacyTipOutlinedIcon from '@mui/icons-material/PrivacyTipOutlined';
 import useAppStore from '../../../store/useAppStore';
 import { isTelemetryEnabled, setTelemetryEnabled } from '../../../utils/telemetry';
 import SectionHeader from './SectionHeader';
-import { DURATION, EASING, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { DURATION, blackAlpha, transition } from '@styles/tokens';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS } from '@styles';
 
 export interface SettingsPreferencesCardProps {
   /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
@@ -44,10 +44,10 @@ export default function SettingsPreferencesCard({
           alignItems: 'center',
           justifyContent: 'space-between',
           p: 1.5,
-          borderRadius: '12px',
+          borderRadius: RADIUS.xl,
           bgcolor: rowBg,
           cursor: 'pointer',
-          transition: `background ${DURATION.fast}ms ${EASING.standard}`,
+          transition: transition('background', DURATION.fast),
           mb: 1.5,
           '&:hover': {
             bgcolor: rowBgHover,
@@ -57,11 +57,13 @@ export default function SettingsPreferencesCard({
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           {palette.isDark ? (
-            <DarkModeOutlinedIcon sx={{ fontSize: 18, color: textSecondary }} />
+            <DarkModeOutlinedIcon sx={{ fontSize: TYPO.xl, color: textSecondary }} />
           ) : (
-            <LightModeOutlinedIcon sx={{ fontSize: 18, color: textSecondary }} />
+            <LightModeOutlinedIcon sx={{ fontSize: TYPO.xl, color: textSecondary }} />
           )}
-          <Typography sx={{ fontSize: 13, fontWeight: 500, color: textPrimary }}>
+          <Typography
+            sx={{ fontSize: TYPO.body, fontWeight: FONT_WEIGHT.medium, color: textPrimary }}
+          >
             {palette.isDark ? 'Dark Mode' : 'Light Mode'}
           </Typography>
         </Box>
@@ -74,10 +76,10 @@ export default function SettingsPreferencesCard({
           alignItems: 'center',
           justifyContent: 'space-between',
           p: 1.5,
-          borderRadius: '12px',
+          borderRadius: RADIUS.xl,
           bgcolor: rowBg,
           cursor: 'pointer',
-          transition: `background ${DURATION.fast}ms ${EASING.standard}`,
+          transition: transition('background', DURATION.fast),
           '&:hover': {
             bgcolor: rowBgHover,
           },
@@ -85,8 +87,10 @@ export default function SettingsPreferencesCard({
         onClick={handleTelemetryToggle}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <PrivacyTipOutlinedIcon sx={{ fontSize: 18, color: textSecondary }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 500, color: textPrimary }}>
+          <PrivacyTipOutlinedIcon sx={{ fontSize: TYPO.xl, color: textSecondary }} />
+          <Typography
+            sx={{ fontSize: TYPO.body, fontWeight: FONT_WEIGHT.medium, color: textPrimary }}
+          >
             Share anonymous usage data
           </Typography>
         </Box>
@@ -99,7 +103,7 @@ export default function SettingsPreferencesCard({
         target="_blank"
         rel="noopener noreferrer"
         sx={{
-          fontSize: 11,
+          fontSize: TYPO.xs,
           color: 'primary.main',
           textDecoration: 'none',
           display: 'inline-block',

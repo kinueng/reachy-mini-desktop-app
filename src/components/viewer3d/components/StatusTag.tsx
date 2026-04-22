@@ -2,7 +2,7 @@ import { Box, Typography } from '@mui/material';
 import CircleIcon from '@mui/icons-material/Circle';
 import { ROBOT_STATUS } from '../../../constants/robotStatus';
 import type { BusyReason, RobotStatus } from '../../../types/robot';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, BLUR } from '@styles';
 
 export interface StatusTagInfo {
   label: string;
@@ -92,10 +92,10 @@ export default function StatusTag(props: StatusTagProps): React.ReactElement {
         gap: 0.75,
         px: 1.5,
         py: 0.75,
-        borderRadius: '10px',
+        borderRadius: RADIUS.lg,
         bgcolor: palette.surfaceCard,
         border: `1.5px solid ${borderColor}`,
-        backdropFilter: 'blur(10px)',
+        backdropFilter: BLUR.md,
         transition: 'none',
         zIndex: 10,
       }}
@@ -115,8 +115,8 @@ export default function StatusTag(props: StatusTagProps): React.ReactElement {
       />
       <Typography
         sx={{
-          fontSize: 11,
-          fontWeight: 600,
+          fontSize: TYPO.xs,
+          fontWeight: FONT_WEIGHT.semibold,
           color: status.color,
           letterSpacing: '0.2px',
         }}

@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
-import { ACCENT, accentAlpha, blackAlpha } from '@styles/tokens';
+import { ACCENT, FONT_WEIGHT, RADIUS, TYPO, accentAlpha, blackAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 interface VerticalSliderProps {
@@ -65,8 +65,8 @@ const VerticalSlider = memo(function VerticalSlider({
         >
           <Typography
             sx={{
-              fontSize: 10,
-              fontWeight: 700,
+              fontSize: TYPO.tiny,
+              fontWeight: FONT_WEIGHT.bold,
               color: palette.textPrimary,
               letterSpacing: '-0.2px',
             }}
@@ -75,9 +75,9 @@ const VerticalSlider = memo(function VerticalSlider({
           </Typography>
           <Typography
             sx={{
-              fontSize: 9,
+              fontSize: TYPO.micro,
               fontFamily: 'monospace',
-              fontWeight: 500,
+              fontWeight: FONT_WEIGHT.medium,
               color: palette.textFaint,
               letterSpacing: '0.02em',
             }}
@@ -90,8 +90,8 @@ const VerticalSlider = memo(function VerticalSlider({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', mb: 0.5 }}>
           <Typography
             sx={{
-              fontSize: 10,
-              fontWeight: 700,
+              fontSize: TYPO.tiny,
+              fontWeight: FONT_WEIGHT.bold,
               color: palette.textPrimary,
               letterSpacing: '-0.2px',
             }}
@@ -100,9 +100,9 @@ const VerticalSlider = memo(function VerticalSlider({
           </Typography>
           <Typography
             sx={{
-              fontSize: 9,
+              fontSize: TYPO.micro,
               fontFamily: 'monospace',
-              fontWeight: 500,
+              fontWeight: FONT_WEIGHT.medium,
               color: palette.textFaint,
               letterSpacing: '0.02em',
             }}
@@ -144,7 +144,7 @@ const VerticalSlider = memo(function VerticalSlider({
                 transform: 'translate(-50%, -50%)',
                 width: 12,
                 height: 12,
-                borderRadius: '50%',
+                borderRadius: RADIUS.circle,
                 bgcolor: accentAlpha(0.2),
                 border: `1.5px solid ${accentAlpha(0.5)}`,
                 zIndex: 1,

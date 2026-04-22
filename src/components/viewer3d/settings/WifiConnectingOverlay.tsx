@@ -4,7 +4,7 @@ import WifiIcon from '@mui/icons-material/Wifi';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import FullscreenOverlay from '../../FullscreenOverlay';
 import { accentAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS } from '@styles';
 
 export interface WifiConnectingOverlayProps {
   /** Controls visibility of the overlay. */
@@ -122,7 +122,7 @@ export default function WifiConnectingOverlay({
             sx={{
               width: 72,
               height: 72,
-              borderRadius: '50%',
+              borderRadius: RADIUS.circle,
               bgcolor: palette.isDark ? accentAlpha(0.14) : accentAlpha(0.1),
               display: 'flex',
               alignItems: 'center',
@@ -147,7 +147,7 @@ export default function WifiConnectingOverlay({
         <Typography
           variant="h5"
           sx={{
-            fontWeight: 700,
+            fontWeight: FONT_WEIGHT.bold,
             color: textPrimary,
             mb: 1,
             letterSpacing: '0.2px',
@@ -159,7 +159,7 @@ export default function WifiConnectingOverlay({
         {targetSsid && (
           <Typography
             sx={{
-              fontSize: 13,
+              fontSize: TYPO.body,
               color: textSecondary,
               mb: 3,
             }}
@@ -191,7 +191,7 @@ export default function WifiConnectingOverlay({
           <Typography
             sx={{
               mt: 1,
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: textMuted,
               fontVariantNumeric: 'tabular-nums',
             }}
@@ -207,7 +207,7 @@ export default function WifiConnectingOverlay({
             gap: 1.25,
             textAlign: 'left',
             p: 2,
-            borderRadius: '12px',
+            borderRadius: RADIUS.xl,
             bgcolor: palette.surfaceSubtle,
             border: `1px solid ${palette.border}`,
             mb: 1.5,
@@ -216,7 +216,7 @@ export default function WifiConnectingOverlay({
           <InfoOutlinedIcon
             color="primary"
             sx={{
-              fontSize: 18,
+              fontSize: TYPO.xl,
               mt: '2px',
               flexShrink: 0,
             }}

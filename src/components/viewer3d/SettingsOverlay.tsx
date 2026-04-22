@@ -11,7 +11,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { logSuccess } from '../../utils/logging';
 import { useToast } from '../../hooks/useToast';
 import { ACCENT, STATUS, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, BLUR, scrollbarSx } from '@styles';
 
 import {
   SettingsUpdateCard,
@@ -542,7 +542,7 @@ export default function SettingsOverlay({
   const inputStyles = {
     '& .MuiOutlinedInput-root': {
       bgcolor: palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.02),
-      borderRadius: '10px',
+      borderRadius: RADIUS.lg,
       '& fieldset': {
         borderColor: palette.border,
       },
@@ -556,14 +556,14 @@ export default function SettingsOverlay({
     },
     '& .MuiInputLabel-root': {
       color: textSecondary,
-      fontSize: 13,
+      fontSize: TYPO.body,
       '&.Mui-focused': {
         color: 'primary.main',
       },
     },
     '& .MuiInputBase-input': {
       color: textPrimary,
-      fontSize: 13,
+      fontSize: TYPO.body,
     },
     '& .MuiSelect-icon': {
       color: textMuted,
@@ -589,10 +589,10 @@ export default function SettingsOverlay({
 
   const cardStyle = {
     p: 2.5,
-    borderRadius: '16px',
+    borderRadius: RADIUS.xxl,
     bgcolor: palette.isDark ? whiteAlpha(0.03) : 'rgba(255, 255, 255, 0.8)',
     border: `1px solid ${palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.06)}`,
-    backdropFilter: 'blur(10px)',
+    backdropFilter: BLUR.md,
   };
 
   const handleOverlayClose = useCallback((): void => {
@@ -618,12 +618,7 @@ export default function SettingsOverlay({
           width: '100%',
           maxHeight: '85vh',
           overflowY: 'auto',
-          '&::-webkit-scrollbar': { width: 6 },
-          '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
-          '&::-webkit-scrollbar-thumb': {
-            bgcolor: palette.borderStrong,
-            borderRadius: 3,
-          },
+          ...scrollbarSx(palette, { thumb: palette.borderStrong }),
         }}
       >
         <Box
@@ -646,8 +641,8 @@ export default function SettingsOverlay({
           >
             <Typography
               sx={{
-                fontSize: 20,
-                fontWeight: 700,
+                fontSize: TYPO.xxl,
+                fontWeight: FONT_WEIGHT.bold,
                 color: textPrimary,
                 letterSpacing: '-0.3px',
               }}
@@ -657,13 +652,13 @@ export default function SettingsOverlay({
             {connectionMode && (
               <Typography
                 sx={{
-                  fontSize: 11,
-                  fontWeight: 600,
+                  fontSize: TYPO.xs,
+                  fontWeight: FONT_WEIGHT.semibold,
                   color: textMuted,
                   bgcolor: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05),
                   px: 1,
                   py: 0.25,
-                  borderRadius: '4px',
+                  borderRadius: RADIUS.xs,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                 }}
@@ -678,7 +673,7 @@ export default function SettingsOverlay({
             {isWifiMode && remoteHost && (
               <Typography
                 sx={{
-                  fontSize: 11,
+                  fontSize: TYPO.xs,
                   color: textMuted,
                   fontFamily: 'monospace',
                 }}
@@ -783,7 +778,7 @@ export default function SettingsOverlay({
           <Typography
             variant="h5"
             sx={{
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               color: 'text.primary',
               mb: 2,
             }}
@@ -794,7 +789,7 @@ export default function SettingsOverlay({
           <Typography
             sx={{
               color: 'text.secondary',
-              fontSize: 14,
+              fontSize: TYPO.md,
               lineHeight: 1.6,
               mb: 4,
             }}
@@ -828,7 +823,7 @@ export default function SettingsOverlay({
               sx={{
                 mb: 4,
                 p: 2,
-                borderRadius: '12px',
+                borderRadius: RADIUS.xl,
                 bgcolor: palette.isDark ? accentAlpha(0.15) : accentAlpha(0.1),
                 border: `1px solid ${palette.isDark ? accentAlpha(0.3) : accentAlpha(0.2)}`,
                 textAlign: 'center',
@@ -836,8 +831,8 @@ export default function SettingsOverlay({
             >
               <Typography
                 sx={{
-                  fontSize: 13,
-                  fontWeight: 600,
+                  fontSize: TYPO.body,
+                  fontWeight: FONT_WEIGHT.semibold,
                   color: palette.isDark ? ACCENT.light : ACCENT.dark,
                   mb: 0.5,
                 }}
@@ -846,7 +841,7 @@ export default function SettingsOverlay({
               </Typography>
               <Typography
                 sx={{
-                  fontSize: 12,
+                  fontSize: TYPO.sm,
                   color: palette.isDark ? ACCENT.light : ACCENT.dark,
                   lineHeight: 1.5,
                 }}
@@ -910,7 +905,7 @@ export default function SettingsOverlay({
               sx={{
                 width: 80,
                 height: 80,
-                borderRadius: '50%',
+                borderRadius: RADIUS.circle,
                 bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
                 border: `2px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
                 display: 'flex',
@@ -918,14 +913,14 @@ export default function SettingsOverlay({
                 justifyContent: 'center',
               }}
             >
-              <ErrorOutlineIcon sx={{ fontSize: 40, color: STATUS.error }} />
+              <ErrorOutlineIcon sx={{ fontSize: TYPO.hero, color: STATUS.error }} />
             </Box>
           </Box>
 
           <Typography
             variant="h5"
             sx={{
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               color: 'text.primary',
               mb: 2,
             }}
@@ -936,7 +931,7 @@ export default function SettingsOverlay({
           <Typography
             sx={{
               color: 'text.secondary',
-              fontSize: 14,
+              fontSize: TYPO.md,
               lineHeight: 1.6,
               mb: 3,
             }}
@@ -948,7 +943,7 @@ export default function SettingsOverlay({
             sx={{
               mb: 4,
               p: 2,
-              borderRadius: '12px',
+              borderRadius: RADIUS.xl,
               bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
               border: `1px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
               textAlign: 'center',
@@ -956,8 +951,8 @@ export default function SettingsOverlay({
           >
             <Typography
               sx={{
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: TYPO.body,
+                fontWeight: FONT_WEIGHT.semibold,
                 color: palette.isDark ? '#fca5a5' : '#dc2626',
                 mb: 0.5,
               }}
@@ -966,7 +961,7 @@ export default function SettingsOverlay({
             </Typography>
             <Typography
               sx={{
-                fontSize: 12,
+                fontSize: TYPO.sm,
                 color: palette.isDark ? '#fca5a5' : '#dc2626',
                 lineHeight: 1.5,
                 mb: 1,
@@ -977,7 +972,7 @@ export default function SettingsOverlay({
             </Typography>
             <Typography
               sx={{
-                fontSize: 11,
+                fontSize: TYPO.xs,
                 color: palette.isDark ? 'rgba(252, 165, 165, 0.7)' : 'rgba(220, 38, 38, 0.7)',
                 lineHeight: 1.5,
                 fontStyle: 'italic',
@@ -1014,7 +1009,7 @@ export default function SettingsOverlay({
                 bgcolor: STATUS.error,
                 color: '#fff',
                 textTransform: 'none',
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 '&:hover': {
                   bgcolor: '#dc2626',
                 },
@@ -1063,7 +1058,7 @@ export default function SettingsOverlay({
               sx={{
                 width: 80,
                 height: 80,
-                borderRadius: '50%',
+                borderRadius: RADIUS.circle,
                 bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
                 border: `2px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
                 display: 'flex',
@@ -1071,14 +1066,14 @@ export default function SettingsOverlay({
                 justifyContent: 'center',
               }}
             >
-              <ErrorOutlineIcon sx={{ fontSize: 40, color: STATUS.error }} />
+              <ErrorOutlineIcon sx={{ fontSize: TYPO.hero, color: STATUS.error }} />
             </Box>
           </Box>
 
           <Typography
             variant="h5"
             sx={{
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               color: 'text.primary',
               mb: 2,
             }}
@@ -1089,7 +1084,7 @@ export default function SettingsOverlay({
           <Typography
             sx={{
               color: 'text.secondary',
-              fontSize: 14,
+              fontSize: TYPO.md,
               lineHeight: 1.6,
               mb: 3,
             }}
@@ -1127,7 +1122,7 @@ export default function SettingsOverlay({
                 bgcolor: STATUS.error,
                 color: '#fff',
                 textTransform: 'none',
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 '&:hover': {
                   bgcolor: '#dc2626',
                 },
@@ -1158,7 +1153,7 @@ export default function SettingsOverlay({
               sx={{
                 width: 80,
                 height: 80,
-                borderRadius: '50%',
+                borderRadius: RADIUS.circle,
                 bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
                 border: `2px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
                 display: 'flex',
@@ -1166,13 +1161,16 @@ export default function SettingsOverlay({
                 justifyContent: 'center',
               }}
             >
-              <ErrorOutlineIcon sx={{ fontSize: 40, color: STATUS.error }} />
+              <ErrorOutlineIcon sx={{ fontSize: TYPO.hero, color: STATUS.error }} />
             </Box>
           </Box>
-          <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
+          <Typography
+            variant="h5"
+            sx={{ fontWeight: FONT_WEIGHT.semibold, color: 'text.primary', mb: 2 }}
+          >
             Reset Apps Environment?
           </Typography>
-          <Typography sx={{ color: 'text.secondary', fontSize: 14, lineHeight: 1.6, mb: 3 }}>
+          <Typography sx={{ color: 'text.secondary', fontSize: TYPO.md, lineHeight: 1.6, mb: 3 }}>
             This will{' '}
             <strong style={{ color: palette.textPrimary }}>
               delete the apps virtual environment
@@ -1202,7 +1200,7 @@ export default function SettingsOverlay({
                 bgcolor: STATUS.error,
                 color: '#fff',
                 textTransform: 'none',
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 '&:hover': { bgcolor: '#dc2626' },
                 '&:disabled': {
                   bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
@@ -1235,7 +1233,7 @@ export default function SettingsOverlay({
               sx={{
                 width: 80,
                 height: 80,
-                borderRadius: '50%',
+                borderRadius: RADIUS.circle,
                 bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
                 border: `2px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
                 display: 'flex',
@@ -1243,13 +1241,16 @@ export default function SettingsOverlay({
                 justifyContent: 'center',
               }}
             >
-              <ErrorOutlineIcon sx={{ fontSize: 40, color: STATUS.error }} />
+              <ErrorOutlineIcon sx={{ fontSize: TYPO.hero, color: STATUS.error }} />
             </Box>
           </Box>
-          <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
+          <Typography
+            variant="h5"
+            sx={{ fontWeight: FONT_WEIGHT.semibold, color: 'text.primary', mb: 2 }}
+          >
             Full Environment Reset?
           </Typography>
-          <Typography sx={{ color: 'text.secondary', fontSize: 14, lineHeight: 1.6, mb: 2 }}>
+          <Typography sx={{ color: 'text.secondary', fontSize: TYPO.md, lineHeight: 1.6, mb: 2 }}>
             This will{' '}
             <strong style={{ color: palette.textPrimary }}>
               delete all Python files, virtual environments, and the package manager
@@ -1259,11 +1260,11 @@ export default function SettingsOverlay({
           <Typography
             sx={{
               color: STATUS.error,
-              fontSize: 13,
-              fontWeight: 500,
+              fontSize: TYPO.body,
+              fontWeight: FONT_WEIGHT.medium,
               mb: 3,
               p: 1.5,
-              borderRadius: '8px',
+              borderRadius: RADIUS.md,
               bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
               border: `1px solid ${palette.isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.15)'}`,
             }}
@@ -1293,7 +1294,7 @@ export default function SettingsOverlay({
                 bgcolor: STATUS.error,
                 color: '#fff',
                 textTransform: 'none',
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 '&:hover': { bgcolor: '#dc2626' },
                 '&:disabled': {
                   bgcolor: palette.isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.5)',
@@ -1368,7 +1369,7 @@ export default function SettingsOverlay({
                 sx={{
                   width: 80,
                   height: 80,
-                  borderRadius: '50%',
+                  borderRadius: RADIUS.circle,
                   bgcolor: palette.isDark ? accentAlpha(0.15) : accentAlpha(0.1),
                   border: `2px solid ${palette.isDark ? accentAlpha(0.3) : accentAlpha(0.2)}`,
                   display: 'flex',
@@ -1378,9 +1379,9 @@ export default function SettingsOverlay({
                 }}
               >
                 {updateJobStatus === 'done' ? (
-                  <CheckCircleOutlinedIcon sx={{ fontSize: 40, color: STATUS.success }} />
+                  <CheckCircleOutlinedIcon sx={{ fontSize: TYPO.hero, color: STATUS.success }} />
                 ) : updateJobStatus === 'failed' ? (
-                  <ErrorOutlineIcon sx={{ fontSize: 40, color: STATUS.error }} />
+                  <ErrorOutlineIcon sx={{ fontSize: TYPO.hero, color: STATUS.error }} />
                 ) : updateJobStatus === 'restarting' ? (
                   <CircularProgress size={32} thickness={3} sx={{ color: STATUS.success }} />
                 ) : (
@@ -1392,7 +1393,7 @@ export default function SettingsOverlay({
             <Typography
               variant="h5"
               sx={{
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 color: 'text.primary',
                 mb: 1,
                 textAlign: 'center',
@@ -1410,7 +1411,7 @@ export default function SettingsOverlay({
             <Typography
               sx={{
                 color: 'text.secondary',
-                fontSize: 14,
+                fontSize: TYPO.md,
                 lineHeight: 1.6,
                 mb: 3,
                 textAlign: 'center',
@@ -1432,29 +1433,22 @@ export default function SettingsOverlay({
               sx={{
                 mb: 3,
                 p: 2,
-                borderRadius: '12px',
+                borderRadius: RADIUS.xl,
                 bgcolor: palette.isDark ? blackAlpha(0.3) : blackAlpha(0.05),
                 border: `1px solid ${palette.border}`,
                 height: 220,
                 overflowY: 'auto',
                 fontFamily: 'monospace',
-                fontSize: 12,
+                fontSize: TYPO.sm,
                 lineHeight: 1.6,
                 color: palette.textSecondary,
-                '&::-webkit-scrollbar': {
-                  width: '8px',
-                },
-                '&::-webkit-scrollbar-track': {
-                  bgcolor: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05),
-                  borderRadius: '4px',
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  bgcolor: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
-                  borderRadius: '4px',
-                  '&:hover': {
-                    bgcolor: palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3),
-                  },
-                },
+                ...scrollbarSx(palette, {
+                  width: 8,
+                  radius: 4,
+                  thumb: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
+                  thumbHover: palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3),
+                  track: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05),
+                }),
               }}
             >
               {updateLogs.length > 0 ? (
@@ -1476,7 +1470,7 @@ export default function SettingsOverlay({
                 <Box
                   sx={{
                     p: 2,
-                    borderRadius: '12px',
+                    borderRadius: RADIUS.xl,
                     bgcolor: palette.isDark
                       ? 'rgba(251, 191, 36, 0.15)'
                       : 'rgba(251, 191, 36, 0.1)',
@@ -1486,8 +1480,8 @@ export default function SettingsOverlay({
                 >
                   <Typography
                     sx={{
-                      fontSize: 13,
-                      fontWeight: 600,
+                      fontSize: TYPO.body,
+                      fontWeight: FONT_WEIGHT.semibold,
                       color: palette.isDark ? '#fbbf24' : '#d97706',
                       mb: 0.5,
                     }}
@@ -1496,7 +1490,7 @@ export default function SettingsOverlay({
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: 12,
+                      fontSize: TYPO.sm,
                       color: palette.isDark ? '#fbbf24' : '#d97706',
                       lineHeight: 1.5,
                     }}

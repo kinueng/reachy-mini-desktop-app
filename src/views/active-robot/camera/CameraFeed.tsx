@@ -3,7 +3,7 @@ import { Box, Typography, CircularProgress } from '@mui/material';
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined';
 import VideocamOffIcon from '@mui/icons-material/VideocamOff';
 import { STATUS, whiteAlpha, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { DURATION, RADIUS, TYPO, transition, useAppPalette } from '@styles';
 import { useWebRTCStreamContext, StreamState } from '../../../contexts/WebRTCStreamContext';
 
 export interface CameraFeedProps {
@@ -80,7 +80,7 @@ export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.
     position: 'relative',
     width: '100%',
     height: '100%',
-    borderRadius: isLarge ? '16px' : '12px',
+    borderRadius: isLarge ? RADIUS.xxl : RADIUS.xl,
     overflow: 'hidden',
     border: isLarge ? 'none' : `1px solid ${placeholderBorder}`,
     bgcolor: placeholderBg,
@@ -112,7 +112,7 @@ export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.
           />
           <Typography
             sx={{
-              fontSize: isLarge ? 12 : 9,
+              fontSize: isLarge ? TYPO.sm : TYPO.micro,
               color: textColorMuted,
               fontFamily: 'SF Mono, Monaco, Menlo, monospace',
               textTransform: 'uppercase',
@@ -174,7 +174,7 @@ export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.
           />
           <Typography
             sx={{
-              fontSize: isLarge ? 12 : 9,
+              fontSize: isLarge ? TYPO.sm : TYPO.micro,
               color: textColorMuted,
               fontFamily: 'SF Mono, Monaco, Menlo, monospace',
               textTransform: 'uppercase',
@@ -240,7 +240,7 @@ export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.
             justifyContent: 'center',
             gap: 1,
             cursor: 'pointer',
-            transition: 'background 0.2s',
+            transition: transition('background', DURATION.base),
             '&:hover': {
               bgcolor: hoverBg,
             },
@@ -255,7 +255,7 @@ export default function CameraFeed({ isLarge = false }: CameraFeedProps): React.
           />
           <Typography
             sx={{
-              fontSize: isLarge ? 12 : 9,
+              fontSize: isLarge ? TYPO.sm : TYPO.micro,
               color: state === StreamState.ERROR ? errorTextColor : textColorMuted,
               fontFamily: 'SF Mono, Monaco, Menlo, monospace',
               textTransform: 'uppercase',

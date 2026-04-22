@@ -1,6 +1,14 @@
 import React, { useMemo, memo } from 'react';
 import { Box, Typography, Slider } from '@mui/material';
-import { ACCENT, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
+import {
+  ACCENT,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 interface CircularSliderProps {
@@ -133,9 +141,9 @@ const CircularSlider = memo(function CircularSlider({
           <>
             <Typography
               sx={{
-                fontSize: 9,
+                fontSize: TYPO.micro,
                 fontFamily: 'monospace',
-                fontWeight: 500,
+                fontWeight: FONT_WEIGHT.medium,
                 color: palette.textFaint,
                 letterSpacing: '0.02em',
                 textAlign: 'right',
@@ -146,8 +154,8 @@ const CircularSlider = memo(function CircularSlider({
             </Typography>
             <Typography
               sx={{
-                fontSize: 10,
-                fontWeight: 700,
+                fontSize: TYPO.tiny,
+                fontWeight: FONT_WEIGHT.bold,
                 color: palette.textPrimary,
                 letterSpacing: '-0.2px',
                 textAlign: 'right',
@@ -160,8 +168,8 @@ const CircularSlider = memo(function CircularSlider({
           <>
             <Typography
               sx={{
-                fontSize: 10,
-                fontWeight: 700,
+                fontSize: TYPO.tiny,
+                fontWeight: FONT_WEIGHT.bold,
                 color: palette.textPrimary,
                 letterSpacing: '-0.2px',
               }}
@@ -170,9 +178,9 @@ const CircularSlider = memo(function CircularSlider({
             </Typography>
             <Typography
               sx={{
-                fontSize: 9,
+                fontSize: TYPO.micro,
                 fontFamily: 'monospace',
-                fontWeight: 500,
+                fontWeight: FONT_WEIGHT.medium,
                 color: palette.textFaint,
                 letterSpacing: '0.02em',
               }}
@@ -299,7 +307,7 @@ const CircularSlider = memo(function CircularSlider({
                 transform: 'translate(-50%, -50%)',
                 width: 12,
                 height: 12,
-                borderRadius: '50%',
+                borderRadius: RADIUS.circle,
                 bgcolor: accentAlpha(0.2),
                 border: `1.5px solid ${accentAlpha(0.5)}`,
                 zIndex: 1,

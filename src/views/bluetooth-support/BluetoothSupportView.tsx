@@ -20,7 +20,18 @@ import CellTowerIcon from '@mui/icons-material/CellTower';
 import type { BleDevice } from '@mnlphlp/plugin-blec';
 import useAppStore from '../../store/useAppStore';
 import useBluetooth from '../../hooks/bluetooth/useBluetooth';
-import { STATUS, blackAlpha, whiteAlpha, hexToRgba, useAppPalette } from '@styles';
+import {
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  STATUS,
+  TYPO,
+  blackAlpha,
+  hexToRgba,
+  transition,
+  useAppPalette,
+  whiteAlpha,
+} from '@styles';
 // TODO(ts): FullscreenOverlay.jsx has JSDoc that confuses TS prop inference
 // (parses as `boolean`). Cast until the component itself is migrated.
 
@@ -319,7 +330,7 @@ export default function BluetoothSupportView(): React.ReactElement {
         <Typography
           sx={{
             fontSize: 22,
-            fontWeight: 700,
+            fontWeight: FONT_WEIGHT.bold,
             color: textPrimary,
             mb: 3,
             textAlign: 'center',
@@ -337,14 +348,14 @@ export default function BluetoothSupportView(): React.ReactElement {
                 <StepLabel
                   sx={{
                     '& .MuiStepLabel-label': {
-                      fontSize: 10,
+                      fontSize: TYPO.tiny,
                       color: textSecondary,
                       mt: 0.5,
-                      '&.Mui-active': { color: 'primary.main', fontWeight: 600 },
+                      '&.Mui-active': { color: 'primary.main', fontWeight: FONT_WEIGHT.semibold },
                       '&.Mui-completed': { color: STATUS.success },
                     },
                     '& .MuiStepIcon-root': {
-                      fontSize: 20,
+                      fontSize: TYPO.xxl,
                       color: isDark ? whiteAlpha(0.1) : blackAlpha(0.1),
                       '&.Mui-active': { color: 'primary.main' },
                       '&.Mui-completed': { color: STATUS.success },
@@ -365,7 +376,7 @@ export default function BluetoothSupportView(): React.ReactElement {
             maxWidth: 460,
             minHeight: 300,
             bgcolor: bgCard,
-            borderRadius: '12px',
+            borderRadius: `${RADIUS.xl}px`,
             border: '1px solid',
             borderColor: borderColor,
             p: 3,
@@ -400,15 +411,15 @@ export default function BluetoothSupportView(): React.ReactElement {
                     bleStatus === 'scanning' ? (
                       <CircularProgress size={15} color="primary" />
                     ) : (
-                      <BluetoothSearchingIcon sx={{ fontSize: 18 }} />
+                      <BluetoothSearchingIcon sx={{ fontSize: TYPO.xl }} />
                     )
                   }
                   sx={{
-                    fontSize: 13,
-                    fontWeight: 600,
+                    fontSize: TYPO.body,
+                    fontWeight: FONT_WEIGHT.semibold,
                     textTransform: 'none',
                     py: 1.25,
-                    borderRadius: '10px',
+                    borderRadius: `${RADIUS.lg}px`,
                   }}
                 >
                   {bleStatus === 'scanning' ? 'Scanning...' : 'Scan for Devices'}
@@ -418,7 +429,12 @@ export default function BluetoothSupportView(): React.ReactElement {
               {/* Adapter warning */}
               {adapterWarning && (
                 <Typography
-                  sx={{ fontSize: 11, color: STATUS.error, textAlign: 'center', lineHeight: 1.5 }}
+                  sx={{
+                    fontSize: TYPO.xs,
+                    color: STATUS.error,
+                    textAlign: 'center',
+                    lineHeight: 1.5,
+                  }}
                 >
                   {adapterWarning}
                 </Typography>
@@ -429,8 +445,8 @@ export default function BluetoothSupportView(): React.ReactElement {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <Typography
                     sx={{
-                      fontSize: 9,
-                      fontWeight: 700,
+                      fontSize: TYPO.micro,
+                      fontWeight: FONT_WEIGHT.bold,
                       color: textSecondary,
                       textTransform: 'uppercase',
                       letterSpacing: '0.6px',
@@ -455,11 +471,11 @@ export default function BluetoothSupportView(): React.ReactElement {
                           justifyContent: 'space-between',
                           px: 1.75,
                           py: 1.25,
-                          borderRadius: '10px',
+                          borderRadius: `${RADIUS.lg}px`,
                           border: '1px solid',
                           borderColor: borderColor,
                           cursor: bleStatusValue === 'connecting' ? 'default' : 'pointer',
-                          transition: 'all 0.15s ease',
+                          transition: transition('all', DURATION.fast),
                           '&:hover':
                             bleStatusValue !== 'connecting'
                               ? {
@@ -471,13 +487,13 @@ export default function BluetoothSupportView(): React.ReactElement {
                       >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
                           <BluetoothConnectedIcon
-                            sx={{ fontSize: 16, color: 'primary.main', flexShrink: 0 }}
+                            sx={{ fontSize: TYPO.lg, color: 'primary.main', flexShrink: 0 }}
                           />
                           <Box>
                             <Typography
                               sx={{
-                                fontSize: 13,
-                                fontWeight: 600,
+                                fontSize: TYPO.body,
+                                fontWeight: FONT_WEIGHT.semibold,
                                 color: textPrimary,
                                 lineHeight: 1.3,
                               }}
@@ -485,7 +501,11 @@ export default function BluetoothSupportView(): React.ReactElement {
                               {device.name || 'Unknown Device'}
                             </Typography>
                             <Typography
-                              sx={{ fontSize: 10, color: textSecondary, fontFamily: 'monospace' }}
+                              sx={{
+                                fontSize: TYPO.tiny,
+                                color: textSecondary,
+                                fontFamily: 'monospace',
+                              }}
                             >
                               {device.address}
                             </Typography>
@@ -526,7 +546,12 @@ export default function BluetoothSupportView(): React.ReactElement {
               {/* Description — hidden once a device is found */}
               {devicesTyped.length === 0 && bleStatus !== 'connecting' && (
                 <Typography
-                  sx={{ fontSize: 12, color: textSecondary, textAlign: 'center', lineHeight: 1.6 }}
+                  sx={{
+                    fontSize: TYPO.sm,
+                    color: textSecondary,
+                    textAlign: 'center',
+                    lineHeight: 1.6,
+                  }}
                 >
                   Make sure Reachy Mini is powered on and within range.
                 </Typography>
@@ -538,7 +563,9 @@ export default function BluetoothSupportView(): React.ReactElement {
                   sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}
                 >
                   <CircularProgress size={14} color="primary" />
-                  <Typography sx={{ fontSize: 12, color: textSecondary }}>Connecting...</Typography>
+                  <Typography sx={{ fontSize: TYPO.sm, color: textSecondary }}>
+                    Connecting...
+                  </Typography>
                 </Box>
               )}
             </Box>
@@ -557,11 +584,18 @@ export default function BluetoothSupportView(): React.ReactElement {
                 gap: 2,
               }}
             >
-              <Typography sx={{ fontSize: 14, fontWeight: 600, color: textPrimary }}>
+              <Typography
+                sx={{ fontSize: TYPO.md, fontWeight: FONT_WEIGHT.semibold, color: textPrimary }}
+              >
                 Enter PIN
               </Typography>
               <Typography
-                sx={{ fontSize: 12, color: textSecondary, textAlign: 'center', lineHeight: 1.5 }}
+                sx={{
+                  fontSize: TYPO.sm,
+                  color: textSecondary,
+                  textAlign: 'center',
+                  lineHeight: 1.5,
+                }}
               >
                 Enter the last 5 digits of your Reachy Mini serial number.
               </Typography>
@@ -578,7 +612,7 @@ export default function BluetoothSupportView(): React.ReactElement {
                   style: {
                     textAlign: 'center',
                     fontSize: 24,
-                    fontWeight: 600,
+                    fontWeight: FONT_WEIGHT.semibold,
                     letterSpacing: '8px',
                     color: textPrimary,
                   },
@@ -586,7 +620,7 @@ export default function BluetoothSupportView(): React.ReactElement {
                 sx={{
                   width: 200,
                   '& .MuiOutlinedInput-root': {
-                    borderRadius: '10px',
+                    borderRadius: `${RADIUS.lg}px`,
                     '& fieldset': {
                       borderColor: borderColor,
                     },
@@ -606,12 +640,12 @@ export default function BluetoothSupportView(): React.ReactElement {
                 onClick={handleSavePin}
                 disabled={pinInput.length !== 5}
                 sx={{
-                  fontSize: 13,
-                  fontWeight: 600,
+                  fontSize: TYPO.body,
+                  fontWeight: FONT_WEIGHT.semibold,
                   textTransform: 'none',
                   py: 1,
                   px: 3,
-                  borderRadius: '10px',
+                  borderRadius: `${RADIUS.lg}px`,
                 }}
               >
                 Continue
@@ -627,8 +661,8 @@ export default function BluetoothSupportView(): React.ReactElement {
               {/* Connected device header */}
               {connectedDevice && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <BluetoothConnectedIcon sx={{ fontSize: 12, color: STATUS.success }} />
-                  <Typography sx={{ fontSize: 10, color: textSecondary }}>
+                  <BluetoothConnectedIcon sx={{ fontSize: TYPO.sm, color: STATUS.success }} />
+                  <Typography sx={{ fontSize: TYPO.tiny, color: textSecondary }}>
                     Connected —{' '}
                     <Box component="span" sx={{ fontFamily: 'monospace' }}>
                       {connectedDevice.address}
@@ -665,15 +699,15 @@ export default function BluetoothSupportView(): React.ReactElement {
                           isPending ? (
                             <CircularProgress size={13} color="primary" />
                           ) : (
-                            <IconComponent sx={{ fontSize: 14 }} />
+                            <IconComponent sx={{ fontSize: TYPO.md }} />
                           )
                         }
                         sx={{
-                          fontSize: 11,
-                          fontWeight: 600,
+                          fontSize: TYPO.xs,
+                          fontWeight: FONT_WEIGHT.semibold,
                           textTransform: 'none',
                           py: 0.75,
-                          borderRadius: '8px',
+                          borderRadius: `${RADIUS.md}px`,
                           justifyContent: 'flex-start',
                           ...(isDanger && {
                             borderColor: hexToRgba(STATUS.error, 0.4),
@@ -688,7 +722,9 @@ export default function BluetoothSupportView(): React.ReactElement {
                       >
                         {isPending ? `Switching… ${hotspotCountdown}s` : cmd.label}
                       </Button>
-                      <Typography sx={{ fontSize: 10, color: textSecondary, mt: 0.4, px: 0.5 }}>
+                      <Typography
+                        sx={{ fontSize: TYPO.tiny, color: textSecondary, mt: 0.4, px: 0.5 }}
+                      >
                         {desc}
                       </Typography>
                     </Box>
@@ -710,7 +746,7 @@ export default function BluetoothSupportView(): React.ReactElement {
               <Typography
                 onClick={journalActive ? handleJournalStop : handleJournalStart}
                 sx={{
-                  fontSize: 11,
+                  fontSize: TYPO.xs,
                   color: journalActive ? STATUS.success : 'primary.main',
                   textAlign: 'center',
                   textDecoration: 'underline',

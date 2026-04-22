@@ -13,7 +13,7 @@ import { useRobotWebSocket, useCoalescedRobotState } from './hooks';
 import useAppStore from '../../store/useAppStore';
 import { selectIsBusy } from '../../store/slices';
 import type { BusyReason, RobotStatus } from '../../types/robot';
-import { useAppPalette } from '@styles';
+import { useAppPalette, RADIUS } from '@styles';
 
 // ============================================================================
 // Camera presets
@@ -191,7 +191,7 @@ export default function RobotViewer3D({
         height: '100%',
         background: canvasIsTransparent ? 'transparent' : effectiveBackgroundColor,
         backgroundColor: canvasIsTransparent ? 'transparent' : effectiveBackgroundColor,
-        borderRadius: hideBorder ? '0' : '16px',
+        borderRadius: hideBorder ? '0' : RADIUS.xxl,
         position: 'relative',
         overflow: 'visible',
         // Form a local stacking context so internal overlays (LoadingSpinner,
@@ -233,7 +233,7 @@ export default function RobotViewer3D({
           display: 'block',
           background: canvasIsTransparent ? 'transparent' : effectiveBackgroundColor,
           border: hideBorder ? 'none' : `1px solid ${palette.border}`,
-          borderRadius: hideBorder ? '0' : '16px',
+          borderRadius: hideBorder ? '0' : RADIUS.xxl,
           transform: `scale(${canvasScale}) translate(${canvasTranslateX}, ${canvasTranslateY})`,
           transformOrigin: 'center center',
         }}

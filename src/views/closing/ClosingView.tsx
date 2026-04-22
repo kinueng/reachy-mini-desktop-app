@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Box, Typography, CircularProgress } from '@mui/material';
 import { getAppWindow } from '../../utils/windowUtils';
-import { useAppPalette } from '@styles';
+import { BLUR, FONT_WEIGHT, TYPO, useAppPalette } from '@styles';
 
 // 💤 Random messages for closing
 const CLOSING_MESSAGES: string[] = [
@@ -38,8 +38,8 @@ export default function ClosingView() {
         // TODO(style-migration): bespoke backdrop alphas don't map to a
         // single surface token; `surfaceCard` is the closest match.
         background: palette.surfaceCard,
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
+        backdropFilter: BLUR.lg,
+        WebkitBackdropFilter: BLUR.lg,
         overflow: 'hidden',
       }}
     >
@@ -82,8 +82,8 @@ export default function ClosingView() {
         <CircularProgress size={32} thickness={4} sx={{ color: palette.textMuted }} />
         <Typography
           sx={{
-            fontSize: 13,
-            fontWeight: 500,
+            fontSize: TYPO.body,
+            fontWeight: FONT_WEIGHT.medium,
             color: palette.textSecondary,
           }}
         >

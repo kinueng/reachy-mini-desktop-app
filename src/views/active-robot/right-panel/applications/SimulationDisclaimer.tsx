@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { STATUS } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, RADIUS, TYPO, useAppPalette } from '@styles';
 
 const STORAGE_KEY = 'simulation-disclaimer-accepted';
 
@@ -59,11 +59,11 @@ export default function SimulationDisclaimer({
     >
       {/* Icon + Title row */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <WarningAmberIcon sx={{ fontSize: 18, color: warningColor }} />
+        <WarningAmberIcon sx={{ fontSize: TYPO.xl, color: warningColor }} />
         <Typography
           sx={{
-            fontSize: 13,
-            fontWeight: 600,
+            fontSize: TYPO.body,
+            fontWeight: FONT_WEIGHT.semibold,
             color: palette.textPrimary,
           }}
         >
@@ -74,7 +74,7 @@ export default function SimulationDisclaimer({
       {/* Message */}
       <Typography
         sx={{
-          fontSize: 11,
+          fontSize: TYPO.xs,
           color: palette.textSecondary,
           textAlign: 'center',
           lineHeight: 1.6,
@@ -93,12 +93,12 @@ export default function SimulationDisclaimer({
         sx={{
           mt: 0.5,
           color: warningColor,
-          fontSize: 11,
-          fontWeight: 600,
+          fontSize: TYPO.xs,
+          fontWeight: FONT_WEIGHT.semibold,
           textTransform: 'none',
           px: 2,
           py: 0.5,
-          borderRadius: '6px',
+          borderRadius: RADIUS.sm,
           border: `1px solid ${palette.isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.5)'}`,
           '&:hover': {
             bgcolor: palette.isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',

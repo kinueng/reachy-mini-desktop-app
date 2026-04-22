@@ -8,7 +8,7 @@
 import React from 'react';
 import { Box, Typography, keyframes } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, DURATION, transition } from '@styles';
 
 export interface StepsProgressStep {
   id: string;
@@ -150,7 +150,7 @@ function StepsProgressIndicator({
                 sx={{
                   width: stepSize,
                   height: stepSize,
-                  borderRadius: '50%',
+                  borderRadius: RADIUS.circle,
                   bgcolor: bgColor,
                   border: `${borderWidth}px solid ${bgColor}`,
                   display: 'flex',
@@ -165,20 +165,20 @@ function StepsProgressIndicator({
                   sx={{
                     width: stepSize - borderWidth * 2,
                     height: stepSize - borderWidth * 2,
-                    borderRadius: '50%',
+                    borderRadius: RADIUS.circle,
                     bgcolor: bgColor,
                     border: `2px solid ${isCompleted ? fillColor : isCurrent ? activeColor : trackColor}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'all 0.3s ease',
+                    transition: transition('all', DURATION.slow),
                     animation: isCurrent ? `${pulse} 2s ease-in-out infinite` : 'none',
                   }}
                 >
                   {isCompleted ? (
                     <CheckIcon
                       sx={{
-                        fontSize: 12,
+                        fontSize: TYPO.sm,
                         color: fillColor,
                         animation: `${popIn} 0.35s ease-out`,
                       }}
@@ -188,7 +188,7 @@ function StepsProgressIndicator({
                       sx={{
                         width: 5,
                         height: 5,
-                        borderRadius: '50%',
+                        borderRadius: RADIUS.circle,
                         bgcolor: activeColor,
                       }}
                     />
@@ -199,12 +199,16 @@ function StepsProgressIndicator({
               {/* Label */}
               <Typography
                 sx={{
-                  fontSize: 10,
-                  fontWeight: isCurrent ? 600 : isCompleted ? 500 : 400,
+                  fontSize: TYPO.tiny,
+                  fontWeight: isCurrent
+                    ? FONT_WEIGHT.semibold
+                    : isCompleted
+                      ? FONT_WEIGHT.medium
+                      : FONT_WEIGHT.regular,
                   color: isCompleted ? fillColor : isCurrent ? activeColor : inactiveLabelColor,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
-                  transition: 'all 0.3s ease',
+                  transition: transition('all', DURATION.slow),
                   userSelect: 'none',
                 }}
               >

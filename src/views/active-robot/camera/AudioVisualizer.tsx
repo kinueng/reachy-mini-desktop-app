@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { DURATION, transition } from '@styles';
 
 export interface AudioVisualizerProps {
   barCount?: number;
@@ -198,7 +199,7 @@ export default function AudioVisualizer({
         width: `${displayWidth}px`,
         height: `${displayHeight}px`,
         display: 'block',
-        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: transition('all', DURATION.slower),
       }}
     />
   );

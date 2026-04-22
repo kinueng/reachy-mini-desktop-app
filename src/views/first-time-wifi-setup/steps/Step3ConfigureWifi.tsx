@@ -4,7 +4,7 @@ import { Box, Typography } from '@mui/material';
 // Cast until the component itself is migrated.
 
 import { WiFiConfiguration as WiFiConfigurationRaw } from '../../../components/wifi';
-import { useAppPalette } from '@styles';
+import { TYPO, useAppPalette } from '@styles';
 
 const WiFiConfiguration = WiFiConfigurationRaw as unknown as React.FC<any>;
 
@@ -34,7 +34,13 @@ export default function Step3ConfigureWifi({
   return (
     <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <Typography
-        sx={{ fontSize: 12, color: textSecondary, mb: 2, textAlign: 'center', lineHeight: 1.5 }}
+        sx={{
+          fontSize: TYPO.sm,
+          color: textSecondary,
+          mb: 2,
+          textAlign: 'center',
+          lineHeight: 1.5,
+        }}
       >
         Select the network you want your Reachy to use.
       </Typography>

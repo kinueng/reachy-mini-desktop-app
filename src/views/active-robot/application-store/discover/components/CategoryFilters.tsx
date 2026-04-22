@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Chip } from '@mui/material';
-import { ACCENT, accentAlpha } from '@styles/tokens';
+import { ACCENT, FONT_WEIGHT, TYPO, accentAlpha } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 interface Category {
@@ -38,8 +38,8 @@ export default function CategoryFilters({
     >
       <Typography
         sx={{
-          fontSize: 12,
-          fontWeight: 600,
+          fontSize: TYPO.sm,
+          fontWeight: FONT_WEIGHT.semibold,
           color: palette.textSecondary,
         }}
       >
@@ -59,8 +59,8 @@ export default function CategoryFilters({
               <span>All</span>
               <Typography
                 sx={{
-                  fontSize: 11,
-                  fontWeight: 600,
+                  fontSize: TYPO.xs,
+                  fontWeight: FONT_WEIGHT.semibold,
                   color: selectedCategory === null ? ACCENT.main : palette.textMuted,
                   opacity: 0.8,
                 }}
@@ -73,8 +73,8 @@ export default function CategoryFilters({
           size="small"
           sx={{
             height: 28,
-            fontSize: 12,
-            fontWeight: selectedCategory === null ? 700 : 500,
+            fontSize: TYPO.sm,
+            fontWeight: selectedCategory === null ? FONT_WEIGHT.bold : FONT_WEIGHT.medium,
             bgcolor:
               selectedCategory === null
                 ? accentAlpha(palette.isDark ? 0.2 : 0.15)
@@ -114,8 +114,8 @@ export default function CategoryFilters({
                     <span>{displayName}</span>
                     <Typography
                       sx={{
-                        fontSize: 11,
-                        fontWeight: 600,
+                        fontSize: TYPO.xs,
+                        fontWeight: FONT_WEIGHT.semibold,
                         color: isSelected ? ACCENT.main : palette.textMuted,
                         opacity: 0.8,
                       }}
@@ -128,8 +128,8 @@ export default function CategoryFilters({
                 size="small"
                 sx={{
                   height: 28,
-                  fontSize: 12,
-                  fontWeight: isSelected ? 700 : 500,
+                  fontSize: TYPO.sm,
+                  fontWeight: isSelected ? FONT_WEIGHT.bold : FONT_WEIGHT.medium,
                   bgcolor: isSelected
                     ? accentAlpha(palette.isDark ? 0.2 : 0.15)
                     : palette.isDark

@@ -23,7 +23,7 @@ import {
   type MeshLike,
 } from '../utils/hardwareErrors';
 import { ACCENT, STATUS } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT } from '@styles';
 
 type ScanState = 'idle' | 'scanning' | 'complete' | 'error';
 type ErrorType = 'none' | 'camera' | 'no_motors' | 'motor_communication';
@@ -357,7 +357,7 @@ export default function DevPlayground(): React.ReactElement {
                   >
                     <Typography
                       sx={{
-                        fontSize: 16,
+                        fontSize: TYPO.lg,
                         fontWeight: 900,
                         color: STATUS.error,
                         letterSpacing: '0.3px',
@@ -367,7 +367,7 @@ export default function DevPlayground(): React.ReactElement {
                       {startupError.messageParts ? (
                         <>
                           {startupError.messageParts.text && `${startupError.messageParts.text} `}
-                          <Box component="span" sx={{ fontWeight: 700 }}>
+                          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold }}>
                             {startupError.messageParts.bold}
                           </Box>
                           {startupError.messageParts.suffix &&
@@ -382,8 +382,8 @@ export default function DevPlayground(): React.ReactElement {
                     {startupError.code && (
                       <Typography
                         sx={{
-                          fontSize: 11,
-                          fontWeight: 500,
+                          fontSize: TYPO.xs,
+                          fontWeight: FONT_WEIGHT.medium,
                           color: palette.isDark ? 'rgba(239, 68, 68, 0.7)' : '#dc2626',
                           fontFamily: 'monospace',
                         }}
@@ -405,7 +405,7 @@ export default function DevPlayground(): React.ReactElement {
                       )}
                       <Typography
                         sx={{
-                          fontSize: 16,
+                          fontSize: TYPO.lg,
                           fontWeight: 900,
                           color: palette.textPrimary,
                           letterSpacing: '0.3px',
@@ -437,8 +437,8 @@ export default function DevPlayground(): React.ReactElement {
                         />
                         <Typography
                           sx={{
-                            fontSize: 11,
-                            fontWeight: 500,
+                            fontSize: TYPO.xs,
+                            fontWeight: FONT_WEIGHT.medium,
                             color: palette.textSecondary,
                             opacity: 1,
                             textAlign: 'center',

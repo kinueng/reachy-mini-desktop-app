@@ -1,6 +1,6 @@
 import React, { type ErrorInfo, type ReactNode } from 'react';
 import { Box, Typography, Button } from '@mui/material';
-import { buildAppPalette, whiteAlpha, blackAlpha } from '@styles';
+import { buildAppPalette, whiteAlpha, blackAlpha, TYPO, FONT_WEIGHT, RADIUS } from '@styles';
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -94,13 +94,13 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           textAlign: 'center',
         }}
       >
-        <Typography variant="h5" fontWeight={600}>
+        <Typography variant="h5" fontWeight={FONT_WEIGHT.semibold}>
           Something went wrong
         </Typography>
 
         <Typography
           sx={{
-            fontSize: 13,
+            fontSize: TYPO.body,
             color: palette.isDark ? whiteAlpha(0.5) : blackAlpha(0.45),
             maxWidth: 420,
             lineHeight: 1.6,
@@ -117,7 +117,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               mt: 1,
               px: 2,
               py: 1.5,
-              borderRadius: '8px',
+              borderRadius: RADIUS.md,
               bgcolor: palette.isDark ? whiteAlpha(0.06) : blackAlpha(0.04),
               maxWidth: 500,
               overflow: 'auto',
@@ -126,7 +126,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             <Typography
               sx={{
                 fontFamily: 'monospace',
-                fontSize: 11,
+                fontSize: TYPO.xs,
                 color: palette.isDark ? whiteAlpha(0.4) : blackAlpha(0.35),
                 wordBreak: 'break-word',
                 cursor: 'text',

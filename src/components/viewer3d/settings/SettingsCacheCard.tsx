@@ -5,7 +5,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SectionHeader from './SectionHeader';
 import { buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '../../../config/daemon';
 import { useToast } from '../../../hooks/useToast';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, RADIUS } from '@styles';
 
 export interface SettingsCacheCardProps {
   /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
@@ -55,10 +55,10 @@ export default function SettingsCacheCard({
   const textSecondary = palette.textSecondary;
   const dangerButtonStyle = {
     ...buttonStyle,
-    fontSize: 12,
+    fontSize: TYPO.sm,
     py: 0.75,
     px: 2,
-    borderRadius: '8px',
+    borderRadius: RADIUS.md,
     color: palette.dangerText,
     borderColor: palette.dangerBorder,
     '&:hover': {
@@ -76,7 +76,7 @@ export default function SettingsCacheCard({
       <SectionHeader title="Maintenance" icon={DeleteOutlineIcon} darkMode={palette.isDark} />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
+        <Typography sx={{ fontSize: TYPO.sm, color: textSecondary, lineHeight: 1.5 }}>
           Free up disk space by clearing cached AI models.
         </Typography>
 
@@ -92,7 +92,7 @@ export default function SettingsCacheCard({
           {isClearing ? 'Clearing...' : 'Clear HuggingFace Cache'}
         </Button>
 
-        <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
+        <Typography sx={{ fontSize: TYPO.sm, color: textSecondary, lineHeight: 1.5 }}>
           Uninstall all apps.
         </Typography>
 

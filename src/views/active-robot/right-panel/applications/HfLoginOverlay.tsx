@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Typography, Button, CircularProgress, Link } from '@mui/material';
 import { ACCENT, DURATION, EASING, STATUS, accentAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, RADIUS, TYPO, transition, useAppPalette } from '@styles';
 import hfLogo from '../../../../assets/hf-logo.svg';
 
 export interface HfLoginOverlayProps {
@@ -57,8 +57,8 @@ export default function HfLoginOverlay({
       {/* Title */}
       <Typography
         sx={{
-          fontSize: 16,
-          fontWeight: 700,
+          fontSize: TYPO.lg,
+          fontWeight: FONT_WEIGHT.bold,
           color: palette.textPrimary,
           letterSpacing: '-0.2px',
           textAlign: 'center',
@@ -90,14 +90,14 @@ export default function HfLoginOverlay({
           mt: 0.5,
           py: 1.25,
           px: 4,
-          fontSize: 13,
-          fontWeight: 700,
+          fontSize: TYPO.body,
+          fontWeight: FONT_WEIGHT.bold,
           textTransform: 'none',
-          borderRadius: '12px',
+          borderRadius: RADIUS.xl,
           color: '#fff',
           background: `linear-gradient(135deg, ${ACCENT.main}, ${ACCENT.dark})`,
           boxShadow: `0 2px 12px ${accentAlpha(0.25)}`,
-          transition: `all ${DURATION.base}ms ${EASING.standard}`,
+          transition: transition('all', DURATION.base, EASING.standard),
           '&:hover': {
             // TODO(style-migration): custom accent-brighten gradient stops without palette equivalents.
             background: 'linear-gradient(135deg, #FFa520, #E89510)',
@@ -119,7 +119,7 @@ export default function HfLoginOverlay({
       {isWaitingForAuth && (
         <Typography
           sx={{
-            fontSize: 11,
+            fontSize: TYPO.xs,
             color: palette.textMuted,
             textAlign: 'center',
           }}
@@ -132,7 +132,7 @@ export default function HfLoginOverlay({
       {error && (
         <Typography
           sx={{
-            fontSize: 11,
+            fontSize: TYPO.xs,
             color: STATUS.error,
             textAlign: 'center',
             maxWidth: 280,
@@ -153,7 +153,7 @@ export default function HfLoginOverlay({
             fontSize: 11.5,
             color: palette.textMuted,
             cursor: 'pointer',
-            transition: `color ${DURATION.fast}ms ${EASING.standard}`,
+            transition: transition('color', DURATION.fast, EASING.standard),
             '&:hover': {
               color: palette.textSecondary,
             },

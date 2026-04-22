@@ -14,7 +14,7 @@ import {
   DURATION,
   EASING,
 } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, RADIUS, TYPO, useAppPalette } from '@styles';
 
 interface Step2ConnectHotspotProps {
   /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
@@ -65,7 +65,7 @@ export default function Step2ConnectHotspot({
         justifyContent: 'space-between',
         py: 0.75,
         px: 1.5,
-        borderRadius: '8px',
+        borderRadius: `${RADIUS.md}px`,
         bgcolor: isDark ? whiteAlpha(0.04) : blackAlpha(0.03),
         cursor: 'pointer',
         transition: `all ${DURATION.fast}ms ${EASING.standard}`,
@@ -77,7 +77,7 @@ export default function Step2ConnectHotspot({
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.25 }}>
         <Typography
           sx={{
-            fontSize: 9,
+            fontSize: TYPO.micro,
             color: textSecondary,
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
@@ -86,15 +86,20 @@ export default function Step2ConnectHotspot({
           {label}
         </Typography>
         <Typography
-          sx={{ fontSize: 13, fontWeight: 600, color: textPrimary, fontFamily: 'monospace' }}
+          sx={{
+            fontSize: TYPO.body,
+            fontWeight: FONT_WEIGHT.semibold,
+            color: textPrimary,
+            fontFamily: 'monospace',
+          }}
         >
           {value}
         </Typography>
       </Box>
       {copiedField === field ? (
-        <CheckIcon sx={{ fontSize: 14, color: STATUS.success }} />
+        <CheckIcon sx={{ fontSize: TYPO.md, color: STATUS.success }} />
       ) : (
-        <ContentCopyIcon sx={{ fontSize: 14, color: textSecondary }} />
+        <ContentCopyIcon sx={{ fontSize: TYPO.md, color: textSecondary }} />
       )}
     </Box>
   );
@@ -111,10 +116,12 @@ export default function Step2ConnectHotspot({
     >
       {isDaemonReachable ? (
         <>
-          <Typography sx={{ fontSize: 15, fontWeight: 600, color: STATUS.success, mb: 1 }}>
+          <Typography
+            sx={{ fontSize: 15, fontWeight: FONT_WEIGHT.semibold, color: STATUS.success, mb: 1 }}
+          >
             ✓ Connected to Reachy!
           </Typography>
-          <Typography sx={{ fontSize: 12, color: textSecondary }}>
+          <Typography sx={{ fontSize: TYPO.sm, color: textSecondary }}>
             Moving to WiFi configuration...
           </Typography>
         </>
@@ -126,14 +133,14 @@ export default function Step2ConnectHotspot({
               sx={{
                 mb: 2,
                 p: 1.5,
-                borderRadius: '8px',
+                borderRadius: `${RADIUS.md}px`,
                 bgcolor: palette.statusErrorSurface,
                 border: `1px solid ${palette.statusErrorBorder}`,
               }}
             >
               <Typography
                 sx={{
-                  fontSize: 12,
+                  fontSize: TYPO.sm,
                   color: palette.statusErrorText,
                   lineHeight: 1.5,
                 }}
@@ -170,7 +177,7 @@ export default function Step2ConnectHotspot({
                   // on purpose - not mapped to a palette surface.
                   bgcolor: '#fff',
                   p: 1,
-                  borderRadius: '10px',
+                  borderRadius: `${RADIUS.lg}px`,
                   width: 110,
                   height: 110,
                   boxShadow: isDark ? palette.shadowMd : palette.shadowSm,
@@ -186,7 +193,9 @@ export default function Step2ConnectHotspot({
 
             {/* Credentials - 6/10 */}
             <Box sx={{ width: '60%', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-              <Typography sx={{ fontSize: 10, color: textSecondary, mb: 0.5, textAlign: 'left' }}>
+              <Typography
+                sx={{ fontSize: TYPO.tiny, color: textSecondary, mb: 0.5, textAlign: 'left' }}
+              >
                 Scan QR or connect manually:
               </Typography>
               <CredentialRow label="Network" value={hotspotName} field="network" />
@@ -197,17 +206,17 @@ export default function Step2ConnectHotspot({
           {/* Primary Button */}
           <Button
             variant="outlined"
-            endIcon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
+            endIcon={<OpenInNewIcon sx={{ fontSize: TYPO.lg }} />}
             onClick={onOpenWifiSettings}
             fullWidth
             sx={{
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: TYPO.body,
+              fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
               borderColor: ACCENT.main,
               color: ACCENT.main,
               py: 1,
-              borderRadius: '10px',
+              borderRadius: `${RADIUS.lg}px`,
               mb: 2,
               '&:hover': {
                 borderColor: ACCENT.dark,
@@ -227,7 +236,7 @@ export default function Step2ConnectHotspot({
             }}
           >
             <CircularProgress size={12} sx={{ color: ACCENT.main }} />
-            <Typography sx={{ fontSize: 11, color: textSecondary }}>
+            <Typography sx={{ fontSize: TYPO.xs, color: textSecondary }}>
               Detecting connection - we'll auto-advance when connected
             </Typography>
           </Box>

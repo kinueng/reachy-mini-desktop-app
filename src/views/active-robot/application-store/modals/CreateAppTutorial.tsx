@@ -11,7 +11,7 @@ const FullscreenOverlay = FullscreenOverlayRaw as unknown as React.ComponentType
 import HowToCreateApp from '@assets/reachy-how-to-create-app.svg';
 import ExploratorIcon from '@assets/exporator.svg';
 import AstronautIcon from '@assets/astronaut.svg';
-import { accentAlpha } from '@styles/tokens';
+import { DURATION, FONT_WEIGHT, RADIUS, TYPO, accentAlpha, transition } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 interface CreateAppTutorialModalProps {
@@ -95,7 +95,7 @@ export default function CreateAppTutorialModal({
           <Typography
             sx={{
               fontSize: 28,
-              fontWeight: 700,
+              fontWeight: FONT_WEIGHT.bold,
               color: palette.textPrimary,
               letterSpacing: '-0.5px',
               lineHeight: 1.1,
@@ -106,9 +106,9 @@ export default function CreateAppTutorialModal({
           </Typography>
           <Typography
             sx={{
-              fontSize: 14,
+              fontSize: TYPO.md,
               color: palette.textMuted,
-              fontWeight: 400,
+              fontWeight: FONT_WEIGHT.regular,
               lineHeight: 1.5,
             }}
           >
@@ -139,10 +139,10 @@ export default function CreateAppTutorialModal({
                 textAlign: 'center',
                 gap: 2,
                 cursor: 'pointer',
-                borderRadius: '16px',
+                borderRadius: `${RADIUS.xxl}px`,
                 border: `1px solid ${palette.borderStrong}`,
                 bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.03)' : '#ffffff',
-                transition: 'all 0.2s ease',
+                transition: transition('all', DURATION.base),
                 '&:hover': {
                   bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.02)',
                   borderColor: accentAlpha(palette.isDark ? 0.4 : 0.5),
@@ -163,8 +163,8 @@ export default function CreateAppTutorialModal({
               <Box>
                 <Typography
                   sx={{
-                    fontSize: 16,
-                    fontWeight: 700,
+                    fontSize: TYPO.lg,
+                    fontWeight: FONT_WEIGHT.bold,
                     color: palette.textPrimary,
                     letterSpacing: '-0.2px',
                     mb: 0.25,
@@ -174,7 +174,7 @@ export default function CreateAppTutorialModal({
                 </Typography>
                 <Typography
                   sx={{
-                    fontSize: 12,
+                    fontSize: TYPO.sm,
                     color: palette.textMuted,
                   }}
                 >

@@ -2,7 +2,7 @@ import { Box } from '@mui/material';
 import type React from 'react';
 import LogConsoleUntyped from '@components/LogConsole';
 import FullscreenOverlayUntyped from '../../../components/FullscreenOverlay';
-import { useAppPalette, blackAlpha, whiteAlpha } from '@styles';
+import { BLUR, useAppPalette, blackAlpha, whiteAlpha } from '@styles';
 
 // These two components haven't migrated to TS yet - cast locally.
 const FullscreenOverlay = FullscreenOverlayUntyped as unknown as React.FC<{
@@ -92,8 +92,8 @@ export default function StartupLogsPanel({
             sx={{
               bgcolor: miniBg,
               border: `1px solid ${miniBorder}`,
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
+              backdropFilter: BLUR.sm,
+              WebkitBackdropFilter: BLUR.sm,
             }}
           />
         </Box>

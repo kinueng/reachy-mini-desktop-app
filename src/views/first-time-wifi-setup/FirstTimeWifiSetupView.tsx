@@ -12,7 +12,7 @@ import { useToast } from '../../hooks/useToast';
 // (parses as `boolean`). Cast until the component itself is migrated.
 
 import FullscreenOverlayRaw from '../../components/FullscreenOverlay';
-import { ACCENT, STATUS, useAppPalette } from '@styles';
+import { ACCENT, FONT_WEIGHT, RADIUS, STATUS, TYPO, useAppPalette } from '@styles';
 
 const FullscreenOverlay = FullscreenOverlayRaw as unknown as React.FC<any>;
 import {
@@ -387,7 +387,7 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
           variant="h1"
           sx={{
             fontSize: 22,
-            fontWeight: 700,
+            fontWeight: FONT_WEIGHT.bold,
             color: textPrimary,
             mb: 3,
             textAlign: 'center',
@@ -415,19 +415,19 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
                 <StepLabel
                   sx={{
                     '& .MuiStepLabel-label': {
-                      fontSize: 9,
+                      fontSize: TYPO.micro,
                       color: textSecondary,
                       mt: 0.5,
                       '&.Mui-active': {
                         color: ACCENT.main,
-                        fontWeight: 600,
+                        fontWeight: FONT_WEIGHT.semibold,
                       },
                       '&.Mui-completed': {
                         color: STATUS.success,
                       },
                     },
                     '& .MuiStepIcon-root': {
-                      fontSize: 20,
+                      fontSize: TYPO.xxl,
                       color: palette.border,
                       '&.Mui-active': {
                         color: ACCENT.main,
@@ -453,7 +453,7 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
             maxWidth: 420,
             height: 320,
             bgcolor: bgCard,
-            borderRadius: '12px',
+            borderRadius: `${RADIUS.xl}px`,
             border: '1px solid',
             borderColor: borderColor,
             p: 3,
@@ -478,22 +478,26 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
             {/* Step 2: Daemon detected */}
             {activeStep === 1 && isDaemonReachable && (
               <>
-                <CheckCircleIcon sx={{ fontSize: 12, color: STATUS.success }} />
-                <Typography sx={{ fontSize: 9, color: STATUS.success }}>connected</Typography>
+                <CheckCircleIcon sx={{ fontSize: TYPO.sm, color: STATUS.success }} />
+                <Typography sx={{ fontSize: TYPO.micro, color: STATUS.success }}>
+                  connected
+                </Typography>
               </>
             )}
             {/* Step 4: Robot found */}
             {activeStep === 3 && wifiRobot.available && (
               <>
-                <CheckCircleIcon sx={{ fontSize: 12, color: STATUS.success }} />
-                <Typography sx={{ fontSize: 9, color: STATUS.success }}>found</Typography>
+                <CheckCircleIcon sx={{ fontSize: TYPO.sm, color: STATUS.success }} />
+                <Typography sx={{ fontSize: TYPO.micro, color: STATUS.success }}>found</Typography>
               </>
             )}
             {/* Step 4: Scanning */}
             {activeStep === 3 && isDiscoveryScanning && !wifiRobot.available && (
               <>
                 <CircularProgress size={10} sx={{ color: textSecondary }} />
-                <Typography sx={{ fontSize: 9, color: textSecondary }}>scanning...</Typography>
+                <Typography sx={{ fontSize: TYPO.micro, color: textSecondary }}>
+                  scanning...
+                </Typography>
               </>
             )}
           </Box>
@@ -583,7 +587,7 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
         {activeStep === 0 && !hasReachyHotspot && (
           <Typography
             sx={{
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: textSecondary,
               textAlign: 'center',
               mt: 2,
@@ -599,7 +603,7 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
               sx={{
                 color: 'primary.main',
                 cursor: 'pointer',
-                fontWeight: 500,
+                fontWeight: FONT_WEIGHT.medium,
                 textDecoration: 'underline',
               }}
             >

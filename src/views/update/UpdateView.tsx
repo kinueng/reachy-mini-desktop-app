@@ -7,7 +7,20 @@ import { DAEMON_CONFIG } from '../../config/daemon';
 import { useInternetHealthcheck } from './hooks';
 import PulseButton from '@components/PulseButton';
 import LogConsole from '@components/LogConsole';
-import { ACCENT, STATUS, blackAlpha, whiteAlpha, hexToRgba, useAppPalette } from '@styles';
+import {
+  ACCENT,
+  BLUR,
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  STATUS,
+  TYPO,
+  blackAlpha,
+  hexToRgba,
+  transition,
+  useAppPalette,
+  whiteAlpha,
+} from '@styles';
 
 export interface UpdateInfo {
   version: string;
@@ -106,8 +119,8 @@ export default function UpdateView({
         // TODO(style-migration): bespoke 0.95 / 0.85 alpha stack doesn't map
         // to a single surface token; `surfaceCard` is the closest match.
         background: palette.surfaceCard,
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
+        backdropFilter: BLUR.lg,
+        WebkitBackdropFilter: BLUR.lg,
         overflow: 'hidden',
       }}
     >
@@ -144,8 +157,8 @@ export default function UpdateView({
 
             <Typography
               sx={{
-                fontSize: 12,
-                fontWeight: 400,
+                fontSize: TYPO.sm,
+                fontWeight: FONT_WEIGHT.regular,
                 color: palette.textFaint,
                 textAlign: 'center',
                 letterSpacing: '0.2px',
@@ -174,7 +187,7 @@ export default function UpdateView({
             <Typography
               sx={{
                 fontSize: 24,
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 color: palette.textPrimary,
                 mb: 1,
                 mt: 0,
@@ -186,7 +199,7 @@ export default function UpdateView({
 
             <Typography
               sx={{
-                fontSize: 14,
+                fontSize: TYPO.md,
                 color: palette.textSecondary,
                 textAlign: 'center',
                 maxWidth: 360,
@@ -208,7 +221,7 @@ export default function UpdateView({
                   alignItems: 'center',
                   gap: 0.5,
                   color: palette.textMuted,
-                  fontSize: 12,
+                  fontSize: TYPO.sm,
                   textDecoration: 'none',
                   mb: 2,
                   '&:hover': {
@@ -217,7 +230,7 @@ export default function UpdateView({
                 }}
               >
                 View release notes
-                <OpenInNewIcon sx={{ fontSize: 14 }} />
+                <OpenInNewIcon sx={{ fontSize: TYPO.md }} />
               </Link>
             )}
 
@@ -237,7 +250,7 @@ export default function UpdateView({
                 {isDownloading && (
                   <Typography
                     sx={{
-                      fontSize: 12,
+                      fontSize: TYPO.sm,
                       color: palette.textSecondary,
                       textAlign: 'center',
                       mt: 1,
@@ -260,9 +273,9 @@ export default function UpdateView({
               >
                 <Typography
                   sx={{
-                    fontSize: 13,
+                    fontSize: TYPO.body,
                     color: STATUS.error,
-                    fontWeight: 500,
+                    fontWeight: FONT_WEIGHT.medium,
                     mb: 1,
                   }}
                 >
@@ -298,8 +311,8 @@ export default function UpdateView({
                   onClick={skipUpdate}
                   sx={{
                     color: palette.textMuted,
-                    fontWeight: 500,
-                    fontSize: 13,
+                    fontWeight: FONT_WEIGHT.medium,
+                    fontSize: TYPO.body,
                     py: 0.8,
                     textTransform: 'none',
                     '&:hover': {
@@ -351,8 +364,8 @@ export default function UpdateView({
               {/* Error title - more specific based on error type */}
               <Typography
                 sx={{
-                  fontSize: 18,
-                  fontWeight: 600,
+                  fontSize: TYPO.xl,
+                  fontWeight: FONT_WEIGHT.semibold,
                   color: palette.textPrimary,
                   mb: 1,
                 }}
@@ -374,7 +387,7 @@ export default function UpdateView({
               {/* Error message - use the detailed error message directly */}
               <Typography
                 sx={{
-                  fontSize: 13,
+                  fontSize: TYPO.body,
                   color: palette.textSecondary,
                   lineHeight: 1.6,
                   mb: 2,
@@ -418,8 +431,8 @@ export default function UpdateView({
             // to a shared surface token; derive them from alpha utilities.
             bgcolor: isDark ? blackAlpha(0.6) : whiteAlpha(0.7),
             border: `1px solid ${isDark ? whiteAlpha(0.15) : blackAlpha(0.12)}`,
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
+            backdropFilter: BLUR.sm,
+            WebkitBackdropFilter: BLUR.sm,
           }}
         />
       </Box>
@@ -444,24 +457,24 @@ export default function UpdateView({
             sx={{
               width: 8,
               height: 8,
-              borderRadius: '50%',
+              borderRadius: RADIUS.circle,
               bgcolor: isInternetOnline
                 ? hexToRgba(STATUS.success, isDark ? 0.6 : 0.5)
                 : hexToRgba(STATUS.error, isDark ? 0.6 : 0.5),
               boxShadow: isInternetOnline
                 ? `0 0 ${isDark ? 4 : 3}px ${hexToRgba(STATUS.success, isDark ? 0.3 : 0.2)}`
                 : `0 0 ${isDark ? 4 : 3}px ${hexToRgba(STATUS.error, isDark ? 0.3 : 0.2)}`,
-              transition: 'all 0.3s ease',
+              transition: transition('all', DURATION.slow),
               flexShrink: 0,
             }}
           />
           <Typography
             sx={{
-              fontSize: 12,
-              fontWeight: 400,
+              fontSize: TYPO.sm,
+              fontWeight: FONT_WEIGHT.regular,
               color: isDark ? whiteAlpha(0.7) : blackAlpha(0.7),
               whiteSpace: 'nowrap',
-              transition: 'color 0.3s ease',
+              transition: transition('color', DURATION.slow),
             }}
           >
             {isInternetOnline ? 'Online' : 'Offline'}

@@ -17,6 +17,7 @@ import {
   type ViewerEntryCategory,
 } from '../../utils/logging';
 import type { LogLevel } from '../../types/api';
+import { FONT_WEIGHT, TYPO } from '@styles';
 
 interface ViewerLogEntry {
   line: string;
@@ -209,8 +210,8 @@ export default function LogViewerWindow(): React.ReactElement {
                 key={key}
                 value={key}
                 sx={{
-                  fontSize: 11,
-                  fontWeight: 600,
+                  fontSize: TYPO.xs,
+                  fontWeight: FONT_WEIGHT.semibold,
                   textTransform: 'none',
                   px: 1.5,
                   py: 0.25,
@@ -234,7 +235,7 @@ export default function LogViewerWindow(): React.ReactElement {
             ))}
           </ToggleButtonGroup>
 
-          <Typography sx={{ fontSize: 11, color: '#484f58', ml: 1 }}>
+          <Typography sx={{ fontSize: TYPO.xs, color: '#484f58', ml: 1 }}>
             {visibleLogs.length} / {allLogs.length}
           </Typography>
         </Box>
@@ -253,7 +254,7 @@ export default function LogViewerWindow(): React.ReactElement {
               '&:hover': { bgcolor: 'rgba(255,255,255,0.06)' },
             }}
           >
-            <VerticalAlignBottomIcon sx={{ fontSize: 16 }} />
+            <VerticalAlignBottomIcon sx={{ fontSize: TYPO.lg }} />
           </IconButton>
           <IconButton
             size="small"
@@ -263,7 +264,7 @@ export default function LogViewerWindow(): React.ReactElement {
               '&:hover': { bgcolor: 'rgba(255,255,255,0.06)', color: '#ef4444' },
             }}
           >
-            <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+            <DeleteOutlineIcon sx={{ fontSize: TYPO.lg }} />
           </IconButton>
         </Box>
       </Box>
@@ -291,7 +292,7 @@ export default function LogViewerWindow(): React.ReactElement {
         {visibleLogs.length === 0 ? (
           <Typography
             sx={{
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: '#484f58',
               textAlign: 'center',
               mt: 4,
@@ -317,7 +318,7 @@ export default function LogViewerWindow(): React.ReactElement {
               <Typography
                 component="span"
                 sx={{
-                  fontSize: 11,
+                  fontSize: TYPO.xs,
                   color: '#484f58',
                   minWidth: 65,
                   flexShrink: 0,
@@ -332,8 +333,8 @@ export default function LogViewerWindow(): React.ReactElement {
               <Typography
                 component="span"
                 sx={{
-                  fontSize: 9,
-                  fontWeight: 700,
+                  fontSize: TYPO.micro,
+                  fontWeight: FONT_WEIGHT.bold,
                   color: CAT_BADGE_FG[entry.cat],
                   bgcolor: CAT_BADGE_BG[entry.cat],
                   px: 0.75,

@@ -7,7 +7,7 @@ import { openAppWindow, closeAppWindow } from '../../../utils/windowManager';
 import useAppStore from '../../../store/useAppStore';
 import { buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '../../../config/daemon';
 import { ACCENT, STATUS, blackAlpha, whiteAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, RADIUS, TYPO, useAppPalette } from '@styles';
 
 export interface EmbeddedAppViewProps {
   /** @deprecated Theme is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
@@ -209,7 +209,7 @@ export default function EmbeddedAppView(
           sx={{
             width: 6,
             height: 6,
-            borderRadius: '50%',
+            borderRadius: RADIUS.circle,
             bgcolor: STATUS.success,
             flexShrink: 0,
           }}
@@ -218,8 +218,8 @@ export default function EmbeddedAppView(
         <Typography
           sx={{
             flex: 1,
-            fontSize: 12,
-            fontWeight: 600,
+            fontSize: TYPO.sm,
+            fontWeight: FONT_WEIGHT.semibold,
             color: palette.textSecondary,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -244,7 +244,7 @@ export default function EmbeddedAppView(
               },
             }}
           >
-            <OpenInNewIcon sx={{ fontSize: 14 }} />
+            <OpenInNewIcon sx={{ fontSize: TYPO.md }} />
           </IconButton>
         </Tooltip>
 

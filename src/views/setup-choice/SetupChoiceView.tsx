@@ -5,7 +5,16 @@ import BluetoothIcon from '@mui/icons-material/Bluetooth';
 import useAppStore from '../../store/useAppStore';
 import FullscreenOverlayUntyped from '../../components/FullscreenOverlay';
 import type React from 'react';
-import { ACCENT, accentAlpha, DURATION, EASING, useAppPalette } from '@styles';
+import {
+  ACCENT,
+  accentAlpha,
+  DURATION,
+  EASING,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  useAppPalette,
+} from '@styles';
 
 // TODO(ts): FullscreenOverlay lives outside this agent's migration scope; cast locally
 // to a React.FC shape that matches the runtime call signature we use.
@@ -75,7 +84,7 @@ export default function SetupChoiceView() {
         <Typography
           sx={{
             fontSize: 22,
-            fontWeight: 700,
+            fontWeight: FONT_WEIGHT.bold,
             color: textPrimary,
             mb: 1,
             textAlign: 'center',
@@ -87,7 +96,7 @@ export default function SetupChoiceView() {
 
         <Typography
           sx={{
-            fontSize: 13,
+            fontSize: TYPO.body,
             color: textSecondary,
             textAlign: 'center',
             mb: 3,
@@ -110,7 +119,7 @@ export default function SetupChoiceView() {
               justifyContent: 'center',
               gap: 1,
               p: 3,
-              borderRadius: '12px',
+              borderRadius: `${RADIUS.xl}px`,
               border: '2px solid',
               borderColor: ACCENT.main,
               bgcolor: palette.accentSurface,
@@ -123,13 +132,18 @@ export default function SetupChoiceView() {
           >
             <WifiOutlinedIcon sx={{ fontSize: 36, color: ACCENT.main }} />
             <Typography
-              sx={{ fontSize: 15, fontWeight: 600, color: textPrimary, textAlign: 'center' }}
+              sx={{
+                fontSize: 15,
+                fontWeight: FONT_WEIGHT.semibold,
+                color: textPrimary,
+                textAlign: 'center',
+              }}
             >
               WiFi Setup
             </Typography>
             <Typography
               sx={{
-                fontSize: 11,
+                fontSize: TYPO.xs,
                 color: textSecondary,
                 textAlign: 'center',
                 lineHeight: 1.4,
@@ -151,7 +165,7 @@ export default function SetupChoiceView() {
               justifyContent: 'center',
               gap: 1,
               p: 3,
-              borderRadius: '12px',
+              borderRadius: `${RADIUS.xl}px`,
               border: '1px solid',
               borderColor: borderColor,
               bgcolor: bgCard,
@@ -174,7 +188,7 @@ export default function SetupChoiceView() {
                 right: 8,
                 px: 0.75,
                 py: 0.25,
-                borderRadius: '4px',
+                borderRadius: `${RADIUS.xs}px`,
                 bgcolor: accentAlpha(palette.isDark ? 0.15 : 0.1),
                 border: `1px solid ${palette.accentBorder}`,
               }}
@@ -182,7 +196,7 @@ export default function SetupChoiceView() {
               <Typography
                 sx={{
                   fontSize: 8,
-                  fontWeight: 600,
+                  fontWeight: FONT_WEIGHT.semibold,
                   color: ACCENT.main,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
@@ -195,13 +209,18 @@ export default function SetupChoiceView() {
 
             <BluetoothIcon sx={{ fontSize: 36, color: textSecondary }} />
             <Typography
-              sx={{ fontSize: 15, fontWeight: 600, color: textPrimary, textAlign: 'center' }}
+              sx={{
+                fontSize: 15,
+                fontWeight: FONT_WEIGHT.semibold,
+                color: textPrimary,
+                textAlign: 'center',
+              }}
             >
               Bluetooth
             </Typography>
             <Typography
               sx={{
-                fontSize: 11,
+                fontSize: TYPO.xs,
                 color: textSecondary,
                 textAlign: 'center',
                 lineHeight: 1.4,

@@ -1,7 +1,7 @@
 import { Box, IconButton, Tooltip } from '@mui/material';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
-import { ACCENT, DURATION, EASING, accentAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { ACCENT, DURATION, accentAlpha, transition } from '@styles/tokens';
+import { useAppPalette, TYPO, BLUR } from '@styles';
 
 export interface SettingsButtonProps {
   onClick: () => void;
@@ -37,12 +37,12 @@ export default function SettingsButton({
             sx={{
               width: 36,
               height: 36,
-              transition: `all ${DURATION.base}ms ${EASING.standard}`,
+              transition: transition('all', DURATION.base),
               color: disabled ? palette.textMuted : ACCENT.main,
               bgcolor: palette.surfaceCard,
               border: '1px solid',
               borderColor: disabled ? palette.border : palette.accentBorderStrong,
-              backdropFilter: 'blur(10px)',
+              backdropFilter: BLUR.md,
               boxShadow: palette.shadowSm,
               opacity: disabled ? 0.4 : 1,
               '&:hover': {
@@ -60,7 +60,7 @@ export default function SettingsButton({
               },
             }}
           >
-            <SettingsOutlinedIcon sx={{ fontSize: 18 }} />
+            <SettingsOutlinedIcon sx={{ fontSize: TYPO.xl }} />
           </IconButton>
         </span>
       </Tooltip>

@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, useAppPalette } from '@styles';
 
 export interface BoldMessageProps {
   text?: string;
@@ -24,13 +24,13 @@ function BoldMessage({ text, bold, suffix, fontSize = 14 }: BoldMessageProps) {
       component="span"
       sx={{
         fontSize,
-        fontWeight: 500,
+        fontWeight: FONT_WEIGHT.medium,
         color: palette.textPrimary,
         lineHeight: 1.5,
       }}
     >
       {text && `${text} `}
-      <Box component="span" sx={{ fontWeight: 700 }}>
+      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold }}>
         {bold}
       </Box>
       {suffix && ` ${suffix}`}

@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { doaToCssRotation } from '../../../hooks/audio/useDoA';
 import { whiteAlpha, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, RADIUS, useAppPalette } from '@styles';
 
 export interface DoAIndicatorProps {
   angle: number | null;
@@ -48,7 +48,7 @@ function DoAIndicator({
         gap: '3px',
         px: 0.625,
         py: 0.25,
-        borderRadius: '6px',
+        borderRadius: RADIUS.sm,
         bgcolor: isTalking ? talkingBg : idleBg,
         border: `1px solid ${isTalking ? talkingBorder : 'transparent'}`,
         transition: 'background-color 0.35s ease, border-color 0.35s ease, opacity 0.35s ease',
@@ -84,7 +84,7 @@ function DoAIndicator({
         <Typography
           sx={{
             fontSize: 8,
-            fontWeight: 600,
+            fontWeight: FONT_WEIGHT.semibold,
             color: isTalking ? TALKING_COLOR : palette.textFaint,
             textTransform: 'uppercase',
             letterSpacing: '0.4px',

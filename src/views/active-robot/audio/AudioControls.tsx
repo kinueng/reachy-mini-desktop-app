@@ -11,7 +11,7 @@ import { useDoA } from '../../../hooks/audio/useDoA';
 import { useWebRTCStreamContext } from '../../../contexts/WebRTCStreamContext';
 import useAudioAnalyser from '../../../hooks/media/useAudioAnalyser';
 import { ACCENT, accentAlpha, whiteAlpha, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { DURATION, FONT_WEIGHT, TYPO, transition, useAppPalette } from '@styles';
 
 export interface AudioControlsProps {
   volume: number;
@@ -101,8 +101,8 @@ function AudioControls({
   };
 
   const deviceTextStyle = {
-    fontSize: 9,
-    fontWeight: 500,
+    fontSize: TYPO.micro,
+    fontWeight: FONT_WEIGHT.medium,
     color: palette.isDark ? whiteAlpha(0.4) : blackAlpha(0.4),
     fontFamily: 'SF Mono, Monaco, Menlo, monospace',
     letterSpacing: '0.02em',
@@ -113,7 +113,7 @@ function AudioControls({
 
   const platformTextStyle = {
     fontSize: 8,
-    fontWeight: 400,
+    fontWeight: FONT_WEIGHT.regular,
     color: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
     fontFamily: 'SF Mono, Monaco, Menlo, monospace',
     letterSpacing: '0.02em',
@@ -139,7 +139,7 @@ function AudioControls({
         flexDirection: 'column',
         gap: 0.75,
         opacity: disabled ? 0.5 : 1,
-        transition: 'opacity 0.2s ease',
+        transition: transition('opacity', DURATION.base),
       }}
     >
       {/* Label row with optional indicator on the right */}
@@ -149,8 +149,8 @@ function AudioControls({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography
             sx={{
-              fontSize: 11,
-              fontWeight: 600,
+              fontSize: TYPO.xs,
+              fontWeight: FONT_WEIGHT.semibold,
               color: palette.textMuted,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
@@ -160,7 +160,7 @@ function AudioControls({
           </Typography>
           <Tooltip title={tooltip} arrow placement="top">
             <InfoOutlinedIcon
-              sx={{ fontSize: 12, color: palette.textMuted, opacity: 0.6, cursor: 'help' }}
+              sx={{ fontSize: TYPO.sm, color: palette.textMuted, opacity: 0.6, cursor: 'help' }}
             />
           </Tooltip>
         </Box>
@@ -227,14 +227,14 @@ function AudioControls({
             >
               {isActive ? (
                 label === 'Speaker' ? (
-                  <VolumeUpIcon sx={{ fontSize: 14 }} />
+                  <VolumeUpIcon sx={{ fontSize: TYPO.md }} />
                 ) : (
-                  <MicIcon sx={{ fontSize: 14 }} />
+                  <MicIcon sx={{ fontSize: TYPO.md }} />
                 )
               ) : label === 'Speaker' ? (
-                <VolumeOffIcon sx={{ fontSize: 14 }} />
+                <VolumeOffIcon sx={{ fontSize: TYPO.md }} />
               ) : (
-                <MicOffIcon sx={{ fontSize: 14 }} />
+                <MicOffIcon sx={{ fontSize: TYPO.md }} />
               )}
             </IconButton>
             <Box

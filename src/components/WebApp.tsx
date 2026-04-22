@@ -17,7 +17,7 @@ import useAppStore from '../store/useAppStore';
 import { ROBOT_STATUS } from '../constants/robotStatus';
 import type { FullAppState } from '../store/useStore';
 import { ACCENT, STATUS, blackAlpha, whiteAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, RADIUS } from '@styles';
 
 interface DaemonStatusResponse {
   state?: string;
@@ -138,7 +138,7 @@ export default function WebApp(): React.ReactElement {
         <Typography sx={{ color: palette.textSecondary, textAlign: 'center', maxWidth: 400 }}>
           {error}
         </Typography>
-        <Typography sx={{ color: palette.textMuted, fontSize: 12, mt: 2 }}>
+        <Typography sx={{ color: palette.textMuted, fontSize: TYPO.sm, mt: 2 }}>
           Make sure the daemon is running on port 8000
         </Typography>
       </Box>
@@ -162,7 +162,7 @@ export default function WebApp(): React.ReactElement {
         sx={{
           width: 900,
           height: 670,
-          borderRadius: '12px',
+          borderRadius: RADIUS.xl,
           overflow: 'hidden',
           boxShadow: palette.isDark
             ? `0 25px 50px -12px ${blackAlpha(0.5)}, 0 0 0 1px ${whiteAlpha(0.1)}`

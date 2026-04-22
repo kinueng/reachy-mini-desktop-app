@@ -10,7 +10,7 @@ import { useActiveRobotContext } from '../context';
 import { useHfAuth } from '../../../hooks/auth';
 import type { ToastSeverity } from '../../../types/store';
 import { DURATION, EASING, whiteAlpha, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { scrollbarSx, transition, useAppPalette } from '@styles';
 
 export type RightPanelQuickAction = Record<string, unknown>;
 
@@ -118,20 +118,10 @@ export default function RightPanel({
         bgcolor: 'transparent !important',
         backgroundColor: 'transparent !important',
         position: 'relative',
-        // Scrollbar styling
-        '&::-webkit-scrollbar': {
-          width: '6px',
-        },
-        '&::-webkit-scrollbar-track': {
-          background: 'transparent',
-        },
-        '&::-webkit-scrollbar-thumb': {
-          background: scrollbarThumb,
-          borderRadius: '3px',
-        },
-        '&:hover::-webkit-scrollbar-thumb': {
-          background: scrollbarThumbHover,
-        },
+        ...scrollbarSx(palette, {
+          thumb: scrollbarThumb,
+          thumbHover: scrollbarThumbHover,
+        }),
       }}
     >
       {/* Top gradient for depth effect on scroll - hidden for embedded apps */}
@@ -149,7 +139,7 @@ export default function RightPanel({
             flexShrink: 0,
             marginBottom: '-32px',
             opacity: showTopGradient ? 1 : 0,
-            transition: `opacity ${DURATION.base}ms ${EASING.exit}`,
+            transition: transition('opacity', DURATION.base, EASING.exit),
           }}
         />
       )}
@@ -216,7 +206,7 @@ export default function RightPanel({
             flexShrink: 0,
             marginTop: '-32px',
             opacity: showBottomGradient ? 1 : 0,
-            transition: `opacity ${DURATION.base}ms ${EASING.exit}`,
+            transition: transition('opacity', DURATION.base, EASING.exit),
           }}
         />
       )}

@@ -4,7 +4,7 @@ import type { SxProps, Theme } from '@mui/material/styles';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import DeleteForeverOutlinedIcon from '@mui/icons-material/DeleteForeverOutlined';
 import SectionHeader from './SectionHeader';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, RADIUS } from '@styles';
 
 export interface SettingsResetCardProps {
   /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
@@ -32,10 +32,10 @@ export default function SettingsResetCard({
 
   const dangerButtonStyle = {
     ...buttonStyle,
-    fontSize: 12,
+    fontSize: TYPO.sm,
     py: 0.75,
     px: 2,
-    borderRadius: '8px',
+    borderRadius: RADIUS.md,
     color: palette.dangerText,
     borderColor: palette.dangerBorder,
     '&:hover': {
@@ -53,7 +53,7 @@ export default function SettingsResetCard({
       <SectionHeader title="Environment" icon={RestartAltIcon} darkMode={palette.isDark} />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5 }}>
+        <Typography sx={{ fontSize: TYPO.sm, color: textSecondary, lineHeight: 1.5 }}>
           Reset the apps environment. Installed apps will need to be reinstalled.
         </Typography>
 
@@ -73,7 +73,7 @@ export default function SettingsResetCard({
           {isResettingAppsVenv ? 'Resetting...' : 'Reset Apps Environment'}
         </Button>
 
-        <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1.5, mt: 1 }}>
+        <Typography sx={{ fontSize: TYPO.sm, color: textSecondary, lineHeight: 1.5, mt: 1 }}>
           Delete all Python files and re-download everything. This may take a few minutes.
         </Typography>
 

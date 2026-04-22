@@ -10,7 +10,7 @@ import {
 import type { SelectChangeEvent } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { STATUS, whiteAlpha, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, scrollbarSx } from '@styles';
 
 export interface NetworkSelectProps {
   value: string;
@@ -69,19 +69,12 @@ export default function NetworkSelect({
           sx: {
             maxHeight: 200,
             bgcolor: palette.surfaceCard,
-            '&::-webkit-scrollbar': {
-              width: '6px',
-            },
-            '&::-webkit-scrollbar-track': {
-              bgcolor: 'transparent',
-            },
-            '&::-webkit-scrollbar-thumb': {
-              bgcolor: scrollThumb,
-              borderRadius: '3px',
-              '&:hover': {
-                bgcolor: scrollThumbHover,
-              },
-            },
+            ...scrollbarSx(palette, {
+              width: 6,
+              radius: 3,
+              thumb: scrollThumb,
+              thumbHover: scrollThumbHover,
+            }),
           },
         },
       }}
@@ -94,14 +87,14 @@ export default function NetworkSelect({
       sx={sx}
     >
       {isLoading && networks.length === 0 ? (
-        <MenuItem value="" disabled sx={{ color: palette.textSecondary, fontSize: 12 }}>
+        <MenuItem value="" disabled sx={{ color: palette.textSecondary, fontSize: TYPO.sm }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CircularProgress size={14} thickness={3} sx={{ color: palette.textSecondary }} />
             <em>Scanning networks...</em>
           </Box>
         </MenuItem>
       ) : networks.length === 0 ? (
-        <MenuItem value="" disabled sx={{ color: palette.textSecondary, fontSize: 12 }}>
+        <MenuItem value="" disabled sx={{ color: palette.textSecondary, fontSize: TYPO.sm }}>
           <em>No networks found</em>
         </MenuItem>
       ) : (
@@ -113,7 +106,7 @@ export default function NetworkSelect({
               value={network}
               disabled={isCurrentNetwork}
               sx={{
-                fontSize: 13,
+                fontSize: TYPO.body,
                 display: 'flex',
                 justifyContent: 'space-between',
                 '&.Mui-disabled': {
@@ -124,7 +117,10 @@ export default function NetworkSelect({
             >
               {network}
               {isCurrentNetwork && (
-                <Typography component="span" sx={{ fontSize: 10, color: STATUS.success, ml: 1 }}>
+                <Typography
+                  component="span"
+                  sx={{ fontSize: TYPO.tiny, color: STATUS.success, ml: 1 }}
+                >
                   ✓ connected
                 </Typography>
               )}

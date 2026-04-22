@@ -11,10 +11,12 @@ import { useActiveRobotContext } from '../../../context';
 import {
   ACCENT,
   DURATION,
-  EASING,
+  FONT_WEIGHT,
   RADIUS,
+  TYPO,
   accentAlpha,
   blackAlpha,
+  transition,
   whiteAlpha,
 } from '@styles/tokens';
 import { useAppPalette } from '@styles';
@@ -115,7 +117,7 @@ function AppCard({
             ? `1px solid ${accentAlpha(0.4)}`
             : `1px solid ${palette.borderStrong}`,
         cursor: 'pointer',
-        transition: `transform ${DURATION.base}ms ${EASING.standard}, border-color ${DURATION.base}ms ${EASING.standard}`,
+        transition: transition(['transform', 'border-color'], DURATION.base),
         '&:hover': {
           transform: 'translateY(-2px)',
           borderColor: installFailed
@@ -165,8 +167,8 @@ function AppCard({
                       : palette.isDark
                         ? whiteAlpha(0.1)
                         : blackAlpha(0.08),
-                    fontSize: 10,
-                    fontWeight: 600,
+                    fontSize: TYPO.tiny,
+                    fontWeight: FONT_WEIGHT.semibold,
                     color: isOfficial ? ACCENT.main : palette.textPrimary,
                     flexShrink: 0,
                   }}
@@ -175,8 +177,8 @@ function AppCard({
                 </Avatar>
                 <Typography
                   sx={{
-                    fontSize: 11,
-                    fontWeight: 500,
+                    fontSize: TYPO.xs,
+                    fontWeight: FONT_WEIGHT.medium,
                     color: palette.textSecondary,
                     fontFamily: 'monospace',
                     overflow: 'hidden',
@@ -190,14 +192,14 @@ function AppCard({
             )}
             {isOfficial && (
               <Chip
-                icon={<VerifiedIcon sx={{ fontSize: 11 }} />}
+                icon={<VerifiedIcon sx={{ fontSize: TYPO.xs }} />}
                 label="Official"
                 size="small"
                 sx={{
                   bgcolor: accentAlpha(palette.isDark ? 0.15 : 0.1),
                   color: ACCENT.main,
-                  fontWeight: 600,
-                  fontSize: 9,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  fontSize: TYPO.micro,
                   height: 18,
                   flexShrink: 0,
                   '& .MuiChip-icon': { color: ACCENT.main, ml: 0.5 },
@@ -207,14 +209,14 @@ function AppCard({
             )}
             {isPrivate && (
               <Chip
-                icon={<LockOutlinedIcon sx={{ fontSize: 11 }} />}
+                icon={<LockOutlinedIcon sx={{ fontSize: TYPO.xs }} />}
                 label="Private"
                 size="small"
                 sx={{
                   bgcolor: palette.isDark ? PRIVATE_BG_DARK : PRIVATE_BG_LIGHT,
                   color: PRIVATE_COLOR,
-                  fontWeight: 600,
-                  fontSize: 9,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  fontSize: TYPO.micro,
                   height: 18,
                   flexShrink: 0,
                   '& .MuiChip-icon': { color: PRIVATE_COLOR, ml: 0.5 },
@@ -229,8 +231,8 @@ function AppCard({
                 sx={{
                   bgcolor: palette.isDark ? WEB_BG_DARK : WEB_BG_LIGHT,
                   color: WEB_COLOR,
-                  fontWeight: 600,
-                  fontSize: 9,
+                  fontWeight: FONT_WEIGHT.semibold,
+                  fontSize: TYPO.micro,
                   height: 18,
                   flexShrink: 0,
                   '& .MuiChip-label': { px: 0.75 },
@@ -240,11 +242,11 @@ function AppCard({
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <FavoriteBorderIcon sx={{ fontSize: 16, color: palette.textSecondary }} />
+            <FavoriteBorderIcon sx={{ fontSize: TYPO.lg, color: palette.textSecondary }} />
             <Typography
               sx={{
-                fontSize: 12,
-                fontWeight: 600,
+                fontSize: TYPO.sm,
+                fontWeight: FONT_WEIGHT.semibold,
                 color: palette.textSecondary,
                 lineHeight: 1,
               }}
@@ -299,8 +301,8 @@ function AppCard({
           >
             <Typography
               sx={{
-                fontSize: 16,
-                fontWeight: 700,
+                fontSize: TYPO.lg,
+                fontWeight: FONT_WEIGHT.bold,
                 color: palette.textPrimary,
                 letterSpacing: '-0.3px',
                 overflow: 'hidden',
@@ -314,7 +316,7 @@ function AppCard({
 
             <Typography
               sx={{
-                fontSize: 12,
+                fontSize: TYPO.sm,
                 color: palette.textSecondary,
                 lineHeight: 1.5,
                 display: '-webkit-box',
@@ -331,11 +333,11 @@ function AppCard({
 
             {formattedDate && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <AccessTimeIcon sx={{ fontSize: 12, color: palette.textSecondary }} />
+                <AccessTimeIcon sx={{ fontSize: TYPO.sm, color: palette.textSecondary }} />
                 <Typography
                   sx={{
-                    fontSize: 10,
-                    fontWeight: 500,
+                    fontSize: TYPO.tiny,
+                    fontWeight: FONT_WEIGHT.medium,
                     color: palette.textSecondary,
                   }}
                 >
@@ -371,19 +373,19 @@ function AppCard({
             }}
             endIcon={
               isInstalled ? (
-                <CheckCircleOutlineIcon sx={{ fontSize: 14 }} />
+                <CheckCircleOutlineIcon sx={{ fontSize: TYPO.md }} />
               ) : isInstalling ? (
                 <CircularProgress size={14} sx={{ color: ACCENT.main }} />
               ) : (
-                <DownloadOutlinedIcon sx={{ fontSize: 14 }} />
+                <DownloadOutlinedIcon sx={{ fontSize: TYPO.md }} />
               )
             }
             sx={{
               mt: 'auto',
               width: '100%',
               py: 1,
-              fontSize: 12,
-              fontWeight: 600,
+              fontSize: TYPO.sm,
+              fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
               borderRadius: `${RADIUS.lg}px`,
               bgcolor: 'transparent',
@@ -397,7 +399,7 @@ function AppCard({
                 : installFailed
                   ? `1px solid ${palette.statusError}`
                   : `1px solid ${ACCENT.main}`,
-              transition: `all ${DURATION.base}ms ${EASING.standard}`,
+              transition: transition('all', DURATION.base),
               '&:hover': {
                 bgcolor: isInstalled
                   ? 'transparent'
@@ -429,7 +431,7 @@ function AppCard({
           <Button
             variant="outlined"
             size="small"
-            endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+            endIcon={<OpenInNewIcon sx={{ fontSize: TYPO.md }} />}
             onClick={async e => {
               e.stopPropagation();
               try {
@@ -442,14 +444,14 @@ function AppCard({
               mt: 'auto',
               width: '100%',
               py: 1,
-              fontSize: 12,
-              fontWeight: 600,
+              fontSize: TYPO.sm,
+              fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
               borderRadius: `${RADIUS.lg}px`,
               bgcolor: 'transparent',
               color: WEB_COLOR,
               border: `1px solid ${WEB_COLOR}`,
-              transition: `all ${DURATION.base}ms ${EASING.standard}`,
+              transition: transition('all', DURATION.base),
               '&:hover': {
                 bgcolor: WEB_HOVER_BG,
                 borderColor: WEB_COLOR,

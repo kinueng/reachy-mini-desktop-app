@@ -4,7 +4,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { EmotionWheel, EmojiPicker } from '@components/emoji-grid';
 import type { EmotionWheelHandle } from '@components/emoji-grid/EmotionWheel';
 import { ACCENT, accentAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { DURATION, FONT_WEIGHT, TYPO, transition, useAppPalette } from '@styles';
 import {
   CHOREOGRAPHY_DATASETS,
   EMOTION_EFFECT_DURATION_MS,
@@ -207,12 +207,12 @@ export default function ExpressionsSection({
               },
             }}
           >
-            <ArrowBackIcon sx={{ fontSize: 20 }} />
+            <ArrowBackIcon sx={{ fontSize: TYPO.xxl }} />
           </IconButton>
           <Typography
             sx={{
-              fontSize: 20,
-              fontWeight: 700,
+              fontSize: TYPO.xxl,
+              fontWeight: FONT_WEIGHT.bold,
               color: palette.textPrimary,
               letterSpacing: '-0.3px',
             }}
@@ -261,7 +261,7 @@ export default function ExpressionsSection({
                 alignItems: 'center',
                 gap: 1,
                 color: palette.textFaint,
-                fontSize: 11,
+                fontSize: TYPO.xs,
               }}
             >
               <Box
@@ -277,7 +277,7 @@ export default function ExpressionsSection({
                   fontSize: 8,
                   textTransform: 'uppercase',
                   letterSpacing: '0.1em',
-                  transition: 'all 0.15s ease',
+                  transition: transition('all', DURATION.fast),
                   transform: spacePressed ? 'scale(1.05)' : 'scale(1)',
                 }}
               >

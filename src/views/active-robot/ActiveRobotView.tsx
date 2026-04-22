@@ -68,7 +68,7 @@ import type { FullAppState } from '../../store/useStore';
 import type { DaemonLogSource } from '../../hooks/useDaemonLogStream';
 import { useShallow } from 'zustand/react/shallow';
 import { whiteAlpha, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { BLUR, FONT_WEIGHT, RADIUS, TYPO, scrollbarSx, useAppPalette } from '@styles';
 
 export interface ActiveRobotViewProps {
   isActive: boolean;
@@ -377,8 +377,8 @@ function ActiveRobotView({
           height: '100vh',
           // TODO(style-migration): root viewport scrim uses 0.95/0.85 alpha; palette.surfaceBg is opaque/translucent differently.
           background: palette.isDark ? 'rgba(26, 26, 26, 0.95)' : 'rgba(250, 250, 252, 0.85)',
-          backdropFilter: 'blur(40px)',
-          WebkitBackdropFilter: 'blur(40px)',
+          backdropFilter: BLUR.lg,
+          WebkitBackdropFilter: BLUR.lg,
           overflow: 'hidden',
           position: 'relative',
         }}
@@ -415,8 +415,8 @@ function ActiveRobotView({
             {/* Title */}
             <Typography
               sx={{
-                fontSize: 18,
-                fontWeight: 700,
+                fontSize: TYPO.xl,
+                fontWeight: FONT_WEIGHT.bold,
                 color: palette.textPrimary,
                 mb: 1,
                 letterSpacing: '0.2px',
@@ -428,7 +428,7 @@ function ActiveRobotView({
             {/* Description */}
             <Typography
               sx={{
-                fontSize: 12,
+                fontSize: TYPO.sm,
                 color: palette.textMuted,
                 mb: 3.5,
                 lineHeight: 1.6,
@@ -444,11 +444,11 @@ function ActiveRobotView({
               color="primary"
               onClick={handleBackToConnection}
               sx={{
-                fontWeight: 600,
-                fontSize: 13,
+                fontWeight: FONT_WEIGHT.semibold,
+                fontSize: TYPO.body,
                 px: 4,
                 py: 1.25,
-                borderRadius: '12px',
+                borderRadius: RADIUS.xl,
                 textTransform: 'none',
               }}
             >
@@ -488,9 +488,9 @@ function ActiveRobotView({
             />
             <Typography
               sx={{
-                fontSize: 13,
+                fontSize: TYPO.body,
                 color: palette.textMuted,
-                fontWeight: 500,
+                fontWeight: FONT_WEIGHT.medium,
                 letterSpacing: '0.3px',
               }}
             >
@@ -531,19 +531,10 @@ function ActiveRobotView({
               boxShadow: palette.isDark
                 ? `2px 0 8px -2px ${blackAlpha(0.3)}`
                 : `2px 0 8px -2px ${blackAlpha(0.1)}`,
-              '&::-webkit-scrollbar': {
-                width: '6px',
-              },
-              '&::-webkit-scrollbar-track': {
-                background: 'transparent',
-              },
-              '&::-webkit-scrollbar-thumb': {
-                background: palette.isDark ? whiteAlpha(0.1) : blackAlpha(0.1),
-                borderRadius: '3px',
-              },
-              '&:hover::-webkit-scrollbar-thumb': {
-                background: palette.isDark ? whiteAlpha(0.15) : blackAlpha(0.15),
-              },
+              ...scrollbarSx(palette, {
+                thumb: palette.isDark ? whiteAlpha(0.1) : blackAlpha(0.1),
+                thumbHover: palette.isDark ? whiteAlpha(0.15) : blackAlpha(0.15),
+              }),
             }}
           >
             {/* Main viewer block - Both components are always mounted */}

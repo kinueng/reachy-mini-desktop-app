@@ -216,7 +216,7 @@ export const BLUR = {
   sm: 'blur(8px)',
   /** Standard overlay blur - 10px */
   md: 'blur(10px)',
-  /** Heavy modal / full-screen backdrop - 40px */
+  /** Heavy modal / full-screen backdrop - 40px (used for opaque overlays) */
   lg: 'blur(40px)',
 } as const;
 

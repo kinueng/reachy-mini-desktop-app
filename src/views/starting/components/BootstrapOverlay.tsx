@@ -1,7 +1,7 @@
 import { Box, CircularProgress, Typography } from '@mui/material';
 import reachySetupSvg from '../../../assets/reachy-how-to-create-app.svg';
 import TipsCarousel from './TipsCarousel';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, TYPO, useAppPalette } from '@styles';
 
 export interface BootstrapOverlayProps {
   /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
@@ -55,8 +55,8 @@ export default function BootstrapOverlay({
         <Box sx={{ textAlign: 'center' }}>
           <Typography
             sx={{
-              fontSize: 18,
-              fontWeight: 700,
+              fontSize: TYPO.xl,
+              fontWeight: FONT_WEIGHT.bold,
               color: palette.textPrimary,
               mb: 0.5,
               letterSpacing: '-0.3px',
@@ -66,8 +66,8 @@ export default function BootstrapOverlay({
           </Typography>
           <Typography
             sx={{
-              fontSize: 13,
-              fontWeight: 400,
+              fontSize: TYPO.body,
+              fontWeight: FONT_WEIGHT.regular,
               color: palette.textSecondary,
               mb: 0.5,
             }}
@@ -76,8 +76,8 @@ export default function BootstrapOverlay({
           </Typography>
           <Typography
             sx={{
-              fontSize: 11,
-              fontWeight: 400,
+              fontSize: TYPO.xs,
+              fontWeight: FONT_WEIGHT.regular,
               color: palette.textFaint,
               fontStyle: 'italic',
             }}

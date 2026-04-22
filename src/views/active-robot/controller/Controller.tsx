@@ -14,7 +14,7 @@ import { mapRobotToDisplay, mapDisplayToRobot } from '../../../utils/inputMappin
 import antennasIcon from '../../../assets/reachy-antennas-icon.svg';
 import headIcon from '../../../assets/reachy-head-icon.svg';
 import bodyIcon from '../../../assets/reachy-body-icon.svg';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, RADIUS, TYPO, useAppPalette } from '@styles';
 
 function ControllerInner({
   onResetReady,
@@ -264,8 +264,8 @@ function SectionTitle({ icon, label }: { icon: string; label: string }): React.R
       />
       <Typography
         sx={{
-          fontSize: '11px',
-          fontWeight: 700,
+          fontSize: TYPO.xs,
+          fontWeight: FONT_WEIGHT.bold,
           color: palette.textSecondary,
           letterSpacing: '0.5px',
           textTransform: 'uppercase',
@@ -292,7 +292,7 @@ function ControlCard({
       sx={{
         px: 1,
         py: padding,
-        borderRadius: '8px',
+        borderRadius: `${RADIUS.md}px`,
         // TODO(style-migration): light-mode uses pure #ffffff here while palette.surfaceCard is 0.95 alpha.
         bgcolor: palette.isDark ? 'rgba(26, 26, 26, 0.8)' : '#ffffff',
         border: `1px solid ${palette.border}`,

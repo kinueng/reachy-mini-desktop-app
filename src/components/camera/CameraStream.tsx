@@ -15,7 +15,7 @@ import useWebRTCStream, { StreamState } from '../../hooks/media/useWebRTCStream'
 import FullscreenOverlayUntyped from '../FullscreenOverlay';
 import type React from 'react';
 import { ACCENT, STATUS, accentAlpha, whiteAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, DURATION, transition } from '@styles';
 
 // TODO(ts): FullscreenOverlay lives outside this agent's migration scope; cast locally
 // to a React.FC shape that matches the runtime call signature we use.
@@ -105,7 +105,7 @@ export default function CameraStream({
         alignItems: 'center',
         justifyContent: 'center',
         bgcolor: '#000',
-        borderRadius: isFullscreen ? 0 : '12px',
+        borderRadius: isFullscreen ? 0 : RADIUS.xl,
         overflow: 'hidden',
       }}
     >
@@ -135,7 +135,7 @@ export default function CameraStream({
           }}
         >
           <CircularProgress size={40} sx={{ color: ACCENT.main }} />
-          <Typography sx={{ color: '#fff', fontSize: 14 }}>Connecting to camera...</Typography>
+          <Typography sx={{ color: '#fff', fontSize: TYPO.md }}>Connecting to camera...</Typography>
         </Box>
       )}
 
@@ -150,7 +150,7 @@ export default function CameraStream({
           }}
         >
           <VideocamOffIcon sx={{ fontSize: 48, color: palette.textMuted }} />
-          <Typography sx={{ color: palette.textMuted, fontSize: 14 }}>
+          <Typography sx={{ color: palette.textMuted, fontSize: TYPO.md }}>
             Camera disconnected
           </Typography>
           <IconButton
@@ -178,7 +178,7 @@ export default function CameraStream({
           }}
         >
           <VideocamOffIcon sx={{ fontSize: 48, color: STATUS.error }} />
-          <Typography sx={{ color: STATUS.error, fontSize: 14, textAlign: 'center' }}>
+          <Typography sx={{ color: STATUS.error, fontSize: TYPO.md, textAlign: 'center' }}>
             {error || 'Connection failed'}
           </Typography>
           <IconButton
@@ -216,7 +216,7 @@ export default function CameraStream({
               sx={{
                 width: 8,
                 height: 8,
-                borderRadius: '50%',
+                borderRadius: RADIUS.circle,
                 bgcolor: isConnected
                   ? STATUS.success
                   : isConnecting
@@ -229,7 +229,7 @@ export default function CameraStream({
                 },
               }}
             />
-            <Typography sx={{ color: '#fff', fontSize: 12, fontWeight: 500 }}>
+            <Typography sx={{ color: '#fff', fontSize: TYPO.sm, fontWeight: FONT_WEIGHT.medium }}>
               {isConnected ? 'Live' : isConnecting ? 'Connecting...' : 'Offline'}
             </Typography>
           </Box>
@@ -246,9 +246,9 @@ export default function CameraStream({
               }}
             >
               {isFullscreen ? (
-                <FullscreenExitIcon sx={{ fontSize: 20 }} />
+                <FullscreenExitIcon sx={{ fontSize: TYPO.xxl }} />
               ) : (
-                <FullscreenIcon sx={{ fontSize: 20 }} />
+                <FullscreenIcon sx={{ fontSize: TYPO.xxl }} />
               )}
             </IconButton>
             <IconButton
@@ -260,7 +260,7 @@ export default function CameraStream({
                 '&:hover': { bgcolor: whiteAlpha(0.2) },
               }}
             >
-              <CloseIcon sx={{ fontSize: 20 }} />
+              <CloseIcon sx={{ fontSize: TYPO.xxl }} />
             </IconButton>
           </Box>
         </Box>
@@ -307,7 +307,7 @@ export function CameraButton({ onClick, isActive = false, disabled = false }: Ca
       sx={{
         width: 32,
         height: 32,
-        transition: 'all 0.2s ease',
+        transition: transition('all', DURATION.base),
         color: isActive ? '#fff' : 'primary.main',
         bgcolor: isActive ? 'primary.main' : 'transparent',
         border: '1px solid',
@@ -323,9 +323,9 @@ export function CameraButton({ onClick, isActive = false, disabled = false }: Ca
       }}
     >
       {isActive ? (
-        <VideocamIcon sx={{ fontSize: 20 }} />
+        <VideocamIcon sx={{ fontSize: TYPO.xxl }} />
       ) : (
-        <VideocamOffIcon sx={{ fontSize: 20 }} />
+        <VideocamOffIcon sx={{ fontSize: TYPO.xxl }} />
       )}
     </IconButton>
   );

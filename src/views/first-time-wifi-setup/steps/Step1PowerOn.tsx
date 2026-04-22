@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import powerOnImage from '../../../assets/power-on.jpg';
-import { ACCENT, accentAlpha, STATUS, useAppPalette } from '@styles';
+import { ACCENT, accentAlpha, FONT_WEIGHT, RADIUS, STATUS, TYPO, useAppPalette } from '@styles';
 
 interface Step1PowerOnProps {
   textPrimary: string;
@@ -34,7 +34,7 @@ export default function Step1PowerOn({
       {isWaiting ? (
         // Waiting for auto-detection
         <>
-          <Typography sx={{ fontSize: 12, color: textSecondary, mb: 2, lineHeight: 1.6 }}>
+          <Typography sx={{ fontSize: TYPO.sm, color: textSecondary, mb: 2, lineHeight: 1.6 }}>
             Turn on your Reachy and wait. We're automatically detecting the WiFi hotspot it creates.
           </Typography>
 
@@ -53,7 +53,7 @@ export default function Step1PowerOn({
               sx={{
                 width: 140,
                 height: 'auto',
-                borderRadius: '12px',
+                borderRadius: `${RADIUS.xl}px`,
                 border: `1px solid ${palette.border}`,
               }}
             />
@@ -61,7 +61,7 @@ export default function Step1PowerOn({
 
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
             <CircularProgress size={16} sx={{ color: ACCENT.main }} />
-            <Typography sx={{ fontSize: 11, color: textSecondary }}>
+            <Typography sx={{ fontSize: TYPO.xs, color: textSecondary }}>
               Detecting hotspot... ({countdown}s)
             </Typography>
           </Box>
@@ -69,7 +69,7 @@ export default function Step1PowerOn({
       ) : timeoutReached ? (
         // Timeout - hotspot not detected
         <>
-          <Typography sx={{ fontSize: 12, color: textSecondary, mb: 2, lineHeight: 1.6 }}>
+          <Typography sx={{ fontSize: TYPO.sm, color: textSecondary, mb: 2, lineHeight: 1.6 }}>
             Automatic detection didn't find a Reachy hotspot, but it may still exist on your
             network. Make sure your Reachy is powered on, then continue to the next step.
           </Typography>
@@ -78,12 +78,12 @@ export default function Step1PowerOn({
             variant="outlined"
             onClick={onNext}
             sx={{
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: TYPO.body,
+              fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
               px: 3,
               py: 0.75,
-              borderRadius: '8px',
+              borderRadius: `${RADIUS.md}px`,
               borderColor: ACCENT.main,
               color: ACCENT.main,
               '&:hover': {
@@ -98,12 +98,14 @@ export default function Step1PowerOn({
       ) : (
         // Hotspot detected (will auto-advance shortly)
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
-          <CheckCircleIcon sx={{ fontSize: 40, color: STATUS.success }} />
+          <CheckCircleIcon sx={{ fontSize: TYPO.hero, color: STATUS.success }} />
           <Box sx={{ textAlign: 'center' }}>
-            <Typography sx={{ fontSize: 14, fontWeight: 600, color: STATUS.success }}>
+            <Typography
+              sx={{ fontSize: TYPO.md, fontWeight: FONT_WEIGHT.semibold, color: STATUS.success }}
+            >
               {hotspotName || 'Hotspot'} detected!
             </Typography>
-            <Typography sx={{ fontSize: 11, color: textSecondary, mt: 0.5 }}>
+            <Typography sx={{ fontSize: TYPO.xs, color: textSecondary, mt: 0.5 }}>
               Moving to next step...
             </Typography>
           </Box>

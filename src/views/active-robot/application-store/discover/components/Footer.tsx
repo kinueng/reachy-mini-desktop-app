@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import ReachyDetective from '@assets/reachy-detective.svg';
-import { ACCENT } from '@styles/tokens';
+import { ACCENT, FONT_WEIGHT, RADIUS, TYPO } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 interface FooterProps {
@@ -38,8 +38,8 @@ export default function Footer({ onOpenCreateTutorial }: FooterProps): React.Rea
 
       <Typography
         sx={{
-          fontSize: 18,
-          fontWeight: 700,
+          fontSize: TYPO.xl,
+          fontWeight: FONT_WEIGHT.bold,
           color: palette.textSecondary,
           textAlign: 'center',
         }}
@@ -50,11 +50,11 @@ export default function Footer({ onOpenCreateTutorial }: FooterProps): React.Rea
         onClick={onOpenCreateTutorial}
         sx={{
           textTransform: 'none',
-          fontSize: 14,
-          fontWeight: 600,
+          fontSize: TYPO.md,
+          fontWeight: FONT_WEIGHT.semibold,
           color: ACCENT.main,
           border: `1px solid ${ACCENT.main}`,
-          borderRadius: '10px',
+          borderRadius: `${RADIUS.lg}px`,
           px: 3,
           py: 1,
           bgcolor: 'transparent',

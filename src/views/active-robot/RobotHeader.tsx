@@ -3,7 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { getVersion } from '@utils/tauriCompat';
 import { invoke } from '@tauri-apps/api/core';
 import useAppStore from '../../store/useAppStore';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, RADIUS, TYPO, useAppPalette } from '@styles';
 
 export interface RobotHeaderProps {
   daemonVersion?: string | null;
@@ -59,8 +59,8 @@ export default function RobotHeader({ daemonVersion }: RobotHeaderProps): React.
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: -0.5 }}>
         <Typography
           sx={{
-            fontSize: 20,
-            fontWeight: 600,
+            fontSize: TYPO.xxl,
+            fontWeight: FONT_WEIGHT.semibold,
             // TODO(style-migration): palette.textPrimary uses #333 in light; RobotHeader prefers Apple-like #1d1d1f.
             color: palette.isDark ? palette.textPrimary : '#1d1d1f',
             letterSpacing: '-0.4px',
@@ -72,13 +72,13 @@ export default function RobotHeader({ daemonVersion }: RobotHeaderProps): React.
           <Typography
             component="span"
             sx={{
-              fontSize: 10,
-              fontWeight: 600,
+              fontSize: TYPO.tiny,
+              fontWeight: FONT_WEIGHT.semibold,
               color: palette.textFaint,
               bgcolor: palette.surfaceSubtle,
               px: 0.75,
               py: 0.25,
-              borderRadius: '4px',
+              borderRadius: RADIUS.xs,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
             }}
@@ -91,8 +91,8 @@ export default function RobotHeader({ daemonVersion }: RobotHeaderProps): React.
       {/* Version Subtitle - App + Daemon */}
       <Typography
         sx={{
-          fontSize: 9,
-          fontWeight: 500,
+          fontSize: TYPO.micro,
+          fontWeight: FONT_WEIGHT.medium,
           color: palette.textFaint,
           fontFamily: 'SF Mono, Monaco, Menlo, monospace',
           mb: 0.75,
@@ -105,7 +105,7 @@ export default function RobotHeader({ daemonVersion }: RobotHeaderProps): React.
             display: 'inline-block',
             width: 3,
             height: 3,
-            borderRadius: '50%',
+            borderRadius: RADIUS.circle,
             bgcolor: palette.textFaint,
             mx: 1,
             verticalAlign: 'middle',

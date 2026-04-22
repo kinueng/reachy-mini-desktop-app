@@ -42,6 +42,12 @@ import {
   whiteAlpha,
   hexToRgba,
   useAppPalette,
+  BLUR,
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  transition,
 } from '@styles';
 
 // TODO(style-migration): the "external daemon" banner and the selected-card
@@ -106,13 +112,13 @@ function ConnectionCard({
         justifyContent: 'center',
         gap: 0.5,
         p: 2,
-        borderRadius: '12px',
+        borderRadius: `${RADIUS.xl}px`,
         border: '1px solid',
         borderColor: selected ? 'primary.main' : palette.border,
         bgcolor: selected ? hexToRgba(INDIGO, isDark ? 0.1 : 0.05) : 'transparent',
         cursor: isClickable ? 'pointer' : 'default',
         opacity: isAvailable ? 1 : 0.5,
-        transition: 'all 0.2s ease',
+        transition: transition('all', DURATION.base),
         flex: 1,
         minWidth: 110,
         minHeight: 110,
@@ -134,7 +140,7 @@ function ConnectionCard({
             right: 6,
             width: 16,
             height: 16,
-            borderRadius: '50%',
+            borderRadius: RADIUS.circle,
             bgcolor: isDark ? whiteAlpha(0.06) : blackAlpha(0.04),
             display: 'flex',
             alignItems: 'center',
@@ -145,7 +151,7 @@ function ConnectionCard({
             sx={{
               width: 6,
               height: 6,
-              borderRadius: '50%',
+              borderRadius: RADIUS.circle,
               bgcolor: available ? STATUS.success : STATUS.error,
             }}
           />
@@ -181,7 +187,7 @@ function ConnectionCard({
             left: 6,
             px: 0.5,
             py: 0.15,
-            borderRadius: '4px',
+            borderRadius: `${RADIUS.xs}px`,
             bgcolor: accentAlpha(isDark ? 0.15 : 0.1),
             border: `1px solid ${palette.accentBorder}`,
           }}
@@ -189,7 +195,7 @@ function ConnectionCard({
           <Typography
             sx={{
               fontSize: 8,
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               color: ACCENT.main,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
@@ -210,7 +216,7 @@ function ConnectionCard({
             right: 6,
             width: 16,
             height: 16,
-            borderRadius: '50%',
+            borderRadius: RADIUS.circle,
             // TODO(style-migration): the checkmark "hole" uses the raw page
             // background (`#1a1a1a` / `#fdfcfa`); `surfaceBg` is the closest
             // semantic match even though the light-mode hex differs slightly.
@@ -229,7 +235,7 @@ function ConnectionCard({
         >
           <CheckRoundedIcon
             sx={{
-              fontSize: 10,
+              fontSize: TYPO.tiny,
               color: 'primary.main',
             }}
           />
@@ -247,8 +253,8 @@ function ConnectionCard({
       {/* Label */}
       <Typography
         sx={{
-          fontSize: 13,
-          fontWeight: selected ? 600 : 500,
+          fontSize: TYPO.body,
+          fontWeight: selected ? FONT_WEIGHT.semibold : FONT_WEIGHT.medium,
           color: selected ? 'primary.main' : isAvailable ? activeLabelColor : inactiveLabelColor,
           textAlign: 'center',
           lineHeight: 1.2,
@@ -262,8 +268,8 @@ function ConnectionCard({
         <Typography
           title={fullSubtitle || undefined}
           sx={{
-            fontSize: 10,
-            fontWeight: 400,
+            fontSize: TYPO.tiny,
+            fontWeight: FONT_WEIGHT.regular,
             color: inactiveLabelColor,
             textAlign: 'center',
             lineHeight: 1.1,
@@ -519,8 +525,8 @@ export default function FindingRobotView() {
         // alphas (0.95 / 0.85) that don't map to an existing surface token;
         // `surfaceCard` is the closest semantic match.
         background: palette.surfaceCard,
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
+        backdropFilter: BLUR.lg,
+        WebkitBackdropFilter: BLUR.lg,
         overflow: 'hidden',
         position: 'relative',
       }}
@@ -542,7 +548,7 @@ export default function FindingRobotView() {
         {isResetting ? (
           <CircularProgress size={18} sx={{ color: 'inherit' }} />
         ) : (
-          <SettingsOutlinedIcon sx={{ fontSize: 18 }} />
+          <SettingsOutlinedIcon sx={{ fontSize: TYPO.xl }} />
         )}
       </IconButton>
       <Menu
@@ -559,7 +565,7 @@ export default function FindingRobotView() {
               WebkitBackdropFilter: 'blur(20px)',
               border: '1px solid',
               borderColor: palette.border,
-              borderRadius: '10px',
+              borderRadius: `${RADIUS.lg}px`,
               boxShadow: palette.shadowLg,
               minWidth: 220,
               py: 0.5,
@@ -570,8 +576,8 @@ export default function FindingRobotView() {
         <Box sx={{ px: 1.5, pt: 0.75, pb: 0.75 }}>
           <Typography
             sx={{
-              fontSize: 11,
-              fontWeight: 500,
+              fontSize: TYPO.xs,
+              fontWeight: FONT_WEIGHT.medium,
               color: palette.textMuted,
               letterSpacing: '0.2px',
             }}
@@ -582,10 +588,10 @@ export default function FindingRobotView() {
         <MenuItem
           onClick={handleResetAppsVenv}
           sx={{
-            fontSize: 12,
+            fontSize: TYPO.sm,
             fontWeight: 450,
             color: palette.textSecondary,
-            borderRadius: '6px',
+            borderRadius: `${RADIUS.sm}px`,
             mx: 0.5,
             px: 1,
             minHeight: 32,
@@ -597,10 +603,10 @@ export default function FindingRobotView() {
         <MenuItem
           onClick={handleResetPythonEnv}
           sx={{
-            fontSize: 12,
+            fontSize: TYPO.sm,
             fontWeight: 450,
             color: STATUS.error,
-            borderRadius: '6px',
+            borderRadius: `${RADIUS.sm}px`,
             mx: 0.5,
             px: 1,
             minHeight: 32,
@@ -619,8 +625,8 @@ export default function FindingRobotView() {
           backdrop: {
             sx: {
               bgcolor: palette.overlayScrim,
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
+              backdropFilter: BLUR.sm,
+              WebkitBackdropFilter: BLUR.sm,
             },
           },
         }}
@@ -640,8 +646,8 @@ export default function FindingRobotView() {
       >
         <DialogTitle
           sx={{
-            fontWeight: 600,
-            fontSize: 16,
+            fontWeight: FONT_WEIGHT.semibold,
+            fontSize: TYPO.lg,
             color: palette.textPrimary,
             pb: 0.5,
           }}
@@ -652,7 +658,7 @@ export default function FindingRobotView() {
           <DialogContentText
             sx={{
               color: palette.textSecondary,
-              fontSize: 13,
+              fontSize: TYPO.body,
               lineHeight: 1.5,
             }}
           >
@@ -666,10 +672,10 @@ export default function FindingRobotView() {
             onClick={() => setPendingReset(null)}
             sx={{
               color: palette.textSecondary,
-              fontSize: 12,
-              fontWeight: 500,
+              fontSize: TYPO.sm,
+              fontWeight: FONT_WEIGHT.medium,
               textTransform: 'none',
-              borderRadius: '8px',
+              borderRadius: `${RADIUS.md}px`,
               px: 2,
               '&:hover': {
                 bgcolor: palette.surfaceSubtle,
@@ -683,10 +689,10 @@ export default function FindingRobotView() {
             sx={{
               color: '#fff',
               bgcolor: STATUS.error,
-              fontSize: 12,
-              fontWeight: 600,
+              fontSize: TYPO.sm,
+              fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
-              borderRadius: '8px',
+              borderRadius: `${RADIUS.md}px`,
               px: 2,
               // TODO(style-migration): darker shade of error for hover has no
               // dedicated token; `#dc2626` is ~12% darker than `STATUS.error`.
@@ -736,7 +742,7 @@ export default function FindingRobotView() {
         <Typography
           sx={{
             fontSize: 26,
-            fontWeight: 600,
+            fontWeight: FONT_WEIGHT.semibold,
             color: palette.textPrimary,
             mb: 0.5,
             textAlign: 'center',
@@ -748,7 +754,7 @@ export default function FindingRobotView() {
         {/* Subtitle - scanning status */}
         <Typography
           sx={{
-            fontSize: 14,
+            fontSize: TYPO.md,
             color: palette.textSecondary,
             textAlign: 'center',
             mb: 2.5,
@@ -774,7 +780,7 @@ export default function FindingRobotView() {
               mb: 1.5,
               px: 2,
               py: 1,
-              borderRadius: '10px',
+              borderRadius: `${RADIUS.lg}px`,
               bgcolor: hexToRgba(INDIGO, isDark ? 0.08 : 0.05),
               border: '1px solid',
               borderColor: hexToRgba(INDIGO, isDark ? 0.25 : 0.2),
@@ -782,8 +788,8 @@ export default function FindingRobotView() {
           >
             <Typography
               sx={{
-                fontSize: 12,
-                fontWeight: 500,
+                fontSize: TYPO.sm,
+                fontWeight: FONT_WEIGHT.medium,
                 color: isDark ? INDIGO_LIGHT : INDIGO_DARK,
               }}
             >
@@ -796,13 +802,13 @@ export default function FindingRobotView() {
                 ml: 1.5,
                 px: 1.5,
                 py: 0.5,
-                borderRadius: '6px',
+                borderRadius: `${RADIUS.sm}px`,
                 border: '1px solid',
                 borderColor: 'primary.main',
                 bgcolor: 'transparent',
                 color: 'primary.main',
-                fontSize: 12,
-                fontWeight: 600,
+                fontSize: TYPO.sm,
+                fontWeight: FONT_WEIGHT.semibold,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 '&:hover': {
@@ -881,7 +887,7 @@ export default function FindingRobotView() {
               width: '100%',
               maxWidth: 380,
               mb: 2.5,
-              fontSize: 13,
+              fontSize: TYPO.body,
               color: palette.textPrimary,
               '.MuiOutlinedInput-notchedOutline': {
                 borderColor: palette.border,
@@ -911,8 +917,10 @@ export default function FindingRobotView() {
             {wifiRobots.robots.map(robot => (
               <MenuItem key={robot.ip} value={robot.ip}>
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{robot.name}</Typography>
-                  <Typography sx={{ fontSize: 11, color: palette.textMuted }}>
+                  <Typography sx={{ fontSize: TYPO.body, fontWeight: FONT_WEIGHT.medium }}>
+                    {robot.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: TYPO.xs, color: palette.textMuted }}>
                     {robot.displayHost}
                   </Typography>
                 </Box>
@@ -946,7 +954,7 @@ export default function FindingRobotView() {
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <WifiOutlinedIcon sx={{ fontSize: 16, color: palette.textFaint }} />
+                <WifiOutlinedIcon sx={{ fontSize: TYPO.lg, color: palette.textFaint }} />
               </InputAdornment>
             ),
           }}
@@ -955,10 +963,10 @@ export default function FindingRobotView() {
             maxWidth: 380,
             mb: 2.5,
             '& .MuiOutlinedInput-root': {
-              fontSize: 13,
+              fontSize: TYPO.body,
               color: palette.textPrimary,
               bgcolor: palette.surfaceSubtle,
-              borderRadius: '10px',
+              borderRadius: `${RADIUS.lg}px`,
               '& fieldset': {
                 borderColor: palette.border,
               },
@@ -1012,10 +1020,10 @@ export default function FindingRobotView() {
             component="span"
             onClick={() => setShowFirstTimeWifiSetup(true)}
             sx={{
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: 'primary.main',
               cursor: 'pointer',
-              fontWeight: 500,
+              fontWeight: FONT_WEIGHT.medium,
               textDecoration: 'underline',
             }}
           >
@@ -1024,7 +1032,7 @@ export default function FindingRobotView() {
           <Box
             component="span"
             sx={{
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: 'text.secondary',
               userSelect: 'none',
             }}
@@ -1035,10 +1043,10 @@ export default function FindingRobotView() {
             component="span"
             onClick={() => setShowBluetoothSupportView(true)}
             sx={{
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: 'primary.main',
               cursor: 'pointer',
-              fontWeight: 500,
+              fontWeight: FONT_WEIGHT.medium,
               textDecoration: 'underline',
             }}
           >

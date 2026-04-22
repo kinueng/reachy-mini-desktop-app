@@ -1,7 +1,7 @@
 import React from 'react';
 import StoreOutlinedIcon from '@mui/icons-material/StoreOutlined';
 import PulseButton from '@components/PulseButton';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, TYPO, useAppPalette } from '@styles';
 
 interface DiscoverAppsButtonProps {
   onClick: () => void;
@@ -19,10 +19,10 @@ export default function DiscoverAppsButton({
     <PulseButton
       onClick={onClick}
       disabled={disabled}
-      startIcon={<StoreOutlinedIcon sx={{ fontSize: 16 }} />}
+      startIcon={<StoreOutlinedIcon sx={{ fontSize: TYPO.lg }} />}
       darkMode={palette.isDark}
       size="small"
-      sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '-0.2px' }}
+      sx={{ fontSize: TYPO.sm, fontWeight: FONT_WEIGHT.bold, letterSpacing: '-0.2px' }}
     >
       Discover apps
     </PulseButton>

@@ -20,7 +20,15 @@ const FullscreenOverlay = FullscreenOverlayRaw as unknown as React.ComponentType
 >;
 import LogConsole from '@components/LogConsole';
 import { useActiveRobotContext } from '../../context';
-import { ACCENT, RADIUS, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
+import {
+  ACCENT,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  whiteAlpha,
+} from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 const LOG_CONSOLE_SX = {
@@ -295,7 +303,7 @@ export default function InstallOverlay({
             <Typography
               sx={{
                 fontSize: 24,
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 color: isNetworkError ? palette.statusWarning : palette.statusError,
                 mb: 0.5,
                 animation: 'fadeInScale 0.5s ease',
@@ -309,8 +317,8 @@ export default function InstallOverlay({
             </Typography>
             <Typography
               sx={{
-                fontSize: 16,
-                fontWeight: 500,
+                fontSize: TYPO.lg,
+                fontWeight: FONT_WEIGHT.medium,
                 color: palette.textSecondary,
                 mb: isNetworkError ? 1.5 : 0,
               }}
@@ -320,7 +328,7 @@ export default function InstallOverlay({
             {isNetworkError && (
               <Typography
                 sx={{
-                  fontSize: 13,
+                  fontSize: TYPO.body,
                   color: palette.textMuted,
                   lineHeight: 1.5,
                 }}
@@ -341,8 +349,8 @@ export default function InstallOverlay({
           >
             <Typography
               sx={{
-                fontSize: 10,
-                fontWeight: 500,
+                fontSize: TYPO.tiny,
+                fontWeight: FONT_WEIGHT.medium,
                 color: palette.textMuted,
                 letterSpacing: '1px',
                 textTransform: 'uppercase',
@@ -353,7 +361,7 @@ export default function InstallOverlay({
             <Typography
               sx={{
                 fontSize: 24,
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 color: palette.textPrimary,
                 letterSpacing: '-0.3px',
               }}
@@ -368,7 +376,7 @@ export default function InstallOverlay({
             <Box sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1 }}>
               <Typography
                 sx={{
-                  fontSize: 13,
+                  fontSize: TYPO.body,
                   color: palette.textSecondary,
                   lineHeight: 1.5,
                   maxWidth: '420px',
@@ -389,8 +397,8 @@ export default function InstallOverlay({
                 {appInfo.author && (
                   <Typography
                     sx={{
-                      fontSize: 11,
-                      fontWeight: 600,
+                      fontSize: TYPO.xs,
+                      fontWeight: FONT_WEIGHT.semibold,
                       color: palette.textMuted,
                     }}
                   >
@@ -406,14 +414,14 @@ export default function InstallOverlay({
                       gap: 0.5,
                       px: 1,
                       py: 0.25,
-                      borderRadius: '8px',
+                      borderRadius: `${RADIUS.md}px`,
                       bgcolor: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.03),
                     }}
                   >
                     <Typography
                       sx={{
-                        fontSize: 11,
-                        fontWeight: 600,
+                        fontSize: TYPO.xs,
+                        fontWeight: FONT_WEIGHT.semibold,
                         color: palette.textSecondary,
                       }}
                     >
@@ -449,8 +457,8 @@ export default function InstallOverlay({
                 <CircularProgress size={14} thickness={5} sx={{ color: ACCENT.main }} />
                 <Typography
                   sx={{
-                    fontSize: 12,
-                    fontWeight: 600,
+                    fontSize: TYPO.sm,
+                    fontWeight: FONT_WEIGHT.semibold,
                     color: ACCENT.main,
                     fontFamily: 'monospace',
                   }}
@@ -471,11 +479,11 @@ export default function InstallOverlay({
                   border: `1px solid ${accentAlpha(palette.isDark ? 0.2 : 0.15)}`,
                 }}
               >
-                <PlaylistAddCheckIcon sx={{ fontSize: 14, color: ACCENT.main }} />
+                <PlaylistAddCheckIcon sx={{ fontSize: TYPO.md, color: ACCENT.main }} />
                 <Typography
                   sx={{
-                    fontSize: 12,
-                    fontWeight: 600,
+                    fontSize: TYPO.sm,
+                    fontWeight: FONT_WEIGHT.semibold,
                     color: ACCENT.main,
                     fontFamily: 'monospace',
                   }}
@@ -504,7 +512,7 @@ export default function InstallOverlay({
                 <ExpandMoreIcon
                   sx={{
                     color: palette.textMuted,
-                    fontSize: 18,
+                    fontSize: TYPO.xl,
                   }}
                 />
               }
@@ -534,8 +542,8 @@ export default function InstallOverlay({
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                 <Typography
                   sx={{
-                    fontSize: 11,
-                    fontWeight: 500,
+                    fontSize: TYPO.xs,
+                    fontWeight: FONT_WEIGHT.medium,
                     color: palette.textSecondary,
                   }}
                 >
@@ -544,7 +552,7 @@ export default function InstallOverlay({
                 {!logsExpanded && latestLogs.length > 0 && (
                   <Typography
                     sx={{
-                      fontSize: 10,
+                      fontSize: TYPO.tiny,
                       color: palette.textMuted,
                       ml: 'auto',
                     }}
@@ -580,7 +588,7 @@ export default function InstallOverlay({
           {!isShowingResult && isInstalling && (
             <Typography
               sx={{
-                fontSize: 11,
+                fontSize: TYPO.xs,
                 color: palette.textMuted,
                 fontStyle: 'italic',
                 mt: 1,

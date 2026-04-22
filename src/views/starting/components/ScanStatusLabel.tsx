@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Typography } from '@mui/material';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, TYPO, useAppPalette } from '@styles';
 
 export interface ScanStatusLabelProps {
   label: string;
@@ -19,8 +19,8 @@ function ScanStatusLabel({ label }: ScanStatusLabelProps) {
   return (
     <Typography
       sx={{
-        fontSize: 11,
-        fontWeight: 600,
+        fontSize: TYPO.xs,
+        fontWeight: FONT_WEIGHT.semibold,
         // TODO(style-migration): precise grays `#666` / `#999` have no
         // exact palette mapping; `textMuted` is the closest semantic match.
         color: palette.textMuted,

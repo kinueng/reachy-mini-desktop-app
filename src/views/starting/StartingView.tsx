@@ -3,7 +3,7 @@ import { Box } from '@mui/material';
 import StartupView from './StartupView';
 import useAppStore from '../../store/useAppStore';
 import { DAEMON_CONFIG, fetchWithTimeout, buildApiUrl, getWsBaseUrl } from '../../config/daemon';
-import { useAppPalette } from '@styles';
+import { BLUR, useAppPalette } from '@styles';
 
 export interface StartingViewProps {
   startupError?: unknown;
@@ -106,8 +106,8 @@ function StartingView({ startupError, startDaemon }: StartingViewProps) {
         // `rgba(26,26,26,0.95)` / `rgba(250,250,252,0.85)` don't map cleanly
         // to an existing surface token; `surfaceCard` is the closest match.
         background: palette.surfaceCard,
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
+        backdropFilter: BLUR.lg,
+        WebkitBackdropFilter: BLUR.lg,
         overflow: 'hidden',
       }}
     >

@@ -1,5 +1,5 @@
 import { Box, CircularProgress } from '@mui/material';
-import { DURATION, EASING } from '@styles/tokens';
+import { DURATION, transition } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 export interface LoadingSpinnerProps {
@@ -38,7 +38,7 @@ export default function LoadingSpinner({
         justifyContent: 'center',
         pointerEvents: visible ? 'auto' : 'none',
         opacity: visible ? 1 : 0,
-        transition: `opacity ${DURATION.medium}ms ${EASING.standard}`,
+        transition: transition('opacity', DURATION.medium),
         bgcolor: bg,
         borderRadius: 'inherit',
         // Keep the z-index LOW and scoped. The overlay only needs to sit

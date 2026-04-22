@@ -11,7 +11,16 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { ACCENT, accentAlpha } from '@styles/tokens';
+import {
+  ACCENT,
+  BLUR,
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  transition,
+} from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 interface SearchBarProps {
@@ -121,9 +130,9 @@ export default function SearchBar({
               ? 'rgba(18, 18, 18, 0.92)'
               : 'rgba(255, 255, 255, 0.95)'
             : 'transparent',
-          backdropFilter: isSticky ? 'blur(10px)' : 'none',
-          WebkitBackdropFilter: isSticky ? 'blur(10px)' : 'none',
-          transition: 'background-color 0.2s ease, backdrop-filter 0.2s ease',
+          backdropFilter: isSticky ? BLUR.md : 'none',
+          WebkitBackdropFilter: isSticky ? BLUR.md : 'none',
+          transition: transition(['background-color', 'backdrop-filter'], DURATION.base),
         }}
       >
         <Box
@@ -134,10 +143,10 @@ export default function SearchBar({
             px: 1.5,
             py: 1.5,
             mt: 3,
-            borderRadius: '12px',
+            borderRadius: `${RADIUS.xl}px`,
             bgcolor: palette.isDark ? '#262626' : 'white',
             border: `1px solid ${ACCENT.main}`,
-            transition: 'box-shadow 0.2s ease',
+            transition: transition('box-shadow', DURATION.base),
             '&:focus-within': {
               borderColor: ACCENT.main,
               boxShadow: `0 0 0 3px ${accentAlpha(0.08)}`,
@@ -145,7 +154,7 @@ export default function SearchBar({
           }}
         >
           <Tooltip title="Search for apps by name or description" arrow placement="top">
-            <SearchIcon sx={{ fontSize: 18, color: palette.textMuted, cursor: 'help' }} />
+            <SearchIcon sx={{ fontSize: TYPO.xl, color: palette.textMuted, cursor: 'help' }} />
           </Tooltip>
           <InputBase
             placeholder="Search apps..."
@@ -153,8 +162,8 @@ export default function SearchBar({
             onChange={e => setSearchQuery(e.target.value)}
             sx={{
               flex: 1,
-              fontSize: 14,
-              fontWeight: 500,
+              fontSize: TYPO.md,
+              fontWeight: FONT_WEIGHT.medium,
               color: palette.textPrimary,
               '& input::placeholder': {
                 color: palette.textMuted,
@@ -185,7 +194,7 @@ export default function SearchBar({
                 }}
                 title="Clear search"
               >
-                <CloseIcon sx={{ fontSize: 18 }} />
+                <CloseIcon sx={{ fontSize: TYPO.xl }} />
               </IconButton>
             </>
           )}
@@ -197,14 +206,14 @@ export default function SearchBar({
           >
             <Typography
               sx={{
-                fontSize: 11,
-                fontWeight: 700,
+                fontSize: TYPO.xs,
+                fontWeight: FONT_WEIGHT.bold,
                 color: isFiltered ? ACCENT.main : palette.textMuted,
                 letterSpacing: '0.2px',
                 cursor: 'help',
                 px: 1.5,
                 py: 0.5,
-                borderRadius: '6px',
+                borderRadius: `${RADIUS.sm}px`,
                 bgcolor: isFiltered
                   ? accentAlpha(palette.isDark ? 0.15 : 0.08)
                   : palette.isDark
@@ -251,7 +260,7 @@ export default function SearchBar({
               >
                 <InfoOutlinedIcon
                   sx={{
-                    fontSize: 16,
+                    fontSize: TYPO.lg,
                     color: palette.textMuted,
                     cursor: 'help',
                     flexShrink: 0,
@@ -285,7 +294,7 @@ export default function SearchBar({
                     opacity: 0.5,
                   },
                   '& .MuiSvgIcon-root': {
-                    fontSize: 18,
+                    fontSize: TYPO.xl,
                   },
                 }}
               />
@@ -293,8 +302,8 @@ export default function SearchBar({
             label={
               <Typography
                 sx={{
-                  fontSize: 12,
-                  fontWeight: 600,
+                  fontSize: TYPO.sm,
+                  fontWeight: FONT_WEIGHT.semibold,
                   color: palette.textMuted,
                   userSelect: 'none',
                   whiteSpace: 'nowrap',
@@ -335,7 +344,7 @@ export default function SearchBar({
                     opacity: 0.5,
                   },
                   '& .MuiSvgIcon-root': {
-                    fontSize: 18,
+                    fontSize: TYPO.xl,
                   },
                 }}
               />
@@ -343,8 +352,8 @@ export default function SearchBar({
             label={
               <Typography
                 sx={{
-                  fontSize: 12,
-                  fontWeight: 600,
+                  fontSize: TYPO.sm,
+                  fontWeight: FONT_WEIGHT.semibold,
                   color: palette.textMuted,
                   userSelect: 'none',
                   pr: 1.5,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import { whiteAlpha, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, BLUR } from '@styles';
 
 export interface FPSMeterProps {
   /** @deprecated Theme mode is now read from `useAppPalette()`. Prop kept for back-compat but ignored. */
@@ -57,17 +57,17 @@ export function FPSMeter(_props: FPSMeterProps = {}): React.ReactElement {
       sx={{
         px: 1.25,
         py: 0.75,
-        borderRadius: '8px',
+        borderRadius: RADIUS.md,
         bgcolor: bgColor,
         border: `1px solid ${borderColor}`,
-        backdropFilter: 'blur(10px)',
+        backdropFilter: BLUR.md,
         pointerEvents: 'none',
       }}
     >
       <Typography
         sx={{
-          fontSize: 9,
-          fontWeight: 500,
+          fontSize: TYPO.micro,
+          fontWeight: FONT_WEIGHT.medium,
           color: textColor,
           fontFamily: 'SF Mono, Monaco, Menlo, monospace',
           letterSpacing: '0.02em',

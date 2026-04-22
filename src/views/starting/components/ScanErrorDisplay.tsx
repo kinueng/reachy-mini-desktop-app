@@ -24,7 +24,7 @@ import LaunchIcon from '@mui/icons-material/Launch';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
 import { openUrl } from '../../../utils/tauriCompat';
-import { useAppPalette, STATUS } from '@styles';
+import { useAppPalette, STATUS, RADIUS, TYPO, FONT_WEIGHT } from '@styles';
 
 /**
  * Shape of a single startup log entry as produced by `useDaemonStartupLogs`.
@@ -290,7 +290,7 @@ function ScanErrorDisplay({
         component="h1"
         sx={{
           fontSize: 17,
-          fontWeight: 600,
+          fontWeight: FONT_WEIGHT.semibold,
           color: strongText,
           textAlign: 'center',
           lineHeight: 1.3,
@@ -302,8 +302,8 @@ function ScanErrorDisplay({
 
       <Typography
         sx={{
-          fontSize: 12,
-          fontWeight: 400,
+          fontSize: TYPO.sm,
+          fontWeight: FONT_WEIGHT.regular,
           color: mutedText,
           textAlign: 'center',
           lineHeight: 1.5,
@@ -324,11 +324,11 @@ function ScanErrorDisplay({
             maxWidth: 360,
             px: 1.25,
             py: 0.75,
-            borderRadius: '8px',
+            borderRadius: `${RADIUS.md}px`,
             border: `1px solid ${borderColor}`,
             bgcolor: stripBg,
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            fontSize: 11,
+            fontSize: TYPO.xs,
             color: mutedText,
           }}
         >
@@ -347,7 +347,7 @@ function ScanErrorDisplay({
                     sx={{
                       width: 6,
                       height: 6,
-                      borderRadius: '50%',
+                      borderRadius: RADIUS.circle,
                       bgcolor: accent,
                       flexShrink: 0,
                     }}
@@ -357,7 +357,7 @@ function ScanErrorDisplay({
                     sx={{
                       fontFamily: 'inherit',
                       fontSize: 'inherit',
-                      fontWeight: 600,
+                      fontWeight: FONT_WEIGHT.semibold,
                       color: strongText,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -374,7 +374,7 @@ function ScanErrorDisplay({
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, flexShrink: 0 }}>
                   <Typography
                     component="span"
-                    sx={{ fontFamily: 'inherit', fontSize: 10, color: mutedText }}
+                    sx={{ fontFamily: 'inherit', fontSize: TYPO.tiny, color: mutedText }}
                   >
                     connection:
                   </Typography>
@@ -383,7 +383,7 @@ function ScanErrorDisplay({
                     sx={{
                       fontFamily: 'inherit',
                       fontSize: 'inherit',
-                      fontWeight: 600,
+                      fontWeight: FONT_WEIGHT.semibold,
                       color: strongText,
                     }}
                   >
@@ -409,7 +409,7 @@ function ScanErrorDisplay({
                 component="span"
                 sx={{
                   fontFamily: 'inherit',
-                  fontSize: 10,
+                  fontSize: TYPO.tiny,
                   color: mutedText,
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
@@ -421,7 +421,7 @@ function ScanErrorDisplay({
                 component="span"
                 sx={{
                   fontFamily: 'inherit',
-                  fontSize: 11,
+                  fontSize: TYPO.xs,
                   color: strongText,
                   display: '-webkit-box',
                   WebkitLineClamp: 3,
@@ -447,7 +447,7 @@ function ScanErrorDisplay({
           isRetrying ? (
             <CircularProgress size={14} color="inherit" />
           ) : (
-            <RefreshIcon sx={{ fontSize: 16 }} />
+            <RefreshIcon sx={{ fontSize: TYPO.lg }} />
           )
         }
         onClick={onRetry}
@@ -455,12 +455,12 @@ function ScanErrorDisplay({
         sx={{
           mt: 0.5,
           minWidth: 160,
-          fontWeight: 600,
-          fontSize: 12,
+          fontWeight: FONT_WEIGHT.semibold,
+          fontSize: TYPO.sm,
           letterSpacing: 0.1,
           px: 2.5,
           py: 0.85,
-          borderRadius: '10px',
+          borderRadius: `${RADIUS.lg}px`,
           textTransform: 'none',
         }}
       >
@@ -474,8 +474,8 @@ function ScanErrorDisplay({
             href="#"
             onClick={handleSwitchModeClick}
             sx={{
-              fontSize: 11,
-              fontWeight: 500,
+              fontSize: TYPO.xs,
+              fontWeight: FONT_WEIGHT.medium,
               color: 'primary.main',
               textDecoration: 'none',
               cursor: 'pointer',
@@ -495,8 +495,8 @@ function ScanErrorDisplay({
           href="#"
           onClick={handleTroubleshootingClick}
           sx={{
-            fontSize: 11,
-            fontWeight: 500,
+            fontSize: TYPO.xs,
+            fontWeight: FONT_WEIGHT.medium,
             color: 'primary.main',
             textDecoration: 'none',
             cursor: 'pointer',
@@ -512,7 +512,7 @@ function ScanErrorDisplay({
           }}
         >
           Troubleshooting
-          <LaunchIcon sx={{ fontSize: 11 }} />
+          <LaunchIcon sx={{ fontSize: TYPO.xs }} />
         </Typography>
 
         {hasLogs && (
@@ -522,8 +522,8 @@ function ScanErrorDisplay({
             onClick={handleCopyLogsClick}
             aria-label={copied ? 'Logs copied to clipboard' : 'Copy raw logs to clipboard'}
             sx={{
-              fontSize: 11,
-              fontWeight: 500,
+              fontSize: TYPO.xs,
+              fontWeight: FONT_WEIGHT.medium,
               color: copied ? 'success.main' : 'primary.main',
               textDecoration: 'none',
               cursor: 'pointer',
@@ -542,12 +542,12 @@ function ScanErrorDisplay({
             {copied ? (
               <>
                 Copied
-                <CheckIcon sx={{ fontSize: 12 }} />
+                <CheckIcon sx={{ fontSize: TYPO.sm }} />
               </>
             ) : (
               <>
                 Copy logs
-                <ContentCopyIcon sx={{ fontSize: 11 }} />
+                <ContentCopyIcon sx={{ fontSize: TYPO.xs }} />
               </>
             )}
           </Typography>

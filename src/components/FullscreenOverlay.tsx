@@ -4,7 +4,7 @@ import { Box, IconButton, Modal } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { getAppWindow } from '../utils/windowUtils';
 import { ACCENT, whiteAlpha, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, scrollbarSx } from '@styles';
 
 export interface FullscreenOverlayProps {
   open: boolean;
@@ -80,21 +80,12 @@ export default function FullscreenOverlay({
   const scrollbarThumb = isDark ? whiteAlpha(0.15) : blackAlpha(0.15);
   const scrollbarThumbHover = isDark ? whiteAlpha(0.25) : blackAlpha(0.25);
 
-  const scrollbarStyles = {
-    '&::-webkit-scrollbar': {
-      width: 8,
-    },
-    '&::-webkit-scrollbar-track': {
-      background: 'transparent',
-    },
-    '&::-webkit-scrollbar-thumb': {
-      background: scrollbarThumb,
-      borderRadius: 4,
-      '&:hover': {
-        background: scrollbarThumbHover,
-      },
-    },
-  };
+  const scrollbarStyles = scrollbarSx(palette, {
+    width: 8,
+    radius: 4,
+    thumb: scrollbarThumb,
+    thumbHover: scrollbarThumbHover,
+  });
 
   const closeBtnBg = isDark ? whiteAlpha(0.08) : '#ffffff';
   const closeBtnHoverBg = isDark ? whiteAlpha(0.12) : '#ffffff';
@@ -212,7 +203,7 @@ export default function FullscreenOverlay({
               },
             }}
           >
-            <CloseIcon sx={{ fontSize: 20 }} />
+            <CloseIcon sx={{ fontSize: TYPO.xxl }} />
           </IconButton>,
           document.body
         )}

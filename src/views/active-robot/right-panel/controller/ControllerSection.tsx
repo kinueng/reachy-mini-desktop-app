@@ -4,7 +4,7 @@ import SportsEsportsOutlinedIcon from '@mui/icons-material/SportsEsportsOutlined
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { ACCENT, accentAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, TYPO, useAppPalette } from '@styles';
 import Controller from '../../controller';
 import { useGamepadConnected, useActiveDevice } from '../../../../utils/InputManager';
 import { useWindowFocus } from '../../../windows/hooks';
@@ -127,12 +127,12 @@ export default function ControllerSection({
               },
             }}
           >
-            <ArrowBackIcon sx={{ fontSize: 20 }} />
+            <ArrowBackIcon sx={{ fontSize: TYPO.xxl }} />
           </IconButton>
           <Typography
             sx={{
-              fontSize: 20,
-              fontWeight: 700,
+              fontSize: TYPO.xxl,
+              fontWeight: FONT_WEIGHT.bold,
               color: palette.textPrimary,
               letterSpacing: '-0.3px',
             }}
@@ -201,7 +201,7 @@ export default function ControllerSection({
                   },
                 }}
               >
-                <RefreshIcon sx={{ fontSize: 16, color: palette.textMuted }} />
+                <RefreshIcon sx={{ fontSize: TYPO.lg, color: palette.textMuted }} />
               </IconButton>
             </Tooltip>
           )}

@@ -11,7 +11,7 @@ import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRigh
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { usePermissions } from '../../hooks/system';
-import { useAppPalette } from '@styles';
+import { BLUR, FONT_WEIGHT, RADIUS, TYPO, useAppPalette } from '@styles';
 import { DURATION, EASING } from '@styles/tokens';
 
 import { isMacOS } from '../../utils/platform';
@@ -49,7 +49,7 @@ const PermissionRow = ({ icon: Icon, label, subtitle, granted, onClick }: Permis
         gap: 1.5,
         px: 1.5,
         py: 0.875,
-        borderRadius: '10px',
+        borderRadius: `${RADIUS.lg}px`,
         border: '1px solid',
         borderColor: alpha(rowColor, granted ? 0.4 : 0.35),
         bgcolor: alpha(rowColor, isDark ? 0.08 : 0.04),
@@ -63,7 +63,7 @@ const PermissionRow = ({ icon: Icon, label, subtitle, granted, onClick }: Permis
         sx={{
           width: 34,
           height: 34,
-          borderRadius: '8px',
+          borderRadius: `${RADIUS.md}px`,
           bgcolor: alpha(rowColor, isDark ? 0.18 : 0.12),
           display: 'flex',
           alignItems: 'center',
@@ -76,13 +76,20 @@ const PermissionRow = ({ icon: Icon, label, subtitle, granted, onClick }: Permis
 
       {/* Labels */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontSize: 12, fontWeight: 600, color: rowColor, lineHeight: 1.25 }}>
+        <Typography
+          sx={{
+            fontSize: TYPO.sm,
+            fontWeight: FONT_WEIGHT.semibold,
+            color: rowColor,
+            lineHeight: 1.25,
+          }}
+        >
           {label}
         </Typography>
         {subtitle && (
           <Typography
             sx={{
-              fontSize: 10,
+              fontSize: TYPO.tiny,
               color: granted ? alpha(successColor, 0.8) : alpha(primaryColor, 0.6),
               lineHeight: 1.25,
             }}
@@ -98,7 +105,7 @@ const PermissionRow = ({ icon: Icon, label, subtitle, granted, onClick }: Permis
           sx={{
             width: 20,
             height: 20,
-            borderRadius: '50%',
+            borderRadius: RADIUS.circle,
             bgcolor: alpha(successColor, 0.15),
             border: `1.5px solid ${successColor}`,
             display: 'flex',
@@ -112,11 +119,11 @@ const PermissionRow = ({ icon: Icon, label, subtitle, granted, onClick }: Permis
             },
           }}
         >
-          <CheckRoundedIcon sx={{ fontSize: 11, color: successColor }} />
+          <CheckRoundedIcon sx={{ fontSize: TYPO.xs, color: successColor }} />
         </Box>
       ) : (
         <KeyboardArrowRightRoundedIcon
-          sx={{ fontSize: 18, color: alpha(primaryColor, 0.45), flexShrink: 0 }}
+          sx={{ fontSize: TYPO.xl, color: alpha(primaryColor, 0.45), flexShrink: 0 }}
         />
       )}
     </Box>
@@ -551,8 +558,8 @@ export default function PermissionsRequiredView({
         width: '100vw',
         height: '100vh',
         background: bgColor,
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
+        backdropFilter: BLUR.lg,
+        WebkitBackdropFilter: BLUR.lg,
         overflow: 'hidden',
         position: 'relative',
       }}
@@ -590,8 +597,8 @@ export default function PermissionsRequiredView({
             </Box>
             <Typography
               sx={{
-                fontSize: 20,
-                fontWeight: 600,
+                fontSize: TYPO.xxl,
+                fontWeight: FONT_WEIGHT.semibold,
                 color: palette.textPrimary,
                 mb: 0.25,
                 textAlign: 'center',
@@ -601,7 +608,7 @@ export default function PermissionsRequiredView({
             </Typography>
             <Typography
               sx={{
-                fontSize: 12,
+                fontSize: TYPO.sm,
                 color: palette.textSecondary,
                 textAlign: 'center',
                 mb: 2.5,
@@ -632,8 +639,8 @@ export default function PermissionsRequiredView({
 
             <Typography
               sx={{
-                fontSize: 20,
-                fontWeight: 600,
+                fontSize: TYPO.xxl,
+                fontWeight: FONT_WEIGHT.semibold,
                 color: palette.textPrimary,
                 mb: 0.25,
                 textAlign: 'center',
@@ -644,7 +651,7 @@ export default function PermissionsRequiredView({
 
             <Typography
               sx={{
-                fontSize: 12,
+                fontSize: TYPO.sm,
                 color: palette.textSecondary,
                 textAlign: 'center',
                 mb: 2.5,
@@ -745,7 +752,7 @@ export default function PermissionsRequiredView({
             </Box>
 
             {/* Helper text */}
-            <Typography sx={{ fontSize: 11, color: palette.textFaint }}>
+            <Typography sx={{ fontSize: TYPO.xs, color: palette.textFaint }}>
               Click on a card to grant access
             </Typography>
           </>

@@ -4,8 +4,8 @@ import type { SxProps, Theme } from '@mui/material/styles';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import { buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '../../../config/daemon';
 import SectionHeader from './SectionHeader';
-import { DURATION, EASING, STATUS, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { DURATION, STATUS, blackAlpha, transition } from '@styles/tokens';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS } from '@styles';
 
 type DaemonStateKey = 'running' | 'starting' | 'stopping' | 'stopped' | 'not_initialized' | 'error';
 
@@ -118,10 +118,10 @@ export default function SettingsDaemonCard({
           alignItems: 'center',
           justifyContent: 'space-between',
           p: 1.5,
-          borderRadius: '12px',
+          borderRadius: RADIUS.xl,
           bgcolor: palette.isDark ? blackAlpha(0.2) : blackAlpha(0.02),
           cursor: isTransitioning || isToggling ? 'default' : 'pointer',
-          transition: `background ${DURATION.fast}ms ${EASING.standard}`,
+          transition: transition('background', DURATION.fast),
           '&:hover': {
             bgcolor:
               isTransitioning || isToggling
@@ -135,10 +135,12 @@ export default function SettingsDaemonCard({
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <PowerSettingsNewIcon
-            sx={{ fontSize: 18, color: isRunning ? STATUS.success : textSecondary }}
+            sx={{ fontSize: TYPO.xl, color: isRunning ? STATUS.success : textSecondary }}
           />
           <Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 500, color: textPrimary }}>
+            <Typography
+              sx={{ fontSize: TYPO.body, fontWeight: FONT_WEIGHT.medium, color: textPrimary }}
+            >
               Motor Backend
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.25 }}>
@@ -146,11 +148,13 @@ export default function SettingsDaemonCard({
                 sx={{
                   width: 6,
                   height: 6,
-                  borderRadius: '50%',
+                  borderRadius: RADIUS.circle,
                   bgcolor: statusColor,
                 }}
               />
-              <Typography sx={{ fontSize: 11, color: textSecondary }}>{statusLabel}</Typography>
+              <Typography sx={{ fontSize: TYPO.xs, color: textSecondary }}>
+                {statusLabel}
+              </Typography>
               {(isTransitioning || isToggling) && (
                 <CircularProgress size={10} sx={{ color: textSecondary, ml: 0.5 }} />
               )}
@@ -165,7 +169,7 @@ export default function SettingsDaemonCard({
         />
       </Box>
 
-      <Typography sx={{ fontSize: 11, color: textSecondary, mt: 1, ml: 0.5, lineHeight: 1.5 }}>
+      <Typography sx={{ fontSize: TYPO.xs, color: textSecondary, mt: 1, ml: 0.5, lineHeight: 1.5 }}>
         {isRunning
           ? 'Turn off to disable motors and put the robot to sleep.'
           : 'Turn on to wake up the robot and enable motor control.'}

@@ -26,10 +26,12 @@ import useAppStore from '../../../../store/useAppStore';
 import {
   ACCENT,
   DURATION,
-  EASING,
+  FONT_WEIGHT,
   RADIUS,
+  TYPO,
   accentAlpha,
   blackAlpha,
+  transition,
   whiteAlpha,
 } from '@styles/tokens';
 import { useAppPalette } from '@styles';
@@ -367,22 +369,22 @@ function OpenAppButton({
             isGhostMode ? (
               <CircularProgress size={12} sx={{ color: palette.textDisabled }} />
             ) : (
-              <OpenInNewIcon sx={{ fontSize: 13 }} />
+              <OpenInNewIcon sx={{ fontSize: TYPO.body }} />
             )
           }
           sx={{
             minWidth: 'auto',
             px: 1.5,
             py: 0.75,
-            fontSize: 11,
-            fontWeight: 600,
+            fontSize: TYPO.xs,
+            fontWeight: FONT_WEIGHT.semibold,
             textTransform: 'none',
             borderRadius: `${RADIUS.md}px`,
             flexShrink: 0,
             bgcolor: 'transparent',
             color: isGhostMode ? palette.textDisabled : ACCENT.main,
             border: `1px solid ${isGhostMode ? palette.border : ACCENT.main}`,
-            transition: `all ${DURATION.base}ms ${EASING.standard}`,
+            transition: transition('all', DURATION.base),
             '&:hover': {
               bgcolor: accentAlpha(0.08),
               borderColor: ACCENT.main,
@@ -512,9 +514,9 @@ export default function InstalledAppsSection({
 
           <Typography
             sx={{
-              fontSize: 14,
+              fontSize: TYPO.md,
               color: palette.textSecondary,
-              fontWeight: 700,
+              fontWeight: FONT_WEIGHT.bold,
               textAlign: 'center',
             }}
           >
@@ -527,8 +529,8 @@ export default function InstalledAppsSection({
             component="button"
             onClick={onOpenCreateTutorial}
             sx={{
-              fontSize: 11,
-              fontWeight: 500,
+              fontSize: TYPO.xs,
+              fontWeight: FONT_WEIGHT.medium,
               color: palette.textMuted,
               textDecoration: 'underline',
               textDecorationColor: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
@@ -538,7 +540,7 @@ export default function InstalledAppsSection({
               border: 'none',
               p: 0,
               mt: -0.5,
-              transition: `all ${DURATION.base}ms ${EASING.standard}`,
+              transition: transition('all', DURATION.base),
               '&:hover': {
                 color: palette.textSecondary,
                 textDecorationColor: palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3),
@@ -597,7 +599,7 @@ export default function InstalledAppsSection({
                           ? palette.statusSuccess
                           : palette.border
                     }`,
-                    transition: `opacity ${DURATION.medium}ms ${EASING.standard}, filter ${DURATION.medium}ms ${EASING.standard}, border-color ${DURATION.base}ms ${EASING.standard}`,
+                    transition: `${transition(['opacity', 'filter'], DURATION.medium)}, ${transition('border-color', DURATION.base)}`,
                     overflow: 'hidden',
                     boxShadow: hasAppError
                       ? ERROR_GLOW
@@ -681,8 +683,8 @@ export default function InstalledAppsSection({
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.3 }}>
                           <Typography
                             sx={{
-                              fontSize: 13,
-                              fontWeight: 600,
+                              fontSize: TYPO.body,
+                              fontWeight: FONT_WEIGHT.semibold,
                               color: palette.textPrimary,
                               letterSpacing: '-0.2px',
                               overflow: 'hidden',
@@ -701,8 +703,8 @@ export default function InstalledAppsSection({
                               size="small"
                               sx={{
                                 height: 16,
-                                fontSize: 9,
-                                fontWeight: 700,
+                                fontSize: TYPO.micro,
+                                fontWeight: FONT_WEIGHT.bold,
                                 bgcolor: ERROR_CHIP_BG,
                                 color: palette.statusError,
                                 '& .MuiChip-label': { px: 0.75 },
@@ -717,8 +719,8 @@ export default function InstalledAppsSection({
                             return (
                               <Typography
                                 sx={{
-                                  fontSize: 9,
-                                  fontWeight: 500,
+                                  fontSize: TYPO.micro,
+                                  fontWeight: FONT_WEIGHT.medium,
                                   color: palette.statusError,
                                   fontFamily: 'monospace',
                                   letterSpacing: '0.2px',
@@ -738,10 +740,10 @@ export default function InstalledAppsSection({
                             return (
                               <Typography
                                 sx={{
-                                  fontSize: 9,
+                                  fontSize: TYPO.micro,
                                   color:
                                     jobInfo.type === 'remove' ? palette.statusError : ACCENT.main,
-                                  fontWeight: 500,
+                                  fontWeight: FONT_WEIGHT.medium,
                                   fontFamily: 'monospace',
                                   letterSpacing: '0.2px',
                                 }}
@@ -758,8 +760,8 @@ export default function InstalledAppsSection({
                             return (
                               <Typography
                                 sx={{
-                                  fontSize: 9,
-                                  fontWeight: 500,
+                                  fontSize: TYPO.micro,
+                                  fontWeight: FONT_WEIGHT.medium,
                                   color: palette.textMuted,
                                   fontFamily: 'monospace',
                                   letterSpacing: '0.2px',
@@ -785,14 +787,14 @@ export default function InstalledAppsSection({
                           height: 28,
                           display: isMenuOpen ? 'inline-flex' : 'none',
                           color: palette.textMuted,
-                          transition: `color ${DURATION.fast}ms ${EASING.standard}, background-color ${DURATION.fast}ms ${EASING.standard}`,
+                          transition: transition(['color', 'background-color'], DURATION.fast),
                           '&:hover': {
                             color: palette.textSecondary,
                             bgcolor: palette.isDark ? whiteAlpha(0.08) : blackAlpha(0.06),
                           },
                         }}
                       >
-                        <MoreVertIcon sx={{ fontSize: 16 }} />
+                        <MoreVertIcon sx={{ fontSize: TYPO.lg }} />
                       </IconButton>
 
                       {(() => {
@@ -827,7 +829,7 @@ export default function InstalledAppsSection({
                                     color: ACCENT.main,
                                     border: `1px solid ${ACCENT.main}`,
                                     borderRadius: `${RADIUS.md}px`,
-                                    transition: `all ${DURATION.base}ms ${EASING.standard}`,
+                                    transition: transition('all', DURATION.base),
                                     '&:hover': {
                                       bgcolor: accentAlpha(0.1),
                                     },
@@ -837,7 +839,7 @@ export default function InstalledAppsSection({
                                     },
                                   }}
                                 >
-                                  <ArrowUpwardIcon sx={{ fontSize: 14 }} />
+                                  <ArrowUpwardIcon sx={{ fontSize: TYPO.md }} />
                                 </IconButton>
                               </span>
                             </Tooltip>
@@ -872,7 +874,7 @@ export default function InstalledAppsSection({
                                 color: palette.statusError,
                                 border: `1px solid ${palette.statusError}`,
                                 borderRadius: `${RADIUS.md}px`,
-                                transition: `all ${DURATION.base}ms ${EASING.standard}`,
+                                transition: transition('all', DURATION.base),
                                 '&:disabled': {
                                   color: palette.statusError,
                                   borderColor: ERROR_STOP_DISABLED_BORDER,
@@ -905,7 +907,7 @@ export default function InstalledAppsSection({
                               color: palette.statusError,
                               border: `1px solid ${palette.statusError}`,
                               borderRadius: `${RADIUS.md}px`,
-                              transition: `all ${DURATION.base}ms ${EASING.standard}`,
+                              transition: transition('all', DURATION.base),
                               '&:hover': {
                                 bgcolor: ERROR_STOP_HOVER,
                               },
@@ -915,7 +917,7 @@ export default function InstalledAppsSection({
                               },
                             }}
                           >
-                            <StopCircleOutlinedIcon sx={{ fontSize: 16 }} />
+                            <StopCircleOutlinedIcon sx={{ fontSize: TYPO.lg }} />
                           </IconButton>
                         </Tooltip>
                       ) : isStarting ? (
@@ -930,7 +932,7 @@ export default function InstalledAppsSection({
                                 color: ACCENT.main,
                                 border: `1px solid ${ACCENT.main}`,
                                 borderRadius: `${RADIUS.md}px`,
-                                transition: `all ${DURATION.base}ms ${EASING.standard}`,
+                                transition: transition('all', DURATION.base),
                                 '&:disabled': {
                                   color: ACCENT.main,
                                   borderColor: accentAlpha(0.5),
@@ -954,20 +956,20 @@ export default function InstalledAppsSection({
                             e.stopPropagation();
                             handleStartApp(app.name);
                           }}
-                          endIcon={<PlayArrowOutlinedIcon sx={{ fontSize: 13 }} />}
+                          endIcon={<PlayArrowOutlinedIcon sx={{ fontSize: TYPO.body }} />}
                           sx={{
                             minWidth: 'auto',
                             px: 1.5,
                             py: 0.75,
-                            fontSize: 11,
-                            fontWeight: 600,
+                            fontSize: TYPO.xs,
+                            fontWeight: FONT_WEIGHT.semibold,
                             textTransform: 'none',
                             borderRadius: `${RADIUS.md}px`,
                             flexShrink: 0,
                             bgcolor: 'transparent',
                             color: ACCENT.main,
                             border: `1px solid ${ACCENT.main}`,
-                            transition: `all ${DURATION.base}ms ${EASING.standard}`,
+                            transition: transition('all', DURATION.base),
                             '&:hover': {
                               bgcolor: accentAlpha(0.08),
                               borderColor: ACCENT.main,
@@ -1029,7 +1031,7 @@ export default function InstalledAppsSection({
                         handleMenuClose();
                       }}
                       sx={{
-                        fontSize: 12,
+                        fontSize: TYPO.sm,
                         py: 1,
                         color: palette.textSecondary,
                         '&:hover': {
@@ -1042,7 +1044,7 @@ export default function InstalledAppsSection({
                       </ListItemIcon>
                       <ListItemText
                         primary="View on HuggingFace"
-                        primaryTypographyProps={{ fontSize: 12 }}
+                        primaryTypographyProps={{ fontSize: TYPO.sm }}
                       />
                     </MenuItem>
                   ),
@@ -1054,7 +1056,7 @@ export default function InstalledAppsSection({
                       handleMenuClose();
                     }}
                     sx={{
-                      fontSize: 12,
+                      fontSize: TYPO.sm,
                       py: 1,
                       color: palette.statusError,
                       '&:hover': {
@@ -1074,7 +1076,7 @@ export default function InstalledAppsSection({
                     </ListItemIcon>
                     <ListItemText
                       primary={isRemoving ? 'Uninstalling...' : 'Uninstall'}
-                      primaryTypographyProps={{ fontSize: 12 }}
+                      primaryTypographyProps={{ fontSize: TYPO.sm }}
                     />
                   </MenuItem>,
                 ];
@@ -1102,8 +1104,8 @@ export default function InstalledAppsSection({
                 component="button"
                 onClick={onOpenCreateTutorial}
                 sx={{
-                  fontSize: 11,
-                  fontWeight: 500,
+                  fontSize: TYPO.xs,
+                  fontWeight: FONT_WEIGHT.medium,
                   color: palette.textMuted,
                   textDecoration: 'underline',
                   textDecorationColor: palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2),
@@ -1112,7 +1114,7 @@ export default function InstalledAppsSection({
                   bgcolor: 'transparent',
                   border: 'none',
                   p: 0,
-                  transition: `color ${DURATION.base}ms ${EASING.standard}, textDecorationColor ${DURATION.base}ms ${EASING.standard}`,
+                  transition: transition(['color', 'textDecorationColor'], DURATION.base),
                   '&:hover': {
                     color: palette.textSecondary,
                     textDecorationColor: palette.isDark ? whiteAlpha(0.3) : blackAlpha(0.3),

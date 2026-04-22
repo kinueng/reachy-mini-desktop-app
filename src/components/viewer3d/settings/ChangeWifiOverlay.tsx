@@ -5,7 +5,7 @@ import FullscreenOverlay from '../../FullscreenOverlay';
 import NetworkSelect from '../../wifi/NetworkSelect';
 import type { WifiStatus } from './SettingsWifiCard';
 import { STATUS, accentAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS } from '@styles';
 
 export interface ChangeWifiOverlayProps {
   open: boolean;
@@ -66,7 +66,7 @@ export default function ChangeWifiOverlay({
           <Typography
             variant="h5"
             sx={{
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               color: textPrimary,
             }}
           >
@@ -78,14 +78,14 @@ export default function ChangeWifiOverlay({
           sx={{
             mb: 3,
             p: 2,
-            borderRadius: '12px',
+            borderRadius: RADIUS.xl,
             bgcolor: palette.isDark ? accentAlpha(0.15) : accentAlpha(0.1),
             border: `1px solid ${palette.isDark ? accentAlpha(0.3) : accentAlpha(0.2)}`,
           }}
         >
           <Typography
             sx={{
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: palette.accentTextStrong,
               lineHeight: 1.6,
             }}
@@ -98,7 +98,7 @@ export default function ChangeWifiOverlay({
         {wifiStatus?.connected_network && (
           <Typography
             sx={{
-              fontSize: 12,
+              fontSize: TYPO.sm,
               color: textSecondary,
               mb: 2,
               textAlign: 'center',
@@ -132,7 +132,7 @@ export default function ChangeWifiOverlay({
           />
 
           {wifiError && (
-            <Typography sx={{ fontSize: 11, color: STATUS.error }}>⚠️ {wifiError}</Typography>
+            <Typography sx={{ fontSize: TYPO.xs, color: STATUS.error }}>⚠️ {wifiError}</Typography>
           )}
         </Box>
 
@@ -144,10 +144,10 @@ export default function ChangeWifiOverlay({
           fullWidth
           sx={{
             py: 1.25,
-            borderRadius: '10px',
+            borderRadius: RADIUS.lg,
             textTransform: 'none',
-            fontWeight: 600,
-            fontSize: 14,
+            fontWeight: FONT_WEIGHT.semibold,
+            fontSize: TYPO.md,
           }}
         >
           {isConnecting ? <CircularProgress size={18} color="inherit" /> : 'Connect'}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import type { SvgIconComponent } from '@mui/icons-material';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT } from '@styles';
 
 export interface SectionHeaderProps {
   title: string;
@@ -30,11 +30,11 @@ export default function SectionHeader({
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {Icon && <Icon sx={{ fontSize: 18, color: palette.textSecondary }} />}
+        {Icon && <Icon sx={{ fontSize: TYPO.xl, color: palette.textSecondary }} />}
         <Typography
           sx={{
-            fontSize: 14,
-            fontWeight: 700,
+            fontSize: TYPO.md,
+            fontWeight: FONT_WEIGHT.bold,
             color: palette.textPrimary,
             letterSpacing: '-0.2px',
           }}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import ReachyDetective from '@assets/reachy-detective.svg';
-import { ACCENT } from '@styles/tokens';
+import { ACCENT, FONT_WEIGHT, RADIUS, TYPO } from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 interface EmptyStateProps {
@@ -44,8 +44,8 @@ export default function EmptyState({
         <>
           <Typography
             sx={{
-              fontSize: 18,
-              fontWeight: 700,
+              fontSize: TYPO.xl,
+              fontWeight: FONT_WEIGHT.bold,
               color: palette.textSecondary,
               mb: 0.5,
             }}
@@ -54,7 +54,7 @@ export default function EmptyState({
           </Typography>
           <Typography
             sx={{
-              fontSize: 14,
+              fontSize: TYPO.md,
               color: palette.textMuted,
               mb: 2,
             }}
@@ -65,11 +65,11 @@ export default function EmptyState({
             onClick={() => setSearchQuery('')}
             sx={{
               textTransform: 'none',
-              fontSize: 14,
-              fontWeight: 600,
+              fontSize: TYPO.md,
+              fontWeight: FONT_WEIGHT.semibold,
               px: 3,
               py: 1,
-              borderRadius: '10px',
+              borderRadius: `${RADIUS.lg}px`,
               bgcolor: 'transparent',
               color: ACCENT.main,
               border: `1px solid ${ACCENT.main}`,
@@ -85,8 +85,8 @@ export default function EmptyState({
       ) : (
         <Typography
           sx={{
-            fontSize: 18,
-            fontWeight: 700,
+            fontSize: TYPO.xl,
+            fontWeight: FONT_WEIGHT.bold,
             color: palette.textSecondary,
           }}
         >

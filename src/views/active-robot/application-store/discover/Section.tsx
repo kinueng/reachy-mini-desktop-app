@@ -10,10 +10,12 @@ import hfLogo from '../../../../assets/hf-logo.svg';
 import {
   ACCENT,
   DURATION,
-  EASING,
+  FONT_WEIGHT,
   RADIUS,
+  TYPO,
   accentAlpha,
   blackAlpha,
+  transition,
   whiteAlpha,
 } from '@styles/tokens';
 import { useAppPalette } from '@styles';
@@ -83,8 +85,8 @@ export default function DiscoverAppsSection({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Typography
               sx={{
-                fontSize: 11,
-                fontWeight: 700,
+                fontSize: TYPO.xs,
+                fontWeight: FONT_WEIGHT.bold,
                 color: palette.textSecondary,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
@@ -99,7 +101,7 @@ export default function DiscoverAppsSection({
             >
               <InfoOutlinedIcon
                 sx={{
-                  fontSize: 12,
+                  fontSize: TYPO.sm,
                   color: palette.textMuted,
                   opacity: 0.6,
                   cursor: 'help',
@@ -109,8 +111,8 @@ export default function DiscoverAppsSection({
           </Box>
           <Typography
             sx={{
-              fontSize: 11,
-              fontWeight: 700,
+              fontSize: TYPO.xs,
+              fontWeight: FONT_WEIGHT.bold,
               color: palette.textMuted,
             }}
           >
@@ -121,9 +123,9 @@ export default function DiscoverAppsSection({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography
             sx={{
-              fontSize: 10,
+              fontSize: TYPO.tiny,
               color: palette.textMuted,
-              fontWeight: 500,
+              fontWeight: FONT_WEIGHT.medium,
             }}
           >
             from
@@ -140,9 +142,9 @@ export default function DiscoverAppsSection({
           />
           <Typography
             sx={{
-              fontSize: 10,
+              fontSize: TYPO.tiny,
               color: palette.textMuted,
-              fontWeight: 500,
+              fontWeight: FONT_WEIGHT.medium,
             }}
           >
             Hugging Face
@@ -161,22 +163,22 @@ export default function DiscoverAppsSection({
           borderRadius: `${RADIUS.lg}px`,
           bgcolor: palette.isDark ? '#262626' : 'white',
           border: `1px solid ${palette.border}`,
-          transition: `box-shadow ${DURATION.base}ms ${EASING.standard}`,
+          transition: transition('box-shadow', DURATION.base),
           '&:focus-within': {
             borderColor: ACCENT.main,
             boxShadow: `0 0 0 3px ${accentAlpha(0.08)}`,
           },
         }}
       >
-        <SearchIcon sx={{ fontSize: 16, color: palette.textMuted }} />
+        <SearchIcon sx={{ fontSize: TYPO.lg, color: palette.textMuted }} />
         <InputBase
           placeholder="Search apps..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           sx={{
             flex: 1,
-            fontSize: 12,
-            fontWeight: 500,
+            fontSize: TYPO.sm,
+            fontWeight: FONT_WEIGHT.medium,
             color: palette.textPrimary,
             '& input::placeholder': {
               color: palette.textMuted,
@@ -187,8 +189,8 @@ export default function DiscoverAppsSection({
 
         <Typography
           sx={{
-            fontSize: 11,
-            fontWeight: 700,
+            fontSize: TYPO.xs,
+            fontWeight: FONT_WEIGHT.bold,
             color: palette.textMuted,
             letterSpacing: '0.2px',
           }}
@@ -202,10 +204,10 @@ export default function DiscoverAppsSection({
             <Typography
               onClick={() => setSearchQuery('')}
               sx={{
-                fontSize: 11,
+                fontSize: TYPO.xs,
                 color: palette.textMuted,
                 cursor: 'pointer',
-                fontWeight: 600,
+                fontWeight: FONT_WEIGHT.semibold,
                 '&:hover': { color: palette.textSecondary },
               }}
             >
@@ -223,7 +225,7 @@ export default function DiscoverAppsSection({
               textAlign: 'center',
             }}
           >
-            <Typography sx={{ fontSize: 12, color: palette.textMuted }}>
+            <Typography sx={{ fontSize: TYPO.sm, color: palette.textMuted }}>
               No apps found for &quot;{searchQuery}&quot;
             </Typography>
           </Box>
@@ -303,8 +305,8 @@ export default function DiscoverAppsSection({
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography
                           sx={{
-                            fontSize: 14,
-                            fontWeight: 700,
+                            fontSize: TYPO.md,
+                            fontWeight: FONT_WEIGHT.bold,
                             color: palette.textPrimary,
                             lineHeight: 1.3,
                             mb: 0.3,
@@ -319,8 +321,8 @@ export default function DiscoverAppsSection({
                         {app.extra?.lastModified && (
                           <Typography
                             sx={{
-                              fontSize: 9,
-                              fontWeight: 500,
+                              fontSize: TYPO.micro,
+                              fontWeight: FONT_WEIGHT.medium,
                               color: palette.textMuted,
                               fontFamily: 'monospace',
                               letterSpacing: '0.2px',
@@ -346,22 +348,22 @@ export default function DiscoverAppsSection({
                           isInstalling ? (
                             <CircularProgress size={12} sx={{ color: ACCENT.main }} />
                           ) : (
-                            <DownloadOutlinedIcon sx={{ fontSize: 13 }} />
+                            <DownloadOutlinedIcon sx={{ fontSize: TYPO.body }} />
                           )
                         }
                         sx={{
                           minWidth: 'auto',
                           px: 1.75,
                           py: 0.75,
-                          fontSize: 11,
-                          fontWeight: 600,
+                          fontSize: TYPO.xs,
+                          fontWeight: FONT_WEIGHT.semibold,
                           textTransform: 'none',
                           borderRadius: `${RADIUS.md}px`,
                           flexShrink: 0,
                           bgcolor: 'transparent',
                           color: ACCENT.main,
                           border: `1px solid ${ACCENT.main}`,
-                          transition: `all ${DURATION.base}ms ${EASING.standard}`,
+                          transition: transition('all', DURATION.base),
                           '&:hover': {
                             bgcolor: accentAlpha(0.08),
                             borderColor: ACCENT.main,
@@ -379,7 +381,7 @@ export default function DiscoverAppsSection({
 
                     <Typography
                       sx={{
-                        fontSize: 11,
+                        fontSize: TYPO.xs,
                         color: palette.textSecondary,
                         lineHeight: 1.6,
                         mb: 1.5,
@@ -404,8 +406,8 @@ export default function DiscoverAppsSection({
                         >
                           <Typography
                             sx={{
-                              fontSize: 10,
-                              fontWeight: 600,
+                              fontSize: TYPO.tiny,
+                              fontWeight: FONT_WEIGHT.semibold,
                               color: palette.isDark ? AMBER_DARK : AMBER_LIGHT,
                               lineHeight: 1,
                             }}
@@ -414,7 +416,7 @@ export default function DiscoverAppsSection({
                           </Typography>
                           <StarOutlineIcon
                             sx={{
-                              fontSize: 13,
+                              fontSize: TYPO.body,
                               color: palette.isDark ? AMBER_DARK : AMBER_LIGHT,
                             }}
                           />
@@ -475,12 +477,12 @@ export default function DiscoverAppsSection({
                             }
                           }}
                           sx={{
-                            fontSize: 10,
-                            fontWeight: 500,
+                            fontSize: TYPO.tiny,
+                            fontWeight: FONT_WEIGHT.medium,
                             color: palette.textMuted,
                             textDecoration: 'none',
                             cursor: 'pointer',
-                            transition: `all ${DURATION.fast}ms ${EASING.standard}`,
+                            transition: transition('all', DURATION.fast),
                             display: 'flex',
                             alignItems: 'center',
                             gap: 0.3,
@@ -513,7 +515,7 @@ export default function DiscoverAppsSection({
             bgcolor: 'transparent',
             border: `1px dashed ${accentAlpha(palette.isDark ? 0.4 : 0.5)}`,
             cursor: 'pointer',
-            transition: `all ${DURATION.medium}ms ${EASING.standard}`,
+            transition: transition('all', DURATION.medium),
             position: 'relative',
             overflow: 'hidden',
             '&:hover': {
@@ -541,7 +543,7 @@ export default function DiscoverAppsSection({
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              transition: `all ${DURATION.medium}ms ${EASING.standard}`,
+              transition: transition('all', DURATION.medium),
             }}
           >
             <Box
@@ -559,8 +561,8 @@ export default function DiscoverAppsSection({
           <Box sx={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
             <Typography
               sx={{
-                fontSize: 13,
-                fontWeight: 700,
+                fontSize: TYPO.body,
+                fontWeight: FONT_WEIGHT.bold,
                 color: accentAlpha(palette.isDark ? 0.6 : 0.7),
                 mb: 0.3,
                 letterSpacing: '-0.2px',
@@ -571,7 +573,7 @@ export default function DiscoverAppsSection({
             </Typography>
             <Typography
               sx={{
-                fontSize: 10,
+                fontSize: TYPO.tiny,
                 color: palette.textMuted,
                 lineHeight: 1.4,
                 textAlign: 'left',
@@ -584,9 +586,9 @@ export default function DiscoverAppsSection({
           <Box
             sx={{
               color: 'primary.main',
-              fontSize: 18,
+              fontSize: TYPO.xl,
               flexShrink: 0,
-              transition: `transform ${DURATION.medium}ms ${EASING.standard}`,
+              transition: transition('transform', DURATION.medium),
             }}
           >
             →

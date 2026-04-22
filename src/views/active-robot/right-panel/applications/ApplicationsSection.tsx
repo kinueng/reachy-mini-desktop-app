@@ -16,7 +16,7 @@ import { CreateAppTutorial as CreateAppTutorialModal } from '../../application-s
 import { Overlay as InstallOverlay } from '../../application-store/installation';
 import type { ToastSeverity } from '../../../../types/store';
 import { DURATION, EASING, whiteAlpha, blackAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, TYPO, transition, useAppPalette } from '@styles';
 
 export interface HfUserInfo {
   username: string;
@@ -259,8 +259,8 @@ export default function ApplicationsSection({
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
               <Typography
                 sx={{
-                  fontSize: 20,
-                  fontWeight: 700,
+                  fontSize: TYPO.xxl,
+                  fontWeight: FONT_WEIGHT.bold,
                   color: palette.textPrimary,
                   letterSpacing: '-0.3px',
                 }}
@@ -270,8 +270,8 @@ export default function ApplicationsSection({
               {installedApps.length > 0 && (
                 <Typography
                   sx={{
-                    fontSize: 11,
-                    fontWeight: 700,
+                    fontSize: TYPO.xs,
+                    fontWeight: FONT_WEIGHT.bold,
                     color: palette.textMuted,
                   }}
                 >
@@ -285,7 +285,7 @@ export default function ApplicationsSection({
               >
                 <InfoOutlinedIcon
                   sx={{
-                    fontSize: 14,
+                    fontSize: TYPO.md,
                     color: palette.textMuted,
                     opacity: 0.6,
                     cursor: 'help',
@@ -307,7 +307,7 @@ export default function ApplicationsSection({
                     borderRadius: '20px',
                     bgcolor: userBadgeBg,
                     border: `1px solid ${userBadgeBorder}`,
-                    transition: `background ${DURATION.fast}ms ${EASING.standard}`,
+                    transition: transition('background', DURATION.fast, EASING.standard),
                     '&:hover': {
                       bgcolor: userBadgeBgHover,
                     },
@@ -319,7 +319,7 @@ export default function ApplicationsSection({
                     sx={{
                       width: 20,
                       height: 20,
-                      fontSize: 11,
+                      fontSize: TYPO.xs,
                       bgcolor: avatarFallbackBg,
                     }}
                   >
@@ -327,8 +327,8 @@ export default function ApplicationsSection({
                   </Avatar>
                   <Typography
                     sx={{
-                      fontSize: 11,
-                      fontWeight: 600,
+                      fontSize: TYPO.xs,
+                      fontWeight: FONT_WEIGHT.semibold,
                       color: palette.textSecondary,
                       maxWidth: 90,
                       overflow: 'hidden',
@@ -353,7 +353,7 @@ export default function ApplicationsSection({
                           },
                         }}
                       >
-                        <LogoutIcon sx={{ fontSize: 13 }} />
+                        <LogoutIcon sx={{ fontSize: TYPO.body }} />
                       </IconButton>
                     </Tooltip>
                   )}
@@ -362,9 +362,9 @@ export default function ApplicationsSection({
             </Box>
             <Typography
               sx={{
-                fontSize: 12,
+                fontSize: TYPO.sm,
                 color: palette.textMuted,
-                fontWeight: 500,
+                fontWeight: FONT_WEIGHT.medium,
               }}
             >
               Extend Reachy&apos;s capabilities

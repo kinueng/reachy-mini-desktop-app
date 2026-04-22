@@ -2,7 +2,7 @@ import React, { type ReactNode } from 'react';
 import { Button, type ButtonProps } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { ACCENT, accentAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS, DURATION, transition } from '@styles';
 
 /**
  * `PulseButton` - Reusable button with orange halo pulse animation.
@@ -26,9 +26,9 @@ export interface PulseButtonProps extends Omit<ButtonProps, 'size'> {
 }
 
 const sizeStyles: Record<PulseButtonSize, Record<string, number | string>> = {
-  small: { px: 2, py: 0.75, fontSize: 12, borderRadius: '8px' },
-  medium: { px: 3, py: 1.25, fontSize: 14, borderRadius: '12px' },
-  large: { px: 4, py: 1.5, fontSize: 16, borderRadius: '14px' },
+  small: { px: 2, py: 0.75, fontSize: TYPO.sm, borderRadius: RADIUS.md },
+  medium: { px: 3, py: 1.25, fontSize: TYPO.md, borderRadius: RADIUS.xl },
+  large: { px: 4, py: 1.5, fontSize: TYPO.lg, borderRadius: '14px' },
 };
 
 export default function PulseButton({
@@ -57,9 +57,9 @@ export default function PulseButton({
       border: `1px solid ${ACCENT.main}`,
       color: ACCENT.main,
       bgcolor: 'transparent',
-      fontWeight: 600,
+      fontWeight: FONT_WEIGHT.semibold,
       textTransform: 'none',
-      transition: 'all 0.2s ease',
+      transition: transition('all', DURATION.base),
       animation: disabled || !pulse ? 'none' : 'pulseHalo 3s ease-in-out infinite',
       '@keyframes pulseHalo': {
         '0%, 100%': {

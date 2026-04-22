@@ -5,7 +5,7 @@ import { getAppWindow } from '../utils/windowUtils';
 import { getVersion } from '@utils/tauriCompat';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import useAppStore from '../store/useAppStore';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, DURATION, transition } from '@styles';
 
 /**
  * Common TopBar component for all views
@@ -68,7 +68,7 @@ export default function AppTopBar(): React.ReactPortal {
         WebkitAppRegion: 'drag',
         bgcolor: 'transparent',
         zIndex: 10000000,
-        transition: 'right 0.15s ease',
+        transition: transition('right', DURATION.fast),
       }}
     >
       {isMainWindow && !isConnected && (
@@ -77,9 +77,9 @@ export default function AppTopBar(): React.ReactPortal {
             position: 'absolute',
             top: 10,
             right: 12,
-            fontSize: 9,
+            fontSize: TYPO.micro,
             color: palette.textFaint,
-            fontWeight: 500,
+            fontWeight: FONT_WEIGHT.medium,
             letterSpacing: '0.02em',
             pointerEvents: 'none',
             fontFamily: 'SF Mono, Monaco, Menlo, monospace',

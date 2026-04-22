@@ -7,7 +7,7 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import NewReleasesOutlinedIcon from '@mui/icons-material/NewReleasesOutlined';
 import SectionHeader from './SectionHeader';
 import { STATUS } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS } from '@styles';
 
 export interface UpdateInfo {
   is_available?: boolean;
@@ -88,7 +88,7 @@ export default function SettingsUpdateCard({
               />
               <Typography
                 sx={{
-                  fontSize: 10,
+                  fontSize: TYPO.tiny,
                   color: preRelease ? 'primary.main' : textMuted,
                   mr: 1,
                 }}
@@ -109,7 +109,7 @@ export default function SettingsUpdateCard({
             >
               <RefreshIcon
                 sx={{
-                  fontSize: 16,
+                  fontSize: TYPO.lg,
                   animation: isCheckingUpdate ? 'spin 1s linear infinite' : 'none',
                   '@keyframes spin': {
                     '0%': { transform: 'rotate(0deg)' },
@@ -135,7 +135,7 @@ export default function SettingsUpdateCard({
             }}
           >
             <CircularProgress size={24} color="primary" />
-            <Typography sx={{ fontSize: 12, color: textSecondary }}>
+            <Typography sx={{ fontSize: TYPO.sm, color: textSecondary }}>
               Checking for updates...
             </Typography>
           </Box>
@@ -157,8 +157,8 @@ export default function SettingsUpdateCard({
                 <Box>
                   <Typography
                     sx={{
-                      fontSize: 14,
-                      fontWeight: 600,
+                      fontSize: TYPO.md,
+                      fontWeight: FONT_WEIGHT.semibold,
                       color: textPrimary,
                       mb: 0.5,
                     }}
@@ -167,7 +167,7 @@ export default function SettingsUpdateCard({
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: 13,
+                      fontSize: TYPO.body,
                       color: textSecondary,
                       fontFamily: 'monospace',
                     }}
@@ -181,11 +181,11 @@ export default function SettingsUpdateCard({
                   disabled={isUpdating || !isOnline}
                   sx={{
                     ...buttonStyle,
-                    fontSize: 13,
-                    fontWeight: 600,
+                    fontSize: TYPO.body,
+                    fontWeight: FONT_WEIGHT.semibold,
                     py: 1,
                     px: 4,
-                    borderRadius: '10px',
+                    borderRadius: RADIUS.lg,
                   }}
                 >
                   {isUpdating ? <CircularProgress size={18} color="primary" /> : 'Update Now'}
@@ -193,7 +193,7 @@ export default function SettingsUpdateCard({
                 {!isOnline && (
                   <Typography
                     sx={{
-                      fontSize: 11,
+                      fontSize: TYPO.xs,
                       color: STATUS.warning,
                       fontStyle: 'italic',
                     }}
@@ -208,8 +208,8 @@ export default function SettingsUpdateCard({
                 <Box>
                   <Typography
                     sx={{
-                      fontSize: 14,
-                      fontWeight: 600,
+                      fontSize: TYPO.md,
+                      fontWeight: FONT_WEIGHT.semibold,
                       color: textPrimary,
                       mb: 0.5,
                     }}
@@ -218,7 +218,7 @@ export default function SettingsUpdateCard({
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: 12,
+                      fontSize: TYPO.sm,
                       color: textMuted,
                       fontFamily: 'monospace',
                     }}
@@ -240,7 +240,7 @@ export default function SettingsUpdateCard({
               gap: 1.5,
             }}
           >
-            <Typography sx={{ fontSize: 12, color: textSecondary }}>
+            <Typography sx={{ fontSize: TYPO.sm, color: textSecondary }}>
               Check for available updates
             </Typography>
             <Button
@@ -248,14 +248,14 @@ export default function SettingsUpdateCard({
               onClick={onCheckUpdate}
               size="small"
               disabled={!isOnline}
-              sx={{ ...buttonStyle, fontSize: 12 }}
+              sx={{ ...buttonStyle, fontSize: TYPO.sm }}
             >
               Check now
             </Button>
             {!isOnline && (
               <Typography
                 sx={{
-                  fontSize: 11,
+                  fontSize: TYPO.xs,
                   color: STATUS.warning,
                   fontStyle: 'italic',
                   mt: 0.5,

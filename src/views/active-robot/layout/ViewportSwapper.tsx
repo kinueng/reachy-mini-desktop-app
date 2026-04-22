@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useMemo, useLayoutEffect, memo } 
 import { createPortal } from 'react-dom';
 import { Box, IconButton } from '@mui/material';
 import { DURATION, EASING, blackAlpha } from '@styles/tokens';
+import { RADIUS, TYPO, transition } from '@styles';
 
 /**
  * ViewportSwapper Component
@@ -149,7 +150,7 @@ export default function ViewportSwapper({
         sx={{
           width: '100%',
           height: '100%',
-          borderRadius: '16px',
+          borderRadius: RADIUS.xxl,
           overflow: 'visible',
           position: 'relative',
         }}
@@ -175,7 +176,7 @@ export default function ViewportSwapper({
           sx={{
             width: '100%',
             height: '100%',
-            borderRadius: '12px',
+            borderRadius: RADIUS.xl,
             overflow: 'hidden',
             boxShadow: `0 4px 12px ${blackAlpha(0.15)}`,
             position: 'relative',
@@ -201,11 +202,11 @@ export default function ViewportSwapper({
             bgcolor: blackAlpha(0.15),
             backdropFilter: 'blur(4px)',
             color: '#fff',
-            fontSize: '14px',
+            fontSize: TYPO.md,
             padding: 0,
             zIndex: 10,
             opacity: 0,
-            transition: `all ${DURATION.base}ms ${EASING.standard}`,
+            transition: transition('all', DURATION.base, EASING.standard),
             '&:hover': {
               bgcolor: blackAlpha(0.3),
               transform: 'scale(1.2)',

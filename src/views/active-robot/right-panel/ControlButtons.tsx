@@ -6,7 +6,7 @@ import ExpressionIcon from '@assets/expression.svg';
 import JoystickIcon from '@assets/joystick.svg';
 import PulseButton from '@components/PulseButton';
 import { DURATION, EASING, STATUS } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, TYPO, transition, useAppPalette } from '@styles';
 import { useActiveRobotContext } from '../context';
 
 export interface ControlButtonsProps {
@@ -70,7 +70,7 @@ export default function ControlButtons({
     flexDirection: 'column',
     alignItems: 'center',
     gap: 1.5,
-    transition: `all ${DURATION.base}ms ${EASING.standard}`,
+    transition: transition('all', DURATION.base, EASING.standard),
     opacity: isDisabled ? 0.5 : 1,
     flex: 1,
     position: 'relative',
@@ -107,8 +107,8 @@ export default function ControlButtons({
       >
         <Typography
           sx={{
-            fontSize: 20,
-            fontWeight: 700,
+            fontSize: TYPO.xxl,
+            fontWeight: FONT_WEIGHT.bold,
             color: palette.textPrimary,
             letterSpacing: '-0.3px',
           }}
@@ -137,8 +137,8 @@ export default function ControlButtons({
                 top: 8,
                 right: 8,
                 height: 18,
-                fontSize: 9,
-                fontWeight: 600,
+                fontSize: TYPO.micro,
+                fontWeight: FONT_WEIGHT.semibold,
                 bgcolor: 'rgba(34, 197, 94, 0.15)',
                 color: STATUS.success,
                 '& .MuiChip-label': {
@@ -161,7 +161,7 @@ export default function ControlButtons({
           <Typography
             sx={{
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               color: palette.textPrimary,
               letterSpacing: '-0.2px',
               textAlign: 'center',
@@ -177,9 +177,9 @@ export default function ControlButtons({
             size="small"
             startIcon={
               isExpressionsOpen ? (
-                <CloseIcon sx={{ fontSize: 14 }} />
+                <CloseIcon sx={{ fontSize: TYPO.md }} />
               ) : (
-                <OpenInNewIcon sx={{ fontSize: 14 }} />
+                <OpenInNewIcon sx={{ fontSize: TYPO.md }} />
               )
             }
             sx={isExpressionsOpen ? closeButtonOverrides : {}}
@@ -199,8 +199,8 @@ export default function ControlButtons({
                 top: 8,
                 right: 8,
                 height: 18,
-                fontSize: 9,
-                fontWeight: 600,
+                fontSize: TYPO.micro,
+                fontWeight: FONT_WEIGHT.semibold,
                 bgcolor: 'rgba(34, 197, 94, 0.15)',
                 color: STATUS.success,
                 '& .MuiChip-label': {
@@ -223,7 +223,7 @@ export default function ControlButtons({
           <Typography
             sx={{
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               color: palette.textPrimary,
               letterSpacing: '-0.2px',
               textAlign: 'center',
@@ -239,9 +239,9 @@ export default function ControlButtons({
             size="small"
             startIcon={
               isControllerOpen ? (
-                <CloseIcon sx={{ fontSize: 14 }} />
+                <CloseIcon sx={{ fontSize: TYPO.md }} />
               ) : (
-                <OpenInNewIcon sx={{ fontSize: 14 }} />
+                <OpenInNewIcon sx={{ fontSize: TYPO.md }} />
               )
             }
             sx={isControllerOpen ? closeButtonOverrides : {}}

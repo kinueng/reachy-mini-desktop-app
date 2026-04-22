@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { telemetry } from '../../../../utils/telemetry';
-import { ACCENT, DURATION, EASING, accentAlpha, blackAlpha, whiteAlpha } from '@styles/tokens';
+import {
+  ACCENT,
+  DURATION,
+  FONT_WEIGHT,
+  RADIUS,
+  TYPO,
+  accentAlpha,
+  blackAlpha,
+  transition,
+  whiteAlpha,
+} from '@styles/tokens';
 import { useAppPalette } from '@styles';
 
 interface Joystick2DProps {
@@ -231,8 +241,8 @@ const Joystick2D = memo(function Joystick2D({
       >
         <Typography
           sx={{
-            fontSize: 10,
-            fontWeight: 700,
+            fontSize: TYPO.tiny,
+            fontWeight: FONT_WEIGHT.bold,
             color: palette.textPrimary,
             letterSpacing: '-0.2px',
           }}
@@ -241,9 +251,9 @@ const Joystick2D = memo(function Joystick2D({
         </Typography>
         <Typography
           sx={{
-            fontSize: 9,
+            fontSize: TYPO.micro,
             fontFamily: 'monospace',
-            fontWeight: 500,
+            fontWeight: FONT_WEIGHT.medium,
             color: palette.textFaint,
             letterSpacing: '0.02em',
           }}
@@ -258,12 +268,12 @@ const Joystick2D = memo(function Joystick2D({
           height: size,
           overflow: 'hidden',
           border: `1px solid ${palette.border}`,
-          borderRadius: '10px',
+          borderRadius: `${RADIUS.lg}px`,
           cursor: disabled ? 'not-allowed' : isDragging ? 'grabbing' : 'grab',
           opacity: disabled ? 0.5 : 1,
           position: 'relative',
           userSelect: 'none',
-          transition: `all ${DURATION.base}ms ${EASING.standard}`,
+          transition: transition('all', DURATION.base),
           '&:hover': {
             borderColor: accentAlpha(0.5),
           },

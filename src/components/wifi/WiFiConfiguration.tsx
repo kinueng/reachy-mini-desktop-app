@@ -21,7 +21,7 @@ import { buildApiUrl, fetchWithTimeout, DAEMON_CONFIG } from '../../config/daemo
 import { isReachyHotspot } from '../../constants/wifi';
 import { telemetry } from '../../utils/telemetry';
 import { ACCENT, STATUS, accentAlpha } from '@styles/tokens';
-import { useAppPalette } from '@styles';
+import { useAppPalette, TYPO, FONT_WEIGHT, RADIUS } from '@styles';
 
 type Severity = 'success' | 'error' | 'warning' | 'info';
 
@@ -395,7 +395,7 @@ export default function WiFiConfiguration({
   const inputStyles = {
     '& .MuiOutlinedInput-root': {
       bgcolor: palette.surfaceSubtle,
-      borderRadius: compact ? '8px' : '10px',
+      borderRadius: compact ? RADIUS.md : RADIUS.lg,
       '& fieldset': {
         borderColor: palette.border,
       },
@@ -409,14 +409,14 @@ export default function WiFiConfiguration({
     },
     '& .MuiInputLabel-root': {
       color: palette.textSecondary,
-      fontSize: compact ? 12 : 13,
+      fontSize: compact ? TYPO.sm : TYPO.body,
       '&.Mui-focused': {
         color: 'primary.main',
       },
     },
     '& .MuiInputBase-input': {
       color: palette.textPrimary,
-      fontSize: compact ? 12 : 13,
+      fontSize: compact ? TYPO.sm : TYPO.body,
     },
     '& .MuiSelect-icon': {
       color: palette.textMuted,
@@ -469,11 +469,11 @@ export default function WiFiConfiguration({
           textAlign: 'center',
         }}
       >
-        <WifiTetheringIcon sx={{ fontSize: 40, color: ACCENT.main }} />
+        <WifiTetheringIcon sx={{ fontSize: TYPO.hero, color: ACCENT.main }} />
         <Typography
           sx={{
-            fontSize: compact ? 13 : 14,
-            fontWeight: 600,
+            fontSize: compact ? TYPO.body : TYPO.md,
+            fontWeight: FONT_WEIGHT.semibold,
             color: palette.textPrimary,
           }}
         >
@@ -481,7 +481,7 @@ export default function WiFiConfiguration({
         </Typography>
         <Typography
           sx={{
-            fontSize: compact ? 11 : 12,
+            fontSize: compact ? TYPO.xs : TYPO.sm,
             color: palette.textSecondary,
             maxWidth: 300,
           }}
@@ -493,15 +493,15 @@ export default function WiFiConfiguration({
             bgcolor: palette.isDark ? accentAlpha(0.1) : accentAlpha(0.08),
             border: '1px solid',
             borderColor: palette.accentBorder,
-            borderRadius: '8px',
+            borderRadius: RADIUS.md,
             px: 2,
             py: 1.5,
           }}
         >
           <Typography
             sx={{
-              fontSize: compact ? 12 : 13,
-              fontWeight: 600,
+              fontSize: compact ? TYPO.sm : TYPO.body,
+              fontWeight: FONT_WEIGHT.semibold,
               color: ACCENT.main,
             }}
           >
@@ -509,7 +509,7 @@ export default function WiFiConfiguration({
           </Typography>
           <Typography
             sx={{
-              fontSize: compact ? 11 : 12,
+              fontSize: compact ? TYPO.xs : TYPO.sm,
               color: palette.textSecondary,
               mt: 0.5,
             }}
@@ -521,7 +521,7 @@ export default function WiFiConfiguration({
           <CircularProgress size={14} sx={{ color: ACCENT.main }} />
           <Typography
             sx={{
-              fontSize: compact ? 10 : 11,
+              fontSize: compact ? TYPO.tiny : TYPO.xs,
               color: palette.textSecondary,
             }}
           >
@@ -532,7 +532,7 @@ export default function WiFiConfiguration({
           size="small"
           onClick={fetchWifiStatus}
           sx={{
-            fontSize: compact ? 11 : 12,
+            fontSize: compact ? TYPO.xs : TYPO.sm,
             textTransform: 'none',
             color: 'primary.main',
           }}
@@ -559,7 +559,7 @@ export default function WiFiConfiguration({
         <CircularProgress size={24} sx={{ color: ACCENT.main }} />
         <Typography
           sx={{
-            fontSize: compact ? 12 : 13,
+            fontSize: compact ? TYPO.sm : TYPO.body,
             color: palette.textSecondary,
           }}
         >
@@ -575,22 +575,28 @@ export default function WiFiConfiguration({
       {showHotspotDetection && detectedReachyHotspots.length > 0 && (
         <Alert
           severity="info"
-          icon={<RouterIcon sx={{ fontSize: compact ? 18 : 20 }} />}
+          icon={<RouterIcon sx={{ fontSize: compact ? TYPO.xl : TYPO.xxl }} />}
           sx={{
-            fontSize: compact ? 11 : 12,
+            fontSize: compact ? TYPO.xs : TYPO.sm,
             '& .MuiAlert-message': {
               width: '100%',
             },
           }}
         >
           <Box>
-            <Typography sx={{ fontWeight: 600, fontSize: compact ? 11 : 12 }}>
+            <Typography
+              sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: compact ? TYPO.xs : TYPO.sm }}
+            >
               🤖 Reachy hotspot detected!
             </Typography>
-            <Typography sx={{ fontSize: compact ? 10 : 11, mt: 0.5, color: 'text.secondary' }}>
+            <Typography
+              sx={{ fontSize: compact ? TYPO.tiny : TYPO.xs, mt: 0.5, color: 'text.secondary' }}
+            >
               Found: <strong>{detectedReachyHotspots.join(', ')}</strong>
             </Typography>
-            <Typography sx={{ fontSize: compact ? 10 : 11, mt: 0.5, color: 'text.secondary' }}>
+            <Typography
+              sx={{ fontSize: compact ? TYPO.tiny : TYPO.xs, mt: 0.5, color: 'text.secondary' }}
+            >
               Another Reachy is in setup mode nearby.
             </Typography>
           </Box>
@@ -599,13 +605,13 @@ export default function WiFiConfiguration({
 
       {/* Error/Success Messages */}
       {wifiError && (
-        <Alert severity="error" sx={{ fontSize: compact ? 11 : 12 }}>
+        <Alert severity="error" sx={{ fontSize: compact ? TYPO.xs : TYPO.sm }}>
           {wifiError}
         </Alert>
       )}
 
       {successMessage && (
-        <Alert severity="success" sx={{ fontSize: compact ? 11 : 12 }}>
+        <Alert severity="success" sx={{ fontSize: compact ? TYPO.xs : TYPO.sm }}>
           {successMessage}
         </Alert>
       )}
@@ -659,9 +665,9 @@ export default function WiFiConfiguration({
                   }}
                 >
                   {showPassword ? (
-                    <VisibilityOffIcon sx={{ fontSize: compact ? 16 : 18 }} />
+                    <VisibilityOffIcon sx={{ fontSize: compact ? TYPO.lg : TYPO.xl }} />
                   ) : (
-                    <VisibilityIcon sx={{ fontSize: compact ? 16 : 18 }} />
+                    <VisibilityIcon sx={{ fontSize: compact ? TYPO.lg : TYPO.xl }} />
                   )}
                 </IconButton>
               </InputAdornment>
@@ -679,10 +685,10 @@ export default function WiFiConfiguration({
             borderColor: ACCENT.main,
             color: ACCENT.main,
             textTransform: 'none',
-            fontSize: compact ? 12 : 13,
-            fontWeight: 600,
+            fontSize: compact ? TYPO.sm : TYPO.body,
+            fontWeight: FONT_WEIGHT.semibold,
             minHeight: compact ? 36 : 40,
-            borderRadius: compact ? '8px' : '10px',
+            borderRadius: compact ? RADIUS.md : RADIUS.lg,
             '&:hover': {
               borderColor: ACCENT.dark,
               bgcolor: accentAlpha(0.08),

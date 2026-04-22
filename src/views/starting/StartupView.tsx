@@ -15,7 +15,7 @@ import {
 import { useDaemonStartupLogs } from '../../hooks/daemon/useDaemonStartupLogs';
 import { useDaemonEventBus } from '../../hooks/daemon/useDaemonEventBus';
 import reachySetupSvg from '../../assets/reachy-how-to-create-app.svg';
-import { useAppPalette } from '@styles';
+import { FONT_WEIGHT, TYPO, useAppPalette } from '@styles';
 import {
   BootstrapOverlay,
   ScanErrorDisplay,
@@ -443,8 +443,8 @@ export default function StartupView({
               <Typography
                 component="h1"
                 sx={{
-                  fontSize: 16,
-                  fontWeight: 600,
+                  fontSize: TYPO.lg,
+                  fontWeight: FONT_WEIGHT.semibold,
                   // TODO(style-migration): original literals `#e5e5e5` / `#1a1a1a`
                   // map approximately to `textPrimary`.
                   color: palette.textPrimary,
@@ -456,8 +456,8 @@ export default function StartupView({
               {connectionModeLabel ? (
                 <Typography
                   sx={{
-                    fontSize: 12,
-                    fontWeight: 400,
+                    fontSize: TYPO.sm,
+                    fontWeight: FONT_WEIGHT.regular,
                     // TODO(style-migration): the raw `#888` literal has no exact
                     // palette token; `textMuted` is the closest semantic match.
                     color: palette.textMuted,
@@ -481,8 +481,8 @@ export default function StartupView({
             {showProgressiveMessage && (
               <Typography
                 sx={{
-                  fontSize: 10,
-                  fontWeight: 400,
+                  fontSize: TYPO.tiny,
+                  fontWeight: FONT_WEIGHT.regular,
                   // TODO(style-migration): `#555` / `#aaa` don't map cleanly;
                   // `textFaint` is the nearest semantic token.
                   color: palette.textFaint,
