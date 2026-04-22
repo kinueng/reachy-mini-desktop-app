@@ -379,7 +379,7 @@ function OpenAppButton({
             fontSize: TYPO.xs,
             fontWeight: FONT_WEIGHT.semibold,
             textTransform: 'none',
-            borderRadius: `${RADIUS.md}px`,
+            borderRadius: RADIUS.md,
             flexShrink: 0,
             bgcolor: 'transparent',
             color: isGhostMode ? palette.textDisabled : ACCENT.main,
@@ -662,7 +662,7 @@ export default function InstalledAppsSection({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            borderRadius: `${RADIUS.xl}px`,
+                            borderRadius: RADIUS.xl,
                             bgcolor: isCurrentlyRunning
                               ? palette.isDark
                                 ? SUCCESS_ICON_BG_DARK
@@ -828,7 +828,7 @@ export default function InstalledAppsSection({
                                     height: 32,
                                     color: ACCENT.main,
                                     border: `1px solid ${ACCENT.main}`,
-                                    borderRadius: `${RADIUS.md}px`,
+                                    borderRadius: RADIUS.md,
                                     transition: transition('all', DURATION.base),
                                     '&:hover': {
                                       bgcolor: accentAlpha(0.1),
@@ -873,7 +873,7 @@ export default function InstalledAppsSection({
                                 height: 32,
                                 color: palette.statusError,
                                 border: `1px solid ${palette.statusError}`,
-                                borderRadius: `${RADIUS.md}px`,
+                                borderRadius: RADIUS.md,
                                 transition: transition('all', DURATION.base),
                                 '&:disabled': {
                                   color: palette.statusError,
@@ -906,7 +906,7 @@ export default function InstalledAppsSection({
                               height: 32,
                               color: palette.statusError,
                               border: `1px solid ${palette.statusError}`,
-                              borderRadius: `${RADIUS.md}px`,
+                              borderRadius: RADIUS.md,
                               transition: transition('all', DURATION.base),
                               '&:hover': {
                                 bgcolor: ERROR_STOP_HOVER,
@@ -931,7 +931,7 @@ export default function InstalledAppsSection({
                                 height: 32,
                                 color: ACCENT.main,
                                 border: `1px solid ${ACCENT.main}`,
-                                borderRadius: `${RADIUS.md}px`,
+                                borderRadius: RADIUS.md,
                                 transition: transition('all', DURATION.base),
                                 '&:disabled': {
                                   color: ACCENT.main,
@@ -964,7 +964,7 @@ export default function InstalledAppsSection({
                             fontSize: TYPO.xs,
                             fontWeight: FONT_WEIGHT.semibold,
                             textTransform: 'none',
-                            borderRadius: `${RADIUS.md}px`,
+                            borderRadius: RADIUS.md,
                             flexShrink: 0,
                             bgcolor: 'transparent',
                             color: ACCENT.main,
@@ -1001,7 +1001,7 @@ export default function InstalledAppsSection({
                   sx: {
                     bgcolor: palette.isDark ? '#1a1a1a' : '#fff',
                     border: `1px solid ${palette.border}`,
-                    borderRadius: `${RADIUS.lg}px`,
+                    borderRadius: RADIUS.lg,
                     boxShadow: palette.shadowMd,
                     minWidth: 180,
                     py: 0.5,
@@ -1092,7 +1092,7 @@ export default function InstalledAppsSection({
                 gap: 1.5,
                 px: 2,
                 py: 1.5,
-                borderRadius: `${RADIUS.xl}px`,
+                borderRadius: RADIUS.xl,
                 bgcolor: 'transparent',
                 border: `1px dashed ${palette.isDark ? whiteAlpha(0.2) : blackAlpha(0.2)}`,
                 mt: 1,

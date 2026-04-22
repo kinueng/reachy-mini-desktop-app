@@ -324,7 +324,7 @@ function ScanErrorDisplay({
             maxWidth: 360,
             px: 1.25,
             py: 0.75,
-            borderRadius: `${RADIUS.md}px`,
+            borderRadius: RADIUS.md,
             border: `1px solid ${borderColor}`,
             bgcolor: stripBg,
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -460,7 +460,7 @@ function ScanErrorDisplay({
           letterSpacing: 0.1,
           px: 2.5,
           py: 0.85,
-          borderRadius: `${RADIUS.lg}px`,
+          borderRadius: RADIUS.lg,
           textTransform: 'none',
         }}
       >

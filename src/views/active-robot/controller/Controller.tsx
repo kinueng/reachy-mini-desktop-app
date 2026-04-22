@@ -292,7 +292,7 @@ function ControlCard({
       sx={{
         px: 1,
         py: padding,
-        borderRadius: `${RADIUS.md}px`,
+        borderRadius: RADIUS.md,
         // TODO(style-migration): light-mode uses pure #ffffff here while palette.surfaceCard is 0.95 alpha.
         bgcolor: palette.isDark ? 'rgba(26, 26, 26, 0.8)' : '#ffffff',
         border: `1px solid ${palette.border}`,

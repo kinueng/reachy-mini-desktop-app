@@ -53,7 +53,7 @@ export default function Step1PowerOn({
               sx={{
                 width: 140,
                 height: 'auto',
-                borderRadius: `${RADIUS.xl}px`,
+                borderRadius: RADIUS.xl,
                 border: `1px solid ${palette.border}`,
               }}
             />
@@ -83,7 +83,7 @@ export default function Step1PowerOn({
               textTransform: 'none',
               px: 3,
               py: 0.75,
-              borderRadius: `${RADIUS.md}px`,
+              borderRadius: RADIUS.md,
               borderColor: ACCENT.main,
               color: ACCENT.main,
               '&:hover': {

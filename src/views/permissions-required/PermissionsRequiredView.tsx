@@ -49,7 +49,7 @@ const PermissionRow = ({ icon: Icon, label, subtitle, granted, onClick }: Permis
         gap: 1.5,
         px: 1.5,
         py: 0.875,
-        borderRadius: `${RADIUS.lg}px`,
+        borderRadius: RADIUS.lg,
         border: '1px solid',
         borderColor: alpha(rowColor, granted ? 0.4 : 0.35),
         bgcolor: alpha(rowColor, isDark ? 0.08 : 0.04),
@@ -63,7 +63,7 @@ const PermissionRow = ({ icon: Icon, label, subtitle, granted, onClick }: Permis
         sx={{
           width: 34,
           height: 34,
-          borderRadius: `${RADIUS.md}px`,
+          borderRadius: RADIUS.md,
           bgcolor: alpha(rowColor, isDark ? 0.18 : 0.12),
           display: 'flex',
           alignItems: 'center',

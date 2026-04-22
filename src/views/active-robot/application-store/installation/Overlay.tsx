@@ -414,7 +414,7 @@ export default function InstallOverlay({
                       gap: 0.5,
                       px: 1,
                       py: 0.25,
-                      borderRadius: `${RADIUS.md}px`,
+                      borderRadius: RADIUS.md,
                       bgcolor: palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.03),
                     }}
                   >
@@ -449,7 +449,7 @@ export default function InstallOverlay({
                   gap: 1,
                   px: 2,
                   py: 1,
-                  borderRadius: `${RADIUS.lg}px`,
+                  borderRadius: RADIUS.lg,
                   bgcolor: accentAlpha(palette.isDark ? 0.08 : 0.05),
                   border: `1px solid ${accentAlpha(palette.isDark ? 0.2 : 0.15)}`,
                 }}
@@ -474,7 +474,7 @@ export default function InstallOverlay({
                   gap: 0.75,
                   px: 1.5,
                   py: 1,
-                  borderRadius: `${RADIUS.lg}px`,
+                  borderRadius: RADIUS.lg,
                   bgcolor: accentAlpha(palette.isDark ? 0.08 : 0.05),
                   border: `1px solid ${accentAlpha(palette.isDark ? 0.2 : 0.15)}`,
                 }}
@@ -520,7 +520,7 @@ export default function InstallOverlay({
                 minHeight: 'auto !important',
                 py: 1,
                 px: 1.5,
-                borderRadius: `${RADIUS.xl}px`,
+                borderRadius: RADIUS.xl,
                 bgcolor: palette.isDark ? blackAlpha(0.2) : blackAlpha(0.02),
                 border: `1px solid ${palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05)}`,
                 '&:hover': {
@@ -567,8 +567,8 @@ export default function InstallOverlay({
                 p: 0,
                 border: `1px solid ${palette.isDark ? whiteAlpha(0.05) : blackAlpha(0.05)}`,
                 borderTop: 'none',
-                borderBottomLeftRadius: `${RADIUS.xl}px`,
-                borderBottomRightRadius: `${RADIUS.xl}px`,
+                borderBottomLeftRadius: RADIUS.xl,
+                borderBottomRightRadius: RADIUS.xl,
                 bgcolor: palette.isDark ? blackAlpha(0.2) : blackAlpha(0.02),
               }}
             >

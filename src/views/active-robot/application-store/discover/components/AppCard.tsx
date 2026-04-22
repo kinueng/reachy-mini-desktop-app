@@ -107,7 +107,7 @@ function AppCard({
         width: 'calc((100% - 20px) / 2)',
         minWidth: 0,
         flexShrink: 0,
-        borderRadius: `${RADIUS.xxl}px`,
+        borderRadius: RADIUS.xxl,
         position: 'relative',
         overflow: 'hidden',
         bgcolor: palette.isDark ? '#1a1a1a' : '#ffffff',
@@ -387,7 +387,7 @@ function AppCard({
               fontSize: TYPO.sm,
               fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
-              borderRadius: `${RADIUS.lg}px`,
+              borderRadius: RADIUS.lg,
               bgcolor: 'transparent',
               color: isInstalled
                 ? palette.textMuted
@@ -447,7 +447,7 @@ function AppCard({
               fontSize: TYPO.sm,
               fontWeight: FONT_WEIGHT.semibold,
               textTransform: 'none',
-              borderRadius: `${RADIUS.lg}px`,
+              borderRadius: RADIUS.lg,
               bgcolor: 'transparent',
               color: WEB_COLOR,
               border: `1px solid ${WEB_COLOR}`,

@@ -76,7 +76,7 @@ export default function Step4Reconnecting({
                 color: ACCENT.main,
                 px: 2,
                 py: 0.5,
-                borderRadius: `${RADIUS.md}px`,
+                borderRadius: RADIUS.md,
                 '&:hover': {
                   borderColor: ACCENT.dark,
                   bgcolor: accentAlpha(0.08),

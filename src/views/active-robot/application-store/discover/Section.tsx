@@ -164,7 +164,7 @@ export default function DiscoverAppsSection({
           px: 1.5,
           py: 0.75,
           mb: 2,
-          borderRadius: `${RADIUS.lg}px`,
+          borderRadius: RADIUS.lg,
           bgcolor: palette.isDark ? '#262626' : 'white',
           border: `1px solid ${palette.border}`,
           transition: transition('box-shadow', DURATION.base),
@@ -246,7 +246,7 @@ export default function DiscoverAppsSection({
                   display: 'flex',
                   flexDirection: 'column',
                   p: 2.5,
-                  borderRadius: `${RADIUS.xxl}px`,
+                  borderRadius: RADIUS.xxl,
                   bgcolor: installFailed
                     ? palette.isDark
                       ? 'rgba(239, 68, 68, 0.04)'
@@ -288,7 +288,7 @@ export default function DiscoverAppsSection({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      borderRadius: `${RADIUS.xl}px`,
+                      borderRadius: RADIUS.xl,
                       bgcolor: palette.isDark ? whiteAlpha(0.04) : blackAlpha(0.03),
                       border: `1px solid ${palette.border}`,
                       flexShrink: 0,
@@ -362,7 +362,7 @@ export default function DiscoverAppsSection({
                           fontSize: TYPO.xs,
                           fontWeight: FONT_WEIGHT.semibold,
                           textTransform: 'none',
-                          borderRadius: `${RADIUS.md}px`,
+                          borderRadius: RADIUS.md,
                           flexShrink: 0,
                           bgcolor: 'transparent',
                           color: ACCENT.main,
@@ -515,7 +515,7 @@ export default function DiscoverAppsSection({
             alignItems: 'center',
             gap: 2,
             p: 2.5,
-            borderRadius: `${RADIUS.xxl}px`,
+            borderRadius: RADIUS.xxl,
             bgcolor: 'transparent',
             border: `1px dashed ${accentAlpha(palette.isDark ? 0.4 : 0.5)}`,
             cursor: 'pointer',
@@ -540,7 +540,7 @@ export default function DiscoverAppsSection({
             sx={{
               width: 48,
               height: 48,
-              borderRadius: `${RADIUS.xl}px`,
+              borderRadius: RADIUS.xl,
               bgcolor: accentAlpha(palette.isDark ? 0.08 : 0.05),
               border: theme => `1px solid ${theme.palette.primary.main}40`,
               display: 'flex',

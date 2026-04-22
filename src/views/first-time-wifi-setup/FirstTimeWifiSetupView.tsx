@@ -453,7 +453,7 @@ export default function FirstTimeWifiSetupView(): React.ReactElement {
             maxWidth: 420,
             height: 320,
             bgcolor: bgCard,
-            borderRadius: `${RADIUS.xl}px`,
+            borderRadius: RADIUS.xl,
             border: '1px solid',
             borderColor: borderColor,
             p: 3,

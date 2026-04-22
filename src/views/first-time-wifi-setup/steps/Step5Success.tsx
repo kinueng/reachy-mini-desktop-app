@@ -55,7 +55,7 @@ export default function Step5Success({
               textTransform: 'none',
               px: 3,
               py: 0.75,
-              borderRadius: `${RADIUS.md}px`,
+              borderRadius: RADIUS.md,
               borderColor: STATUS.success,
               color: STATUS.success,
               '&:hover': {

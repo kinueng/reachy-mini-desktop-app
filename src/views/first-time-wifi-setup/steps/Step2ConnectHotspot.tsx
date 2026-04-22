@@ -65,7 +65,7 @@ export default function Step2ConnectHotspot({
         justifyContent: 'space-between',
         py: 0.75,
         px: 1.5,
-        borderRadius: `${RADIUS.md}px`,
+        borderRadius: RADIUS.md,
         bgcolor: isDark ? whiteAlpha(0.04) : blackAlpha(0.03),
         cursor: 'pointer',
         transition: `all ${DURATION.fast}ms ${EASING.standard}`,
@@ -133,7 +133,7 @@ export default function Step2ConnectHotspot({
               sx={{
                 mb: 2,
                 p: 1.5,
-                borderRadius: `${RADIUS.md}px`,
+                borderRadius: RADIUS.md,
                 bgcolor: palette.statusErrorSurface,
                 border: `1px solid ${palette.statusErrorBorder}`,
               }}
@@ -177,7 +177,7 @@ export default function Step2ConnectHotspot({
                   // on purpose - not mapped to a palette surface.
                   bgcolor: '#fff',
                   p: 1,
-                  borderRadius: `${RADIUS.lg}px`,
+                  borderRadius: RADIUS.lg,
                   width: 110,
                   height: 110,
                   boxShadow: isDark ? palette.shadowMd : palette.shadowSm,
@@ -216,7 +216,7 @@ export default function Step2ConnectHotspot({
               borderColor: ACCENT.main,
               color: ACCENT.main,
               py: 1,
-              borderRadius: `${RADIUS.lg}px`,
+              borderRadius: RADIUS.lg,
               mb: 2,
               '&:hover': {
                 borderColor: ACCENT.dark,

@@ -143,7 +143,7 @@ export default function SearchBar({
             px: 1.5,
             py: 1.5,
             mt: 3,
-            borderRadius: `${RADIUS.xl}px`,
+            borderRadius: RADIUS.xl,
             bgcolor: palette.isDark ? '#262626' : 'white',
             border: `1px solid ${ACCENT.main}`,
             transition: transition('box-shadow', DURATION.base),
@@ -213,7 +213,7 @@ export default function SearchBar({
                 cursor: 'help',
                 px: 1.5,
                 py: 0.5,
-                borderRadius: `${RADIUS.sm}px`,
+                borderRadius: RADIUS.sm,
                 bgcolor: isFiltered
                   ? accentAlpha(palette.isDark ? 0.15 : 0.08)
                   : palette.isDark

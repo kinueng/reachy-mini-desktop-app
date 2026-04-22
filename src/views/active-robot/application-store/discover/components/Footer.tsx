@@ -54,7 +54,7 @@ export default function Footer({ onOpenCreateTutorial }: FooterProps): React.Rea
           fontWeight: FONT_WEIGHT.semibold,
           color: ACCENT.main,
           border: `1px solid ${ACCENT.main}`,
-          borderRadius: `${RADIUS.lg}px`,
+          borderRadius: RADIUS.lg,
           px: 3,
           py: 1,
           bgcolor: 'transparent',

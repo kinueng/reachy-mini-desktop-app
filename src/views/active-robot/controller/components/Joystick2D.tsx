@@ -268,7 +268,7 @@ const Joystick2D = memo(function Joystick2D({
           height: size,
           overflow: 'hidden',
           border: `1px solid ${palette.border}`,
-          borderRadius: `${RADIUS.lg}px`,
+          borderRadius: RADIUS.lg,
           cursor: disabled ? 'not-allowed' : isDragging ? 'grabbing' : 'grab',
           opacity: disabled ? 0.5 : 1,
           position: 'relative',

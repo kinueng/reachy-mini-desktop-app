@@ -186,7 +186,7 @@ export default function DiscoverModal({
               px: 2.5,
               py: 1.5,
               mb: 2,
-              borderRadius: `${RADIUS.lg}px`,
+              borderRadius: RADIUS.lg,
               backgroundColor: accentAlpha(palette.isDark ? 0.12 : 0.08),
               border: `1px solid ${accentAlpha(palette.isDark ? 0.3 : 0.25)}`,
             }}
@@ -256,7 +256,7 @@ export default function DiscoverModal({
                 fontWeight: FONT_WEIGHT.medium,
                 px: 3,
                 py: 1,
-                borderRadius: `${RADIUS.md}px`,
+                borderRadius: RADIUS.md,
                 borderColor: palette.borderStrong,
                 color: palette.textSecondary,
                 '&:hover': {

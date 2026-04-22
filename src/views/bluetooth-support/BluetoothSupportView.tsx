@@ -376,7 +376,7 @@ export default function BluetoothSupportView(): React.ReactElement {
             maxWidth: 460,
             minHeight: 300,
             bgcolor: bgCard,
-            borderRadius: `${RADIUS.xl}px`,
+            borderRadius: RADIUS.xl,
             border: '1px solid',
             borderColor: borderColor,
             p: 3,
@@ -419,7 +419,7 @@ export default function BluetoothSupportView(): React.ReactElement {
                     fontWeight: FONT_WEIGHT.semibold,
                     textTransform: 'none',
                     py: 1.25,
-                    borderRadius: `${RADIUS.lg}px`,
+                    borderRadius: RADIUS.lg,
                   }}
                 >
                   {bleStatus === 'scanning' ? 'Scanning...' : 'Scan for Devices'}
@@ -471,7 +471,7 @@ export default function BluetoothSupportView(): React.ReactElement {
                           justifyContent: 'space-between',
                           px: 1.75,
                           py: 1.25,
-                          borderRadius: `${RADIUS.lg}px`,
+                          borderRadius: RADIUS.lg,
                           border: '1px solid',
                           borderColor: borderColor,
                           cursor: bleStatusValue === 'connecting' ? 'default' : 'pointer',
@@ -620,7 +620,7 @@ export default function BluetoothSupportView(): React.ReactElement {
                 sx={{
                   width: 200,
                   '& .MuiOutlinedInput-root': {
-                    borderRadius: `${RADIUS.lg}px`,
+                    borderRadius: RADIUS.lg,
                     '& fieldset': {
                       borderColor: borderColor,
                     },
@@ -645,7 +645,7 @@ export default function BluetoothSupportView(): React.ReactElement {
                   textTransform: 'none',
                   py: 1,
                   px: 3,
-                  borderRadius: `${RADIUS.lg}px`,
+                  borderRadius: RADIUS.lg,
                 }}
               >
                 Continue
@@ -707,7 +707,7 @@ export default function BluetoothSupportView(): React.ReactElement {
                           fontWeight: FONT_WEIGHT.semibold,
                           textTransform: 'none',
                           py: 0.75,
-                          borderRadius: `${RADIUS.md}px`,
+                          borderRadius: RADIUS.md,
                           justifyContent: 'flex-start',
                           ...(isDanger && {
                             borderColor: hexToRgba(STATUS.error, 0.4),

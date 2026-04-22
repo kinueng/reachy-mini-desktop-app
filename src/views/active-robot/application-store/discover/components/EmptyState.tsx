@@ -69,7 +69,7 @@ export default function EmptyState({
               fontWeight: FONT_WEIGHT.semibold,
               px: 3,
               py: 1,
-              borderRadius: `${RADIUS.lg}px`,
+              borderRadius: RADIUS.lg,
               bgcolor: 'transparent',
               color: ACCENT.main,
               border: `1px solid ${ACCENT.main}`,

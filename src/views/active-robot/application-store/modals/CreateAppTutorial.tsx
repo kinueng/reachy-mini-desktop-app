@@ -139,7 +139,7 @@ export default function CreateAppTutorialModal({
                 textAlign: 'center',
                 gap: 2,
                 cursor: 'pointer',
-                borderRadius: `${RADIUS.xxl}px`,
+                borderRadius: RADIUS.xxl,
                 border: `1px solid ${palette.borderStrong}`,
                 bgcolor: palette.isDark ? 'rgba(255, 255, 255, 0.03)' : '#ffffff',
                 transition: transition('all', DURATION.base),
