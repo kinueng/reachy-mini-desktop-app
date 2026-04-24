@@ -1388,6 +1388,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Dry-run only: upload the raw installers (.msi / .dmg / .deb / .AppImage)
+      # so they can be downloaded from the Actions run directly, since no
+      # GitHub Release is created in this mode.
+      - name: Upload installers (dry run)
+        if: github.event.inputs.dry_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dry-run-installer-${{ matrix.platform }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.zip
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage.tar.gz.sig
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Dry run summary
         if: github.event.inputs.dry_run == 'true'
         shell: bash
@@ -1397,9 +1418,11 @@ jobs:
           echo "🧪 DRY RUN BUILD COMPLETE - ${{ matrix.platform }}"
           echo "🧪 ════════════════════════════════════════════════════════════════"
           echo "🧪"
-          echo "🧪 Artifacts are available in the 'update-${{ matrix.platform }}' artifact"
-          echo "🧪 Download them from the Actions tab → this workflow run → Artifacts section"
+          echo "🧪 Artifacts available in this run:"
+          echo "🧪   - update-${{ matrix.platform }}         (updater payload + signed manifests)"
+          echo "🧪   - dry-run-installer-${{ matrix.platform }} (raw installers: .msi / .dmg / .deb / .AppImage)"
           echo "🧪"
+          echo "🧪 Download them from the Actions tab → this workflow run → Artifacts section."
           echo "🧪 No release was created, no users will be notified."
           echo "🧪 ════════════════════════════════════════════════════════════════"
 
