@@ -44,6 +44,19 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    env:
+      # Pin the reachy-mini daemon version baked into the uv-trampoline
+      # sidecar at build time. The trampoline reads this via
+      # `option_env!("REACHY_MINI_VERSION")` (uv-wrapper/src/lib.rs) and
+      # builds a `reachy-mini==<version>` install spec, so end users
+      # consistently get this exact daemon version on first launch
+      # regardless of what is currently latest on PyPI.
+      #
+      # Bump deliberately when a new daemon release has been validated
+      # against the desktop app's UI (incl. fields like DaemonStatus
+      # exposed via the WS / HTTP API).
+      REACHY_MINI_VERSION: 1.7.1
+
     steps:
       - name: Dry run mode notification
         if: github.event.inputs.dry_run == 'true'
