@@ -1,15 +1,19 @@
 import { fetchWithTimeout } from '../config/daemon';
+import { MIN_WIRELESS_DAEMON_VERSION } from '../constants/daemonVersion';
+import { isVersionBelow } from './semverCompare';
 
 /**
  * Pre-flight validation for a WiFi target host, used before committing to the
  * full `startDaemon` sequence. Returns a definitive outcome so the caller can
- * decide whether to connect or surface a clear error instead of waiting out
- * the ~90s startup timeout when the address is wrong.
+ * decide whether to connect, force a daemon update, or surface a clear error
+ * instead of waiting out the ~90s startup timeout when the address is wrong.
  *
  * Scope (minimal on purpose):
  *   - Confirm the host is reachable on port 8000.
  *   - Confirm SOMETHING Reachy-shaped is answering (a JSON body that exposes
  *     at least one of `state`, `status`, or `version`).
+ *   - Capture the daemon version so the caller can decide whether to gate
+ *     on `MIN_WIRELESS_DAEMON_VERSION` (`reason: 'too_old'`).
  *
  * Non-goals (intentional):
  *   - We do NOT probe `/api/state/full`. That endpoint only returns 200 once
@@ -38,10 +42,24 @@ function normalizeHost(host: string): string {
   return trimmed.includes(':') ? trimmed : `${trimmed}:8000`;
 }
 
+export type WifiProbeReason = 'unreachable' | 'wrong_service' | 'daemon_error' | 'too_old';
+
 export interface WifiProbeResult {
   ok: boolean;
   /** `null` on success. Otherwise a short code for the failure class. */
-  reason: null | 'unreachable' | 'wrong_service' | 'daemon_error';
+  reason: null | WifiProbeReason;
+  /**
+   * Daemon version string as returned by `/api/daemon/status`. Always
+   * populated when we got a parseable JSON body back, regardless of `ok`,
+   * so that callers handling `too_old` can show "current vX.Y.Z" without
+   * a second round-trip.
+   */
+  version: string | null;
+  /**
+   * Minimum version required by the desktop app, surfaced here so callers
+   * don't have to reach into `constants/daemonVersion` themselves.
+   */
+  minVersion: string;
 }
 
 /**
@@ -60,20 +78,40 @@ export async function probeWifiHost(host: string): Promise<WifiProbeResult> {
       silent: true,
     });
     if (!response.ok) {
-      return { ok: false, reason: 'wrong_service' };
+      return {
+        ok: false,
+        reason: 'wrong_service',
+        version: null,
+        minVersion: MIN_WIRELESS_DAEMON_VERSION,
+      };
     }
     try {
       statusBody = (await response.json()) as DaemonStatusBody;
     } catch {
       // Non-JSON body on /api/daemon/status → definitely not a Reachy daemon.
-      return { ok: false, reason: 'wrong_service' };
+      return {
+        ok: false,
+        reason: 'wrong_service',
+        version: null,
+        minVersion: MIN_WIRELESS_DAEMON_VERSION,
+      };
     }
   } catch {
-    return { ok: false, reason: 'unreachable' };
+    return {
+      ok: false,
+      reason: 'unreachable',
+      version: null,
+      minVersion: MIN_WIRELESS_DAEMON_VERSION,
+    };
   }
 
   if (!statusBody || typeof statusBody !== 'object') {
-    return { ok: false, reason: 'wrong_service' };
+    return {
+      ok: false,
+      reason: 'wrong_service',
+      version: null,
+      minVersion: MIN_WIRELESS_DAEMON_VERSION,
+    };
   }
 
   // Shape gate: require at least one Reachy-typical field. Kept permissive on
@@ -82,15 +120,45 @@ export async function probeWifiHost(host: string): Promise<WifiProbeResult> {
   // expected fields is present.
   const hasReachyShape = 'state' in statusBody || 'status' in statusBody || 'version' in statusBody;
   if (!hasReachyShape) {
-    return { ok: false, reason: 'wrong_service' };
+    return {
+      ok: false,
+      reason: 'wrong_service',
+      version: null,
+      minVersion: MIN_WIRELESS_DAEMON_VERSION,
+    };
   }
+
+  const version = typeof statusBody.version === 'string' ? statusBody.version : null;
 
   // Only one value is a hard stop: an explicit error state reported by the
   // daemon itself. Everything else is a "maybe not ready yet" that the normal
   // startup polling will resolve.
   if (statusBody.state === 'error' || statusBody.status === 'error') {
-    return { ok: false, reason: 'daemon_error' };
+    return {
+      ok: false,
+      reason: 'daemon_error',
+      version,
+      minVersion: MIN_WIRELESS_DAEMON_VERSION,
+    };
   }
 
-  return { ok: true, reason: null };
+  // Version gate: we have a real Reachy daemon answering, but it's older than
+  // what this app supports. The caller switches to the forced-update flow
+  // instead of trying to connect (which would either crash later on a missing
+  // endpoint or behave subtly wrong).
+  if (isVersionBelow(version, MIN_WIRELESS_DAEMON_VERSION)) {
+    return {
+      ok: false,
+      reason: 'too_old',
+      version,
+      minVersion: MIN_WIRELESS_DAEMON_VERSION,
+    };
+  }
+
+  return {
+    ok: true,
+    reason: null,
+    version,
+    minVersion: MIN_WIRELESS_DAEMON_VERSION,
+  };
 }

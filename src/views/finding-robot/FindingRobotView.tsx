@@ -387,6 +387,13 @@ export default function FindingRobotView() {
         unreachable: `Cannot reach ${host}. Check the robot is powered on and on the same network.`,
         wrong_service: `${host} responded but does not look like a Reachy daemon.`,
         daemon_error: `The daemon at ${host} reported an error state. Restart the robot and try again.`,
+        // `too_old` is currently surfaced as a toast; a dedicated forced-update
+        // view replaces this message in a follow-up commit. We keep a clear
+        // fallback here so the probe stays useful even if the view layer
+        // isn't wired yet.
+        too_old: result.version
+          ? `Robot daemon is too old (v${result.version}, need v${result.minVersion}+). Update the robot and try again.`
+          : `Robot daemon is too old (need v${result.minVersion}+). Update the robot and try again.`,
       };
       const reason = result.reason ?? 'unreachable';
       showToast(messages[reason], 'error');
