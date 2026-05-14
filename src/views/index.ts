@@ -12,3 +12,4 @@ export { default as ActiveRobotView } from './active-robot/ActiveRobotView';
 export { default as ActiveRobotModule } from './active-robot/ActiveRobotModule';
 export { default as ClosingView } from './closing';
 export { default as UpdateView } from './update';
+export { default as WirelessUpdateRequiredView } from './wireless-update-required';
