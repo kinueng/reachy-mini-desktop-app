@@ -7,6 +7,7 @@ import useAppStore from '../../store/useAppStore';
 import PulseButton from '@components/PulseButton';
 import { useWirelessDaemonUpdate } from '../../hooks/daemon';
 import { useConnection, ConnectionMode } from '../../hooks/useConnection';
+import { telemetry } from '../../utils/telemetry';
 import type { WirelessUpdateState } from '../../types/store';
 import {
   ACCENT,
@@ -114,6 +115,10 @@ export default function WirelessUpdateRequiredView() {
   })();
 
   const handleCancel = (): void => {
+    telemetry.wirelessUpdateCancelled({
+      from_version: wirelessUpdate.currentVersion,
+      min_version: wirelessUpdate.minVersion ?? 'unknown',
+    });
     cancelWirelessUpdate();
   };
 
@@ -176,7 +181,7 @@ export default function WirelessUpdateRequiredView() {
             mb: 0.5,
           }}
         >
-          Your Reachy Mini's software is too old for this version of the app.
+          Your Reachy Mini&apos;s software is too old for this version of the app.
         </Typography>
         <Typography
           sx={{

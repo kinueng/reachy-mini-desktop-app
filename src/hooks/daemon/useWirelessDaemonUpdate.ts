@@ -32,6 +32,7 @@ import { useShallow } from 'zustand/react/shallow';
 import useAppStore from '../../store/useAppStore';
 import { fetchWithTimeout } from '../../config/daemon';
 import { isVersionBelow } from '../../utils/semverCompare';
+import { telemetry } from '../../utils/telemetry';
 import type { FullAppState } from '../../store/useStore';
 
 // ---------------------------------------------------------------------------
@@ -200,6 +201,15 @@ export function useWirelessDaemonUpdate(): UseWirelessDaemonUpdateResult {
     cancelControllerRef.current = new AbortController();
     const signal = cancelControllerRef.current.signal;
 
+    const startedAt = Date.now();
+    const fromVersion = state.currentVersion;
+    const elapsedSec = (): number => Math.round((Date.now() - startedAt) / 1000);
+
+    telemetry.wirelessUpdateStarted({
+      from_version: fromVersion,
+      min_version: minVersion,
+    });
+
     // ----- 1. Pre-check ------------------------------------------------------
     const precheck = await checkInternet();
     if (!precheck.ok) {
@@ -210,6 +220,12 @@ export function useWirelessDaemonUpdate(): UseWirelessDaemonUpdateResult {
             ? 'No target host - please go back and select a robot.'
             : `Pre-check failed: ${precheck.reason}`;
       setWirelessUpdateError(human);
+      telemetry.wirelessUpdateFailed({
+        from_version: fromVersion,
+        min_version: minVersion,
+        error_class: precheck.reason ?? 'precheck_unknown',
+        duration_sec: elapsedSec(),
+      });
       return;
     }
     if (signal.aborted) return;
@@ -238,6 +254,12 @@ export function useWirelessDaemonUpdate(): UseWirelessDaemonUpdateResult {
       if (signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
       setWirelessUpdateError(`Could not start the update: ${message}`);
+      telemetry.wirelessUpdateFailed({
+        from_version: fromVersion,
+        min_version: minVersion,
+        error_class: 'start_failed',
+        duration_sec: elapsedSec(),
+      });
       return;
     }
 
@@ -310,6 +332,12 @@ export function useWirelessDaemonUpdate(): UseWirelessDaemonUpdateResult {
       setWirelessUpdateError(
         'Daemon did not come back after the update. Reboot the robot manually and try again.'
       );
+      telemetry.wirelessUpdateFailed({
+        from_version: fromVersion,
+        min_version: minVersion,
+        error_class: 'restart_timeout',
+        duration_sec: elapsedSec(),
+      });
       return;
     }
     if (signal.aborted) return;
@@ -323,10 +351,22 @@ export function useWirelessDaemonUpdate(): UseWirelessDaemonUpdateResult {
       setWirelessUpdateError(
         `Update finished but the daemon still reports v${newVersion ?? 'unknown'} (need v${minVersion}+). PyPI may not have a fresh enough release yet.`
       );
+      telemetry.wirelessUpdateFailed({
+        from_version: fromVersion,
+        min_version: minVersion,
+        error_class: 'still_too_old',
+        duration_sec: elapsedSec(),
+      });
       return;
     }
 
     markWirelessUpdateSucceeded();
+    telemetry.wirelessUpdateSucceeded({
+      from_version: fromVersion,
+      to_version: newVersion,
+      min_version: minVersion,
+      duration_sec: elapsedSec(),
+    });
   }, [
     appendWirelessUpdateLog,
     checkInternet,

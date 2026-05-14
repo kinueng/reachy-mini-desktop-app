@@ -34,6 +34,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useToast } from '../../hooks/useToast';
 import { probeWifiHost, type WifiProbeResult } from '../../utils/probeWifiHost';
 import { MIN_WIRELESS_DAEMON_VERSION } from '../../constants/daemonVersion';
+import { telemetry } from '../../utils/telemetry';
 import reachyBuste from '../../assets/reachy-buste.png';
 import {
   ACCENT,
@@ -395,10 +396,15 @@ export default function FindingRobotView() {
       // dedicated forced-update view, which can drive the daemon's own
       // /update/start endpoint and stream its logs.
       if (result.reason === 'too_old') {
+        const minVersion = result.minVersion ?? MIN_WIRELESS_DAEMON_VERSION;
         requestWirelessUpdate({
           targetHost: host,
           currentVersion: result.version,
-          minVersion: result.minVersion ?? MIN_WIRELESS_DAEMON_VERSION,
+          minVersion,
+        });
+        telemetry.wirelessUpdateRequiredShown({
+          from_version: result.version,
+          min_version: minVersion,
         });
         return false;
       }
