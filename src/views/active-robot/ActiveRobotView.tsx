@@ -58,6 +58,7 @@ import { useActiveRobotContext } from './context';
 import {
   CHOREOGRAPHY_DATASETS,
   QUICK_ACTIONS,
+  getDanceDataset,
   type QuickAction,
 } from '../../constants/choreographies';
 import { WebRTCStreamProvider } from '../../contexts/WebRTCStreamContext';
@@ -321,7 +322,7 @@ function ActiveRobotView({
       if (action.type === 'action') {
         sendCommand(`/api/move/play/${action.name}`, action.label);
       } else if (action.type === 'dance') {
-        playRecordedMove(CHOREOGRAPHY_DATASETS.DANCES, action.name);
+        playRecordedMove(getDanceDataset(action.name), action.name);
       } else {
         playRecordedMove(CHOREOGRAPHY_DATASETS.EMOTIONS, action.name);
       }
