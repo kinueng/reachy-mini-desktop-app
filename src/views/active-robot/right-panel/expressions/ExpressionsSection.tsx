@@ -11,6 +11,7 @@ import {
   EMOTION_EFFECT_MAP,
   EMOTIONS,
   DANCES,
+  getDanceDataset,
   type EmojiGridAction,
 } from '@constants/choreographies';
 import { useRobotCommands } from '@hooks/robot';
@@ -120,7 +121,7 @@ export default function ExpressionsSection({
       telemetry.expressionPlayed({ name: action.name, type: action.type });
 
       const dataset =
-        action.type === 'dance' ? CHOREOGRAPHY_DATASETS.DANCES : CHOREOGRAPHY_DATASETS.EMOTIONS;
+        action.type === 'dance' ? getDanceDataset(action.name) : CHOREOGRAPHY_DATASETS.EMOTIONS;
       playRecordedMove(dataset, action.name);
 
       const effectType = EMOTION_EFFECT_MAP[action.name];
