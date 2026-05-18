@@ -10,12 +10,15 @@
 export const CHOREOGRAPHY_DATASETS = {
   DANCES: 'pollen-robotics/reachy-mini-dances-library',
   EMOTIONS: 'pollen-robotics/reachy-mini-emotions-library',
+  // Community-contributed music choreographies recorded with Marionette.
+  // Played through the same /api/move/play/recorded-move-dataset endpoint.
+  MUSIC: 'Anne-Charlotte/music',
 } as const;
 
 export type ChoreographyDataset =
   (typeof CHOREOGRAPHY_DATASETS)[keyof typeof CHOREOGRAPHY_DATASETS];
 
-export const DANCES = [
+const POLLEN_DANCES = [
   'stumble_and_recover',
   'chin_lead',
   'head_tilt_roll',
@@ -38,7 +41,38 @@ export const DANCES = [
   'sharp_side_tilt',
 ] as const;
 
+const MUSIC_DANCES = [
+  'beyonce-single-ladies',
+  'demon-hunters-1',
+  'eagles-hotel-california',
+  'eminem-lose-yourself',
+  'feel-the-magic-in-the-air',
+  'katy-perry-fireworks',
+  'las-ketchup',
+  'michael-jackson-thriller',
+  'paint-it-black',
+  'pharrell-williams-happy',
+  'queen-we-will-rock-you',
+  'spice-girls',
+  'the-fratellis-whistle-for-the-choir',
+  'the-white-stripes-seven-nation-army',
+] as const;
+
+export const DANCES = [...POLLEN_DANCES, ...MUSIC_DANCES] as const;
+
 export type DanceName = (typeof DANCES)[number];
+
+const MUSIC_DANCE_SET: ReadonlySet<string> = new Set<string>(MUSIC_DANCES);
+
+/**
+ * Resolve which Hugging Face dataset hosts a given dance name.
+ * Pollen-robotics dances live in the official library; Anne-Charlotte's
+ * music dances live in a separate community dataset but are surfaced in
+ * the same "Dances" UI section.
+ */
+export function getDanceDataset(name: string): ChoreographyDataset {
+  return MUSIC_DANCE_SET.has(name) ? CHOREOGRAPHY_DATASETS.MUSIC : CHOREOGRAPHY_DATASETS.DANCES;
+}
 
 // Complete list of all available emotions in the library
 export const EMOTIONS = [
@@ -294,6 +328,21 @@ export const DANCE_EMOJIS: Record<DanceName, string> = {
   neck_recoil: '⚡', // Quick electric snap
   groovy_sway_and_roll: '🪩', // Disco ball groove
   sharp_side_tilt: '📐', // Sharp angle
+  // Anne-Charlotte's music choreographies
+  'beyonce-single-ladies': '💍', // Single Ladies, put a ring on it
+  'demon-hunters-1': '👹', // Demon Hunters
+  'eagles-hotel-california': '🌴', // Hotel California, palm-tree vibe
+  'eminem-lose-yourself': '🎤', // Lose Yourself, mic drop
+  'feel-the-magic-in-the-air': '✨', // Magic in the Air
+  'katy-perry-fireworks': '🎆', // Firework
+  'las-ketchup': '🍅', // Las Ketchup, tomato pun
+  'michael-jackson-thriller': '🧟', // Thriller
+  'paint-it-black': '🖤', // Paint It Black
+  'pharrell-williams-happy': '😀', // Happy
+  'queen-we-will-rock-you': '👑', // Queen, We Will Rock You
+  'spice-girls': '🎀', // Spice Girls
+  'the-fratellis-whistle-for-the-choir': '🎻', // Whistle for the Choir
+  'the-white-stripes-seven-nation-army': '⚔️', // Seven Nation Army
 };
 
 export type QuickActionType = 'emotion' | 'dance' | 'action';
@@ -335,12 +384,21 @@ export const WHEEL_EMOTIONS: readonly EmotionName[] = [
 ];
 
 /**
- * Derive a display label from a raw action name.
- * Example: `loving1` -> `loving`, `head_tilt_roll` -> `head tilt roll`.
- * Used by components that only receive a `name` and need to render a label.
+ * Derive a display label from an emotion name.
+ * Example: `loving1` -> `loving`, `proud3` -> `proud`.
+ * Used for emotion items only; dances and music use {@link labelFromDanceName}.
  */
 export function labelFromActionName(name: string): string {
   return name.replace(/[0-9]+$/, '').replace(/_/g, ' ');
+}
+
+/**
+ * Derive a display label from a dance name (supports both pollen-robotics
+ * snake_case names and Anne-Charlotte's hyphen-separated music names).
+ * Example: `head_tilt_roll` -> `head tilt roll`, `paint-it-black` -> `paint it black`.
+ */
+export function labelFromDanceName(name: string): string {
+  return name.replace(/[-_]/g, ' ');
 }
 
 /**
