@@ -63,6 +63,20 @@ export default function RightPanel({
 
   const [loginSkipped, setLoginSkipped] = useState<boolean>(false);
   const isEmbeddedApp = rightPanelView === 'embedded-app';
+  const isControllerView = rightPanelView === 'controller';
+  const isExpressionsView = rightPanelView === 'expressions';
+  const showLoginOverlay = !isAuthenticated && !loginSkipped;
+
+  // The inner wrapper needs to FILL the panel (so children that use
+  // `height: 100%` render correctly, and so the absolute login overlay covers
+  // the viewport) only for the views that don't need to scroll their own
+  // body. For the default "Applications + ControlButtons" view we want the
+  // wrapper to flow naturally so the outer container's overflow:scroll picks
+  // up the overflow. Keeping `flex: 1 + display: flex column` here in every
+  // case would constrain the wrapper to clientHeight and let flexbox shrink
+  // its children, which silently kills scrolling once the user is signed in.
+  const wrapperFillsPanel =
+    isEmbeddedApp || isControllerView || isExpressionsView || showLoginOverlay;
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [showTopGradient, setShowTopGradient] = useState<boolean>(false);
@@ -148,14 +162,26 @@ export default function RightPanel({
       <Box
         sx={{
           position: 'relative',
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
+          ...(wrapperFillsPanel
+            ? {
+                // Full-bleed views (embedded app / controller / expressions)
+                // and the HF login overlay all need the wrapper to span the
+                // full panel height.
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+              }
+            : {
+                // Default Applications + ControlButtons view: let the wrapper
+                // grow to its natural height so the outer scroll container
+                // sees the overflow and lets the user scroll the panel.
+                flexShrink: 0,
+              }),
         }}
       >
         {/* HF Login Overlay - covers content when not authenticated */}
-        {!isAuthenticated && !loginSkipped && (
+        {showLoginOverlay && (
           <HfLoginOverlay
             onLogin={handleLogin}
             onSkip={() => setLoginSkipped(true)}
