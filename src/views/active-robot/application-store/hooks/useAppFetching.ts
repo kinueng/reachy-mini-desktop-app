@@ -288,8 +288,15 @@ export function useAppFetching(): UseAppFetchingReturn {
       const websiteApps = normalizeCatalogApps(websiteData);
       const mergedApps = mergeCatalogApps(websiteApps, daemonCatalogResult.apps);
 
+      // Cache age moved from response body to the standard `Age`
+      // HTTP header (RFC 7234 §5.1) so the body stays byte-stable
+      // across same-cache-window requests and ETag-based 304s
+      // work. Falls back to `?` when the header is absent (older
+      // website deploy or a daemon-only fallback) to keep the log
+      // line readable rather than emitting `null`.
+      const cacheAge = websiteResponse.headers.get('age') ?? '?';
       console.log(
-        `[Apps] Fetched ${mergedApps.length} apps from catalog (website=${websiteApps.length}, daemon=${daemonCatalogResult.apps.length}, cache age: ${websiteData.cacheAge}s)`
+        `[Apps] Fetched ${mergedApps.length} apps from catalog (website=${websiteApps.length}, daemon=${daemonCatalogResult.apps.length}, cache age: ${cacheAge}s)`
       );
 
       return mergedApps;
