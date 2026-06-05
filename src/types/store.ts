@@ -303,7 +303,79 @@ export interface LogsSliceActions {
 export type LogsSlice = LogsSliceState & LogsSliceActions;
 
 // ============================================================================
+// WIRELESS UPDATE SLICE
+// ============================================================================
+
+/**
+ * Lifecycle of the forced wireless-daemon update flow.
+ *
+ *   idle       → no work in progress (initial / after cancel)
+ *   pre-check  → confirming the daemon can reach PyPI before triggering it
+ *   updating   → `POST /update/start` accepted, streaming logs over WS
+ *   restarting → daemon WS closed, waiting for `systemctl restart` to bring
+ *                it back up and answer `/api/daemon/status` again
+ *   verifying  → daemon back, double-checking the new version is ≥ min
+ *   succeeded  → ready to hand off to the regular `connect()` flow
+ *   error      → terminal failure; user can retry or cancel
+ */
+export type WirelessUpdateStatus =
+  | 'idle'
+  | 'pre-check'
+  | 'updating'
+  | 'restarting'
+  | 'verifying'
+  | 'succeeded'
+  | 'error';
+
+export interface WirelessUpdateState {
+  /**
+   * When `true`, the view router replaces the standard "Starting" path with
+   * `WirelessUpdateRequiredView`. Set by `requestWirelessUpdate()` after
+   * the WiFi pre-flight returns `reason: 'too_old'`.
+   */
+  required: boolean;
+  /** WiFi target the user picked (kept across the update so we can reconnect). */
+  targetHost: string | null;
+  /** Daemon version we observed during the pre-flight (e.g. "1.6.2"). */
+  currentVersion: string | null;
+  /** App-required minimum version (mirrors `MIN_WIRELESS_DAEMON_VERSION`). */
+  minVersion: string | null;
+  status: WirelessUpdateStatus;
+  /** Background job UUID returned by the daemon's `/update/start`. */
+  jobId: string | null;
+  /** Capped buffer of log lines streamed from `/update/ws/logs`. */
+  logs: string[];
+  /** Last terminal error (network, no internet, version still too old, ...). */
+  error: string | null;
+  /** Timestamp of the last successful update; used to dampen retry noise. */
+  lastSucceededAt: number | null;
+}
+
+export interface WirelessUpdateSliceState {
+  wirelessUpdate: WirelessUpdateState;
+}
+
+export interface WirelessUpdateSliceActions {
+  requestWirelessUpdate: (params: {
+    targetHost: string;
+    currentVersion: string | null;
+    minVersion: string;
+  }) => void;
+  setWirelessUpdateStatus: (status: WirelessUpdateStatus) => void;
+  setWirelessUpdateJobId: (jobId: string | null) => void;
+  appendWirelessUpdateLog: (line: string) => void;
+  setWirelessUpdateError: (error: string | null) => void;
+  markWirelessUpdateSucceeded: () => void;
+  /** Bail out of the flow (user pressed "Cancel and disconnect"). */
+  cancelWirelessUpdate: () => void;
+  /** Same as cancel, but called internally after a successful handoff. */
+  resetWirelessUpdate: () => void;
+}
+
+export type WirelessUpdateSlice = WirelessUpdateSliceState & WirelessUpdateSliceActions;
+
+// ============================================================================
 // COMBINED STORE
 // ============================================================================
 
-export type AppState = RobotSlice & AppsSlice & UiSlice & LogsSlice;
+export type AppState = RobotSlice & AppsSlice & UiSlice & LogsSlice & WirelessUpdateSlice;

@@ -97,6 +97,21 @@ export interface DiagnosticSnapshot {
     is_app_running: boolean;
     current_app: string | null;
   };
+  /**
+   * Snapshot of the wireless forced-update flow. `null` when the slice has
+   * never been touched in the current session.
+   */
+  wireless_update: {
+    required: boolean;
+    status: string;
+    target_host: string | null;
+    current_version: string | null;
+    min_version: string | null;
+    job_id: string | null;
+    error: string | null;
+    last_succeeded_at: number | null;
+    recent_logs: string[];
+  } | null;
   logs: {
     recent_errors: string[];
     recent_daemon: LogEntry[];
@@ -258,6 +273,8 @@ export const generateDiagnosticSnapshot = (): DiagnosticSnapshot => {
     code?: string | null;
   } | null;
 
+  const wirelessUpdate = state.wirelessUpdate ?? null;
+
   return {
     robot: {
       status: state.robotStatus,
@@ -279,6 +296,20 @@ export const generateDiagnosticSnapshot = (): DiagnosticSnapshot => {
       is_app_running: Boolean(state.isAppRunning),
       current_app: state.currentAppName || null,
     },
+    wireless_update: wirelessUpdate
+      ? {
+          required: Boolean(wirelessUpdate.required),
+          status: wirelessUpdate.status,
+          target_host: wirelessUpdate.targetHost,
+          current_version: wirelessUpdate.currentVersion,
+          min_version: wirelessUpdate.minVersion,
+          job_id: wirelessUpdate.jobId,
+          error: wirelessUpdate.error,
+          last_succeeded_at: wirelessUpdate.lastSucceededAt,
+          // Cap the log slice to keep payloads small in PostHog events.
+          recent_logs: (wirelessUpdate.logs ?? []).slice(-30),
+        }
+      : null,
     logs: {
       recent_errors: recentErrors,
       recent_daemon: recentDaemonLogs,
@@ -319,6 +350,23 @@ const getRobotState = () => {
     isCommandRunning: state.isCommandRunning,
 
     activeMoves: state.activeMoves,
+
+    // Wireless forced-update flow snapshot. Surfaced in both the full report
+    // and the lightweight telemetry snapshot so we can correlate connection
+    // failures against in-flight or recently-failed daemon updates.
+    wirelessUpdate: state.wirelessUpdate
+      ? {
+          required: Boolean(state.wirelessUpdate.required),
+          status: state.wirelessUpdate.status,
+          targetHost: state.wirelessUpdate.targetHost,
+          currentVersion: state.wirelessUpdate.currentVersion,
+          minVersion: state.wirelessUpdate.minVersion,
+          jobId: state.wirelessUpdate.jobId,
+          error: state.wirelessUpdate.error,
+          lastSucceededAt: state.wirelessUpdate.lastSucceededAt,
+          recentLogs: (state.wirelessUpdate.logs ?? []).slice(-30),
+        }
+      : null,
   };
 };
 
@@ -505,6 +553,27 @@ export const formatReportAsText = (report: DiagnosticReport): string => {
     lines.push(`  Startup Error: ${report.robot.startupError}`);
   }
   lines.push('');
+
+  if (report.robot.wirelessUpdate) {
+    const wu = report.robot.wirelessUpdate;
+    lines.push('WIRELESS UPDATE');
+    lines.push('───────────────────────────────────────────────────────────────────');
+    lines.push(`  Required: ${wu.required}`);
+    lines.push(`  Status: ${wu.status}`);
+    if (wu.targetHost) lines.push(`  Target Host: ${wu.targetHost}`);
+    lines.push(`  Current Version: ${wu.currentVersion ?? 'unknown'}`);
+    lines.push(`  Min Version: ${wu.minVersion ?? 'unknown'}`);
+    if (wu.jobId) lines.push(`  Job ID: ${wu.jobId}`);
+    if (wu.error) lines.push(`  Error: ${wu.error}`);
+    if (wu.lastSucceededAt) {
+      lines.push(`  Last Succeeded: ${new Date(wu.lastSucceededAt).toISOString()}`);
+    }
+    if (wu.recentLogs && wu.recentLogs.length > 0) {
+      lines.push(`  Recent Logs (${wu.recentLogs.length}):`);
+      wu.recentLogs.forEach(line => lines.push(`    ${line}`));
+    }
+    lines.push('');
+  }
 
   lines.push('APPS');
   lines.push('───────────────────────────────────────────────────────────────────');

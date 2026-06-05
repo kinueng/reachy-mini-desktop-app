@@ -11,3 +11,5 @@ export type {
   UseExternalDaemonProbeOptions,
   UseExternalDaemonProbeResult,
 } from './useExternalDaemonProbe';
+export { useWirelessDaemonUpdate } from './useWirelessDaemonUpdate';
+export type { UseWirelessDaemonUpdateResult } from './useWirelessDaemonUpdate';

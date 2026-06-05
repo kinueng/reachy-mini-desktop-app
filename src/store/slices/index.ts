@@ -12,6 +12,7 @@ export { createRobotSlice } from './robotSlice';
 export { createLogsSlice } from './logsSlice';
 export { createUISlice, setupSystemPreferenceListener } from './uiSlice';
 export { createAppsSlice } from './appsSlice';
+export { createWirelessUpdateSlice } from './wirelessUpdateSlice';
 
 // ============================================================================
 // SELECTORS - Derive state from robotStatus (single source of truth)

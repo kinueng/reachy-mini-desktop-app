@@ -9,6 +9,7 @@ import {
   StartingView,
   ClosingView,
   UpdateView,
+  WirelessUpdateRequiredView,
   ActiveRobotModule,
 } from '../../views';
 import AppTopBar from '../../components/AppTopBar';
@@ -77,6 +78,10 @@ export interface ViewConfig {
  * 2.   Setup choice - WiFi vs Bluetooth choice overlay
  * 2.5. First time WiFi setup - Guided WiFi configuration wizard
  * 2.75. Bluetooth support - Native BLE reset tool
+ * 2.8. Wireless update required - Forces a daemon update when the WiFi
+ *      pre-flight detected a daemon < MIN_WIRELESS_DAEMON_VERSION.
+ *      Sits BEFORE FindingRobot because connectionMode is still null at
+ *      this stage; without this slot the user would never see the gate.
  * 3.   Finding robot - User selects connection (USB/WiFi/Sim) and clicks Start
  * 4.   Starting daemon (visual scan) - Also used for WiFi mode
  * 5.   Stopping daemon - Shutdown spinner
@@ -128,6 +133,11 @@ export function useViewRouter({
     showBluetoothSupportView,
     setShowBluetoothSupportView,
   } = useAppStore();
+
+  // Read just the boolean we route on. Pulling the whole `wirelessUpdate`
+  // object would force a re-render on every appended log line, which is
+  // wasteful given the view itself already subscribes to the slice.
+  const wirelessUpdateRequired = useAppStore(state => state.wirelessUpdate.required);
 
   return useMemo((): ViewConfig => {
     // PRIORITY 0: Permissions view
@@ -183,6 +193,19 @@ export function useViewRouter({
           onBack: () => setShowBluetoothSupportView(false),
         },
         showTopBar: false, // BluetoothSupportView has its own close button
+      };
+    }
+
+    // PRIORITY 2.8: Wireless update required
+    // Set by `FindingRobotView.handleStart` when the WiFi pre-flight detects
+    // a daemon older than MIN_WIRELESS_DAEMON_VERSION. Must sit BEFORE
+    // FindingRobot because we trigger the gate while connectionMode is still
+    // null (we haven't called `connect()` yet).
+    if (wirelessUpdateRequired) {
+      return {
+        viewComponent: WirelessUpdateRequiredView,
+        viewProps: {},
+        showTopBar: true,
       };
     }
 
@@ -255,6 +278,7 @@ export function useViewRouter({
     setShowFirstTimeWifiSetup,
     showBluetoothSupportView,
     setShowBluetoothSupportView,
+    wirelessUpdateRequired,
     shouldShowUsbCheck,
     isUsbConnected,
     connectionMode,

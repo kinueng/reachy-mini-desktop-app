@@ -270,6 +270,22 @@ interface AppCrashReportProps {
   log_tail?: string;
 }
 
+interface WirelessUpdateProps {
+  /** Daemon version observed at probe time (`null` if the body had no version). */
+  from_version: string | null;
+  /** App-required minimum version (`MIN_WIRELESS_DAEMON_VERSION`). */
+  min_version: string;
+}
+
+interface WirelessUpdateOutcomeProps extends WirelessUpdateProps {
+  /** Daemon version after the install (only set on success). */
+  to_version?: string | null;
+  /** Wall-clock duration of the full flow in seconds. */
+  duration_sec?: number;
+  /** Short error class on failure (`pypi_unreachable`, `restart_timeout`, ...). */
+  error_class?: string;
+}
+
 export const telemetry = {
   // --------------------------------------------------------------------------
   // Session & Connection
@@ -333,6 +349,7 @@ export const telemetry = {
       diagnostic_logs: diagnostic?.logs ?? null,
       diagnostic_installed_apps: diagnostic?.installed_apps ?? null,
       diagnostic_session: diagnostic?.session ?? null,
+      diagnostic_wireless_update: diagnostic?.wireless_update ?? null,
     });
   },
 
@@ -429,6 +446,49 @@ export const telemetry = {
 
   wifiSetupCompleted: (props: WifiSetupCompletedProps) => {
     void track(EVENTS.WIFI_SETUP_COMPLETED, { success: props.success });
+  },
+
+  // --------------------------------------------------------------------------
+  // Wireless daemon update gate
+  // --------------------------------------------------------------------------
+
+  wirelessUpdateRequiredShown: (props: WirelessUpdateProps) => {
+    void track(EVENTS.WIRELESS_UPDATE_REQUIRED_SHOWN, {
+      from_version: props.from_version,
+      min_version: props.min_version,
+    });
+  },
+
+  wirelessUpdateStarted: (props: WirelessUpdateProps) => {
+    void track(EVENTS.WIRELESS_UPDATE_STARTED, {
+      from_version: props.from_version,
+      min_version: props.min_version,
+    });
+  },
+
+  wirelessUpdateSucceeded: (props: WirelessUpdateOutcomeProps) => {
+    void track(EVENTS.WIRELESS_UPDATE_SUCCEEDED, {
+      from_version: props.from_version,
+      to_version: props.to_version ?? null,
+      min_version: props.min_version,
+      duration_sec: props.duration_sec,
+    });
+  },
+
+  wirelessUpdateFailed: (props: WirelessUpdateOutcomeProps) => {
+    void track(EVENTS.WIRELESS_UPDATE_FAILED, {
+      from_version: props.from_version,
+      min_version: props.min_version,
+      error_class: props.error_class,
+      duration_sec: props.duration_sec,
+    });
+  },
+
+  wirelessUpdateCancelled: (props: WirelessUpdateProps) => {
+    void track(EVENTS.WIRELESS_UPDATE_CANCELLED, {
+      from_version: props.from_version,
+      min_version: props.min_version,
+    });
   },
 
   // --------------------------------------------------------------------------

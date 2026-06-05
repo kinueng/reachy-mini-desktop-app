@@ -6,8 +6,10 @@ import {
   createLogsSlice,
   createUISlice,
   createAppsSlice,
+  createWirelessUpdateSlice,
   setupSystemPreferenceListener,
 } from './slices';
+import { wirelessUpdateInitialState } from './slices/wirelessUpdateSlice';
 import { logReset } from './storeLogger';
 import { disableSimulationMode } from '../utils/simulationMode';
 import { BUSY_REASON, ROBOT_STATUS, buildDerivedState } from '../constants/robotStatus';
@@ -61,6 +63,7 @@ const storeCreator: StateCreator<FullAppState, [], [], FullAppState> = (set, get
   ...createLogsSlice(set, get, api),
   ...createUISlice(set, get, api),
   ...createAppsSlice(set, get, api),
+  ...createWirelessUpdateSlice(set, get, api),
 
   // ============================================
   // CROSS-SLICE ACTIONS
@@ -124,6 +127,12 @@ const storeCreator: StateCreator<FullAppState, [], [], FullAppState> = (set, get
       logs: [],
       frontendLogs: [],
       appLogs: [],
+
+      // Wireless update reset: any pending forced-update flow is tied to a
+      // specific connection attempt. On a hard disconnect we drop it so the
+      // next attempt starts from scratch rather than re-entering the update
+      // view based on stale state from a previous host.
+      wirelessUpdate: wirelessUpdateInitialState.wirelessUpdate,
     } as Partial<FullAppState>);
   },
 
