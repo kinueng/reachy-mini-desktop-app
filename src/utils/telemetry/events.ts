@@ -43,6 +43,16 @@ export const EVENTS = {
   WIFI_SETUP_STARTED: 'wifi_setup_started',
   WIFI_SETUP_COMPLETED: 'wifi_setup_completed',
 
+  // Wireless daemon update gate
+  // Emitted when the WiFi pre-flight detected a too-old daemon and the
+  // forced-update view kicked in. Lets us measure how often we block
+  // users on outdated daemons (the whole motivation for the feature).
+  WIRELESS_UPDATE_REQUIRED_SHOWN: 'wireless_update_required_shown',
+  WIRELESS_UPDATE_STARTED: 'wireless_update_started',
+  WIRELESS_UPDATE_SUCCEEDED: 'wireless_update_succeeded',
+  WIRELESS_UPDATE_FAILED: 'wireless_update_failed',
+  WIRELESS_UPDATE_CANCELLED: 'wireless_update_cancelled',
+
   // Crash Reporting
   APP_CRASH: 'app_crash',
   APP_CRASH_REPORT: 'app_crash_report',

@@ -52,10 +52,17 @@ jobs:
       # consistently get this exact daemon version on first launch
       # regardless of what is currently latest on PyPI.
       #
+      # Scope: this ONLY affects the daemon bundled with the app, i.e.
+      # Reachy Mini Lite (USB) and Simulation, where the daemon ships with
+      # the desktop app and is upgraded whenever the app updates. It does
+      # NOT affect Reachy Mini Wireless: there the daemon runs on the robot
+      # and updates independently via PyPI, gated client-side by
+      # `MIN_WIRELESS_DAEMON_VERSION` (src/constants/daemonVersion.ts).
+      #
       # Bump deliberately when a new daemon release has been validated
       # against the desktop app's UI (incl. fields like DaemonStatus
       # exposed via the WS / HTTP API).
-      REACHY_MINI_VERSION: 1.7.1
+      REACHY_MINI_VERSION: 1.8.0
 
     steps:
       - name: Dry run mode notification

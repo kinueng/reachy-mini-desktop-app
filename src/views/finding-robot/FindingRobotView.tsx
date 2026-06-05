@@ -33,6 +33,8 @@ import { useExternalDaemonProbe } from '../../hooks/daemon';
 import { invoke } from '@tauri-apps/api/core';
 import { useToast } from '../../hooks/useToast';
 import { probeWifiHost, type WifiProbeResult } from '../../utils/probeWifiHost';
+import { MIN_WIRELESS_DAEMON_VERSION } from '../../constants/daemonVersion';
+import { telemetry } from '../../utils/telemetry';
 import reachyBuste from '../../assets/reachy-buste.png';
 import {
   ACCENT,
@@ -297,7 +299,12 @@ function ConnectionCard({
 export default function FindingRobotView() {
   const palette = useAppPalette();
   const isDark = palette.isDark;
-  const { setShowFirstTimeWifiSetup, setShowBluetoothSupportView, clearApps } = useAppStore();
+  const {
+    setShowFirstTimeWifiSetup,
+    setShowBluetoothSupportView,
+    clearApps,
+    requestWirelessUpdate,
+  } = useAppStore();
   const { isScanning, usbRobot, wifiRobot, wifiRobots, selectWifiRobot } = useRobotDiscovery();
   const { connect, isConnecting, isDisconnecting } = useConnection();
   const [selectedMode, setSelectedMode] = useState<ConnectionModeType | null>(null);
@@ -375,24 +382,46 @@ export default function FindingRobotView() {
 
   /**
    * Pre-flight probe for a WiFi target. Returns true if the host answers like
-   * a Reachy daemon; otherwise surfaces a tailored toast and returns false so
-   * the caller bails without going through the 90s startup timeout.
+   * a Reachy daemon and is recent enough; otherwise either surfaces a toast
+   * (network-class failures) or hands off to `WirelessUpdateRequiredView`
+   * (`too_old`), and returns false so the caller bails without going through
+   * the 90s startup timeout.
    */
   const verifyWifiHost = useCallback(
     async (host: string): Promise<boolean> => {
       const result = await probeWifiHost(host);
       if (result.ok) return true;
 
-      const messages: Record<Exclude<WifiProbeResult['reason'], null>, string> = {
+      // The version-too-old case is bigger than a toast: we route to the
+      // dedicated forced-update view, which can drive the daemon's own
+      // /update/start endpoint and stream its logs.
+      if (result.reason === 'too_old') {
+        const minVersion = result.minVersion ?? MIN_WIRELESS_DAEMON_VERSION;
+        requestWirelessUpdate({
+          targetHost: host,
+          currentVersion: result.version,
+          minVersion,
+        });
+        telemetry.wirelessUpdateRequiredShown({
+          from_version: result.version,
+          min_version: minVersion,
+        });
+        return false;
+      }
+
+      const messages: Record<Exclude<WifiProbeResult['reason'], null | 'too_old'>, string> = {
         unreachable: `Cannot reach ${host}. Check the robot is powered on and on the same network.`,
         wrong_service: `${host} responded but does not look like a Reachy daemon.`,
         daemon_error: `The daemon at ${host} reported an error state. Restart the robot and try again.`,
       };
-      const reason = result.reason ?? 'unreachable';
+      const reason = (result.reason ?? 'unreachable') as Exclude<
+        WifiProbeResult['reason'],
+        null | 'too_old'
+      >;
       showToast(messages[reason], 'error');
       return false;
     },
-    [showToast]
+    [showToast, requestWirelessUpdate]
   );
 
   // Restore last selected mode from localStorage on mount
