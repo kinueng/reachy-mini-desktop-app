@@ -176,7 +176,8 @@ export default function WirelessUpdateRequiredView() {
             fontSize: TYPO.md,
             color: palette.textSecondary,
             textAlign: 'center',
-            maxWidth: 420,
+            width: '60%',
+            mx: 'auto',
             lineHeight: 1.6,
             mb: 0.5,
           }}
@@ -421,9 +422,10 @@ export default function WirelessUpdateRequiredView() {
             </PulseButton>
           )}
 
-          {/* Cancel escape hatch: always available except mid-restart, where
+          {/* Cancel escape hatch: available before the install kicks off, but
+              hidden once it's underway (updating/restarting/verifying), where
               cancelling could leave the daemon in a half-updated state. */}
-          {status !== 'restarting' && status !== 'verifying' && (
+          {status !== 'updating' && status !== 'restarting' && status !== 'verifying' && (
             <Button
               variant="text"
               onClick={handleCancel}
