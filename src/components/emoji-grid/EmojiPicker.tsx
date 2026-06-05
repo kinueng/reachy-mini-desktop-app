@@ -5,6 +5,7 @@ import {
   EMOTION_EMOJIS,
   WHEEL_EMOTIONS,
   labelFromActionName,
+  labelFromDanceName,
   type EmojiGridAction,
 } from '@constants/choreographies';
 
@@ -40,7 +41,7 @@ function buildEmotionItem(name: string): EmojiGridItem & { name: string } {
 }
 
 function buildDanceItem(name: string): EmojiGridItem & { name: string } {
-  const label = name.replace(/_/g, ' ');
+  const label = labelFromDanceName(name);
   return {
     name,
     emoji: (DANCE_EMOJIS as Record<string, string>)[name] ?? FALLBACK_DANCE_EMOJI,
