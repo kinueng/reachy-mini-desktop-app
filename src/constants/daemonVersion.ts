@@ -15,22 +15,25 @@
  *
  * # Bumping policy
  *
- * Bump this constant only when the desktop app starts depending on a daemon
- * API/behaviour that older daemons don't expose. Each bump should:
+ * We deliberately keep this floor ALIGNED with the daemon version bundled
+ * for Lite/Simulation (`REACHY_MINI_VERSION` in
+ * `.github/workflows/release-unified.yml`), so every platform converges on
+ * the same daemon: a release that ships daemon X for Lite/sim also requires
+ * X on Wireless. The trade-off is explicit - wireless robots older than X
+ * are forced to update on first connect, even if they would technically
+ * still work. Each bump should:
  *
- * 1. Reference the PR / commit that introduced the dependency.
- * 2. Be tagged in `MIN_WIRELESS_DAEMON_VERSION_REASON` so we can show users
+ * 1. Move in lockstep with `REACHY_MINI_VERSION` in the release workflow.
+ * 2. Reference the PR / commit that introduced the dependency.
+ * 3. Be tagged in `MIN_WIRELESS_DAEMON_VERSION_REASON` so we can show users
  *    a meaningful "why" in the update view.
- * 3. Be conservative: prefer the oldest version that ships the dependency
- *    rather than "the latest at release time" - users who just ran an
- *    update yesterday should not be forced to update again the next day.
  */
 
-export const MIN_WIRELESS_DAEMON_VERSION = '1.7.1';
+export const MIN_WIRELESS_DAEMON_VERSION = '1.8.0';
 
 /**
  * Short, user-facing rationale shown in the update view subtitle.
  * Keep it under one sentence: the dialog already gives the version numbers.
  */
 export const MIN_WIRELESS_DAEMON_VERSION_REASON =
-  'This version of the desktop app requires daemon features introduced in v1.7.1.';
+  'This version of the desktop app requires daemon v1.8.0 or newer.';
