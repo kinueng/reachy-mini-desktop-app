@@ -1,0 +1,70 @@
+name: Build macOS app (unsigned)
+
+# Personal unsigned build for local use. No Apple secrets, no notarization,
+# no DMG. Produces an ad-hoc-signed .app (signingIdentity "-" from
+# tauri.macos.conf.json) as a downloadable artifact.
+#
+# After downloading: unzip, then clear quarantine before first launch:
+#   xattr -dr com.apple.quarantine "Reachy Mini Control.app"
+
+on:
+  push:
+    branches:
+      - ci/unsigned-macos-build
+  workflow_dispatch:
+
+jobs:
+  build-macos-unsigned:
+    runs-on: macos-latest
+
+    env:
+      TARGET: aarch64-apple-darwin
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.11.1' # LTS - Required for camera-controls (>=24.4.0)
+          cache: 'yarn'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+            uv-wrapper -> target
+          cache-on-failure: true
+          shared-key: aarch64-apple-darwin-unsigned
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Build sidecar
+        run: TARGET_TRIPLET=$TARGET bash ./scripts/build/build-sidecar-unix.sh
+
+      - name: Build Tauri app (unsigned)
+        run: yarn tauri build --target $TARGET
+
+      - name: Zip .app
+        # ditto preserves symlinks and exec bits; upload-artifact alone would
+        # flatten them and produce a broken .app bundle
+        run: |
+          cd "src-tauri/target/$TARGET/release/bundle/macos"
+          ditto -c -k --keepParent "Reachy Mini Control.app" "Reachy-Mini-Control-unsigned-arm64.zip"
+
+      - name: Upload .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reachy-mini-control-macos-arm64-unsigned
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Reachy-Mini-Control-unsigned-arm64.zip
+          if-no-files-found: error
