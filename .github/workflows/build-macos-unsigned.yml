@@ -11,6 +11,7 @@ on:
   push:
     branches:
       - ci/unsigned-macos-build
+      - feat/disable-location
   workflow_dispatch:
 
 jobs:
