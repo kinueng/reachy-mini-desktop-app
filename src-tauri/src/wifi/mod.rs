@@ -192,16 +192,10 @@ extern "C" {
     /// Scan WiFi networks via CoreWLAN (compiled from corewlan_scan.m).
     /// Returns a JSON C-string or NULL on error.
     fn corewlan_scan_networks() -> *const std::os::raw::c_char;
-
-    /// Check current location authorization status (non-blocking).
-    fn corewlan_location_status() -> i32;
 }
 
 #[cfg(target_os = "macos")]
 fn scan_macos() -> Result<Vec<WifiNetwork>, String> {
-    let loc_status = unsafe { corewlan_location_status() };
-    log::info!("[wifi] Location authorization status: {}", loc_status);
-
     let json_ptr = unsafe { corewlan_scan_networks() };
     if json_ptr.is_null() {
         return Err("CoreWLAN scan returned null".to_string());

@@ -15,12 +15,10 @@ pub fn request_all_permissions() {
     log::info!("macOS permissions configured:");
     log::info!("   Camera: NSCameraUsageDescription declared in Info.plist");
     log::info!("   Microphone: NSMicrophoneUsageDescription declared in Info.plist");
-    log::info!("   Location: NSLocationWhenInUseUsageDescription declared in Info.plist");
     log::info!("   Filesystem: Entitlements configured");
     log::info!("   USB: Entitlements configured");
     log::info!("Permissions will be requested automatically when needed:");
     log::info!("   - Camera/microphone: macOS will show dialog when first accessed by apps");
-    log::info!("   - Location: requested before WiFi scanning to unredact SSIDs");
     log::info!("   - Filesystem/USB: Already granted via entitlements");
     log::info!("Note: Permissions granted to the main app will propagate to child processes");
     log::info!("   (Python daemon and its apps)");
@@ -240,135 +238,6 @@ pub async fn request_local_network_permission() -> Result<Option<bool>, String> 
     tokio::task::spawn_blocking(|| probe_local_network(3.0))
         .await
         .map_err(|e| format!("spawn_blocking failed: {}", e))?
-}
-
-// ============================================================================
-// Location Permission (macOS) - needed for WiFi SSID scanning
-// ============================================================================
-
-/// Check Location Services permission status (no dialog).
-#[tauri::command]
-#[cfg(target_os = "macos")]
-pub async fn check_location_permission() -> Result<Option<bool>, String> {
-    extern "C" {
-        fn corewlan_location_status() -> i32;
-    }
-
-    tokio::task::spawn_blocking(|| {
-        let status = unsafe { corewlan_location_status() };
-        // If notDetermined (0), the CLLocationManager delegate may not have fired yet.
-        // The delegate typically fires within ~5ms of manager creation. We wait up to
-        // 300ms so the real persisted status is reflected before returning to the JS side.
-        // This prevents the permissions screen from flashing on every app restart.
-        let status = if status == 0 {
-            std::thread::sleep(std::time::Duration::from_millis(300));
-            unsafe { corewlan_location_status() }
-        } else {
-            status
-        };
-        // 0 = notDetermined, 1 = restricted, 2 = denied, 3 = authorizedAlways, 4 = authorizedWhenInUse
-        match status {
-            3 | 4 => Ok(Some(true)),
-            1 | 2 => Ok(Some(false)),
-            _ => Ok(None),
-        }
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {}", e))?
-}
-
-#[tauri::command]
-#[cfg(not(target_os = "macos"))]
-pub async fn check_location_permission() -> Result<Option<bool>, String> {
-    Ok(Some(true))
-}
-
-/// Request Location Services permission via CoreLocation.
-/// This is needed so that CoreWLAN can return actual SSIDs instead of nil.
-/// Dispatches to the main queue via the persistent CLLocationManager in corewlan_scan.m.
-#[tauri::command]
-#[cfg(target_os = "macos")]
-pub async fn request_location_permission() -> Result<Option<bool>, String> {
-    extern "C" {
-        fn corewlan_request_location() -> i32;
-        fn corewlan_location_status() -> i32;
-    }
-
-    tokio::task::spawn_blocking(|| {
-        // This dispatches to the main queue and requests permission if needed
-        let _request_status = unsafe { corewlan_request_location() };
-
-        // Re-check after the main-queue block has executed
-        let status = unsafe { corewlan_location_status() };
-        log::info!(
-            "[permissions] CLLocationManager authorizationStatus = {}",
-            status
-        );
-
-        // 0 = notDetermined, 1 = restricted, 2 = denied, 3 = authorizedAlways, 4 = authorizedWhenInUse
-        match status {
-            3 | 4 => Ok(Some(true)),
-            1 | 2 => Ok(Some(false)),
-            _ => Ok(None), // dialog pending
-        }
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {}", e))?
-}
-
-#[tauri::command]
-#[cfg(not(target_os = "macos"))]
-pub async fn request_location_permission() -> Result<Option<bool>, String> {
-    // Location permission is only relevant on macOS for WiFi scanning
-    Ok(Some(true))
-}
-
-/// Open System Settings to Privacy & Security > Location Services (macOS)
-///
-/// macOS 13+ (Ventura) replaced the old `x-apple.systempreferences:` deep links
-/// with a new extension-based scheme. The old `Privacy_LocationServices` fragment
-/// no longer works on macOS 13+. We try the new scheme first, then fall back to
-/// the generic Privacy & Security pane.
-#[tauri::command]
-#[cfg(target_os = "macos")]
-pub fn open_location_settings() -> Result<(), String> {
-    use std::process::Command;
-
-    // macOS 13+ (Ventura, Sonoma, Sequoia…): Privacy & Security pane.
-    // There is no dedicated deep-link to Location Services in macOS 13+;
-    // opening Privacy & Security is the best we can do.
-    let new_url = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension";
-    let output = Command::new("open")
-        .arg(new_url)
-        .output()
-        .map_err(|e| format!("Failed to open System Settings: {}", e))?;
-
-    if output.status.success() {
-        return Ok(());
-    }
-
-    // Fallback: legacy URL (macOS 12 and earlier)
-    let legacy_url =
-        "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices";
-    let fallback = Command::new("open")
-        .arg(legacy_url)
-        .output()
-        .map_err(|e| format!("Failed to open System Settings: {}", e))?;
-
-    if !fallback.status.success() {
-        return Err(format!(
-            "Failed to open System Settings: {}",
-            String::from_utf8_lossy(&fallback.stderr)
-        ));
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
-#[cfg(not(target_os = "macos"))]
-pub fn open_location_settings() -> Result<(), String> {
-    Ok(())
 }
 
 // ============================================================================

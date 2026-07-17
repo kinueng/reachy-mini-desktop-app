@@ -4,7 +4,6 @@ import type { SvgIconComponent } from '@mui/icons-material';
 import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined';
 import MicNoneOutlinedIcon from '@mui/icons-material/MicNoneOutlined';
 import LanOutlinedIcon from '@mui/icons-material/LanOutlined';
-import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import BluetoothOutlinedIcon from '@mui/icons-material/BluetoothOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
@@ -134,7 +133,6 @@ interface PermissionsViewState {
   cameraRequested: boolean;
   microphoneRequested: boolean;
   localNetworkRequested: boolean;
-  locationRequested: boolean;
   bluetoothRequested: boolean;
   isRestarting: boolean;
   restartStarted: boolean;
@@ -144,7 +142,6 @@ type PermissionsViewAction =
   | { type: 'SET_CAMERA_REQUESTED' }
   | { type: 'SET_MICROPHONE_REQUESTED' }
   | { type: 'SET_LOCAL_NETWORK_REQUESTED' }
-  | { type: 'SET_LOCATION_REQUESTED' }
   | { type: 'SET_BLUETOOTH_REQUESTED' };
 
 /**
@@ -161,8 +158,6 @@ const permissionsViewReducer = (
       return { ...state, microphoneRequested: true };
     case 'SET_LOCAL_NETWORK_REQUESTED':
       return { ...state, localNetworkRequested: true };
-    case 'SET_LOCATION_REQUESTED':
-      return { ...state, locationRequested: true };
     case 'SET_BLUETOOTH_REQUESTED':
       return { ...state, bluetoothRequested: true };
     default:
@@ -188,7 +183,6 @@ export default function PermissionsRequiredView({
     cameraGranted,
     microphoneGranted,
     localNetworkGranted,
-    locationGranted,
     bluetoothGranted,
     refresh: refreshPermissions,
   } = usePermissions({ checkInterval: 2000 });
@@ -197,7 +191,6 @@ export default function PermissionsRequiredView({
     cameraRequested: false,
     microphoneRequested: false,
     localNetworkRequested: false,
-    locationRequested: false,
     bluetoothRequested: false,
     isRestarting: false,
     restartStarted: false,
@@ -408,67 +401,6 @@ export default function PermissionsRequiredView({
     } catch (error) {
       try {
         await invoke('open_local_network_settings');
-      } catch {
-        // Failed to open settings
-      }
-    }
-  }, [refreshPermissions]);
-
-  // Location permission request handler (uses custom Rust command)
-  const requestLocationPermission = useCallback(async () => {
-    if (!isMacOS()) return;
-
-    try {
-      const result = await invoke('request_location_permission');
-      dispatch({ type: 'SET_LOCATION_REQUESTED' });
-
-      if (result === true) {
-        await refreshPermissions();
-        return;
-      }
-
-      // null = dialog pending, poll for user's choice
-      if (permissionPollingRef.current) {
-        clearInterval(permissionPollingRef.current);
-      }
-
-      let checkCount = 0;
-      const maxChecks = 20;
-
-      permissionPollingRef.current = setInterval(async () => {
-        checkCount++;
-
-        try {
-          const status = await invoke('check_location_permission');
-          if (status === true) {
-            if (permissionPollingRef.current) {
-              clearInterval(permissionPollingRef.current);
-              permissionPollingRef.current = null;
-            }
-            await refreshPermissions();
-          } else if (status === false) {
-            if (permissionPollingRef.current) {
-              clearInterval(permissionPollingRef.current);
-              permissionPollingRef.current = null;
-            }
-            await refreshPermissions();
-            await invoke('open_location_settings');
-          }
-        } catch (error) {
-          // Ignore errors during polling
-        }
-
-        if (checkCount >= maxChecks) {
-          if (permissionPollingRef.current) {
-            clearInterval(permissionPollingRef.current);
-            permissionPollingRef.current = null;
-          }
-          await refreshPermissions();
-        }
-      }, 500);
-    } catch (error) {
-      try {
-        await invoke('open_location_settings');
       } catch {
         // Failed to open settings
       }
@@ -711,23 +643,6 @@ export default function PermissionsRequiredView({
                       openSettings('local_network');
                     } else {
                       requestLocalNetworkPermission();
-                    }
-                  }}
-                />
-              )}
-
-              {/* Location - macOS requires this for CoreWLAN to return WiFi SSIDs */}
-              {isMacOS() && (
-                <PermissionRow
-                  icon={LocationOnOutlinedIcon}
-                  label="Location"
-                  subtitle={locationGranted ? 'Granted' : 'For WiFi detection'}
-                  granted={locationGranted}
-                  onClick={() => {
-                    if (state.locationRequested) {
-                      openSettings('location');
-                    } else {
-                      requestLocationPermission();
                     }
                   }}
                 />

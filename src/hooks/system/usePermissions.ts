@@ -17,7 +17,6 @@ export interface UsePermissionsResult {
   cameraGranted: boolean;
   microphoneGranted: boolean;
   localNetworkGranted: boolean;
-  locationGranted: boolean;
   bluetoothGranted: boolean;
   allGranted: boolean;
   isChecking: boolean;
@@ -67,7 +66,6 @@ interface PermissionSnapshot {
   camera: boolean | null;
   microphone: boolean | null;
   localNetwork: boolean | null;
-  location: boolean | null;
   bluetooth: boolean | null;
 }
 
@@ -79,7 +77,7 @@ type OptionalBoolResult = boolean | null;
 
 /**
  * Hook to check macOS permissions (camera, microphone, local network,
- * location, bluetooth). Uses `tauri-plugin-macos-permissions` for
+ * bluetooth). Uses `tauri-plugin-macos-permissions` for
  * camera/microphone and custom Rust commands for the rest (macOS Sequoia+).
  *
  * Checks periodically and exposes a manual `refresh` for immediate checks.
@@ -102,14 +100,10 @@ export function usePermissions({
   const shouldBypassPermissions = isE2E;
   // Auto-grant on non-macOS OR in E2E mode.
   const autoGrant = !isMac || shouldBypassPermissions;
-  // Location requires a signed app, unavailable in dev mode: auto-grant in dev
-  // so the permissions screen doesn't block development.
-  const autoGrantLocation = autoGrant || import.meta.env.DEV;
 
   const [cameraGranted, setCameraGranted] = useState<boolean>(autoGrant);
   const [microphoneGranted, setMicrophoneGranted] = useState<boolean>(autoGrant);
   const [localNetworkGranted, setLocalNetworkGranted] = useState<boolean>(autoGrant);
-  const [locationGranted, setLocationGranted] = useState<boolean>(autoGrantLocation);
   const [bluetoothGranted, setBluetoothGranted] = useState<boolean>(autoGrant);
   // Only check on macOS (non-E2E).
   const [isChecking, setIsChecking] = useState<boolean>(!autoGrant);
@@ -125,7 +119,6 @@ export function usePermissions({
     camera: null,
     microphone: null,
     localNetwork: null,
-    location: null,
     bluetooth: null,
   });
 
@@ -178,24 +171,6 @@ export function usePermissions({
         localNetworkStatus = true;
       }
 
-      // Check location permission (macOS - needed for WiFi SSID scanning).
-      // Skipped in dev mode: requestWhenInUseAuthorization requires a signed app.
-      let locationStatus = true;
-      if (!import.meta.env.DEV) {
-        try {
-          const result = (await invoke('check_location_permission')) as OptionalBoolResult;
-          if (result === true) {
-            locationStatus = true;
-          } else if (result === false) {
-            locationStatus = false;
-          } else {
-            locationStatus = false;
-          }
-        } catch {
-          locationStatus = true;
-        }
-      }
-
       // Check Bluetooth permission (macOS - needed for BLE-based WiFi setup).
       let bluetoothStatus = true;
       try {
@@ -220,7 +195,6 @@ export function usePermissions({
       const cameraResult = cameraStatus === true;
       const micResult = micStatus === true;
       const localNetworkResult = localNetworkStatus === true;
-      const locationResult = locationStatus === true;
       const bluetoothResult = bluetoothStatus === true;
 
       // Only log if state changed or first check.
@@ -228,7 +202,6 @@ export function usePermissions({
         previousStateRef.current.camera !== cameraResult ||
         previousStateRef.current.microphone !== micResult ||
         previousStateRef.current.localNetwork !== localNetworkResult ||
-        previousStateRef.current.location !== locationResult ||
         previousStateRef.current.bluetooth !== bluetoothResult ||
         previousStateRef.current.camera === null;
 
@@ -237,7 +210,6 @@ export function usePermissions({
           camera: cameraResult,
           microphone: micResult,
           localNetwork: localNetworkResult,
-          location: locationResult,
           bluetooth: bluetoothResult,
         };
       }
@@ -245,7 +217,6 @@ export function usePermissions({
       setCameraGranted(cameraResult);
       setMicrophoneGranted(micResult);
       setLocalNetworkGranted(localNetworkResult);
-      setLocationGranted(locationResult);
       setBluetoothGranted(bluetoothResult);
       setHasChecked(true);
     } catch {
@@ -257,7 +228,6 @@ export function usePermissions({
       setCameraGranted(false);
       setMicrophoneGranted(false);
       setLocalNetworkGranted(false);
-      setLocationGranted(false);
       setBluetoothGranted(false);
       setHasChecked(true);
     } finally {
@@ -282,17 +252,12 @@ export function usePermissions({
   }, [checkInterval, checkPermissions]);
 
   const allGranted =
-    cameraGranted &&
-    microphoneGranted &&
-    localNetworkGranted &&
-    locationGranted &&
-    bluetoothGranted;
+    cameraGranted && microphoneGranted && localNetworkGranted && bluetoothGranted;
 
   return {
     cameraGranted,
     microphoneGranted,
     localNetworkGranted,
-    locationGranted,
     bluetoothGranted,
     allGranted,
     isChecking,

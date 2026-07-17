@@ -32,10 +32,6 @@
 	<key>NSDownloadsFolderUsageDescription</key>
 	<string>This app needs access to the Downloads folder to download and install robot applications.</string>
 	
-	<!-- Description for location access (needed for WiFi scanning on macOS) -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs location access to scan for nearby WiFi networks and detect the Reachy Mini robot hotspot.</string>
-
 	<!-- Description for camera access (for apps that use the camera) -->
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs camera access for certain Reachy Mini robot features (such as hand tracking).</string>
