@@ -166,7 +166,7 @@ function App(): React.ReactElement {
   });
 
   // 🔐 Permissions check (macOS only)
-  // Blocks the app until local network and bluetooth permissions are granted
+  // Blocks the app until the local network permission is granted (bluetooth is optional)
   const { allGranted: permissionsGranted, hasChecked } = usePermissions({ checkInterval: 2000 });
   const [isRestarting, setIsRestarting] = useState<boolean>(false);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

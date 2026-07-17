@@ -517,12 +517,12 @@ export default function PermissionsRequiredView({
                 />
               )}
 
-              {/* Bluetooth - macOS requires this for BLE-based WiFi setup */}
+              {/* Bluetooth - optional, only needed for BLE-based WiFi setup/troubleshooting */}
               {isMacOS() && (
                 <PermissionRow
                   icon={BluetoothOutlinedIcon}
                   label="Bluetooth"
-                  subtitle={bluetoothGranted ? 'Granted' : 'For BLE setup'}
+                  subtitle={bluetoothGranted ? 'Granted' : 'Optional — for BLE setup'}
                   granted={bluetoothGranted}
                   onClick={() => {
                     if (state.bluetoothRequested) {

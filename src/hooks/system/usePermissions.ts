@@ -214,7 +214,9 @@ export function usePermissions({
     };
   }, [checkInterval, checkPermissions]);
 
-  const allGranted = localNetworkGranted && bluetoothGranted;
+  // Bluetooth is optional: only needed for BLE-based WiFi setup/troubleshooting,
+  // so it never blocks startup. Grantable from the permissions view when needed.
+  const allGranted = localNetworkGranted;
 
   return {
     localNetworkGranted,

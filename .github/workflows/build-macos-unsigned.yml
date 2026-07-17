@@ -13,6 +13,7 @@ on:
       - ci/unsigned-macos-build
       - feat/disable-location
       - feat/disable-camera-mic
+      - feat/optional-bluetooth
   workflow_dispatch:
 
 jobs:
