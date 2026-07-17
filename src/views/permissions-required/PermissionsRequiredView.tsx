@@ -135,7 +135,8 @@ interface PermissionsViewState {
 }
 
 type PermissionsViewAction =
-  { type: 'SET_LOCAL_NETWORK_REQUESTED' } | { type: 'SET_BLUETOOTH_REQUESTED' };
+  | { type: 'SET_LOCAL_NETWORK_REQUESTED' }
+  | { type: 'SET_BLUETOOTH_REQUESTED' };
 
 /**
  * Reducer for managing permissions view state
@@ -283,7 +284,7 @@ export default function PermissionsRequiredView({
             await refreshPermissions();
             await invoke('open_local_network_settings');
           }
-        } catch (error) {
+        } catch {
           // Ignore errors during polling
         }
 
@@ -295,7 +296,7 @@ export default function PermissionsRequiredView({
           await refreshPermissions();
         }
       }, 500);
-    } catch (error) {
+    } catch {
       try {
         await invoke('open_local_network_settings');
       } catch {
@@ -344,7 +345,7 @@ export default function PermissionsRequiredView({
             await refreshPermissions();
             await invoke('open_bluetooth_settings');
           }
-        } catch (error) {
+        } catch {
           // Ignore errors during polling
         }
 
@@ -356,7 +357,7 @@ export default function PermissionsRequiredView({
           await refreshPermissions();
         }
       }, 500);
-    } catch (error) {
+    } catch {
       try {
         await invoke('open_bluetooth_settings');
       } catch {
@@ -372,7 +373,7 @@ export default function PermissionsRequiredView({
 
     try {
       await invoke(`open_${type}_settings`);
-    } catch (error) {
+    } catch {
       // Failed to open settings
     }
   }, []);
