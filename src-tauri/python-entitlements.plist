@@ -20,14 +20,6 @@
 	<key>com.apple.security.device.usb</key>
 	<true/>
 	
-	<!-- Camera access for vision features -->
-	<key>com.apple.security.device.camera</key>
-	<true/>
-	
-	<!-- Microphone access for speech/conversation features -->
-	<key>com.apple.security.device.audio-input</key>
-	<true/>
-	
 	<!-- Allow JIT and unsigned memory for Python -->
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>

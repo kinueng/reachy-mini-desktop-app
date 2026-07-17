@@ -14,8 +14,6 @@ export interface UsePermissionsOptions {
 }
 
 export interface UsePermissionsResult {
-  cameraGranted: boolean;
-  microphoneGranted: boolean;
   localNetworkGranted: boolean;
   bluetoothGranted: boolean;
   allGranted: boolean;
@@ -63,8 +61,6 @@ function isE2EMode(): boolean {
  * the first successful check, then tracks the latest boolean.
  */
 interface PermissionSnapshot {
-  camera: boolean | null;
-  microphone: boolean | null;
   localNetwork: boolean | null;
   bluetooth: boolean | null;
 }
@@ -76,9 +72,8 @@ interface PermissionSnapshot {
 type OptionalBoolResult = boolean | null;
 
 /**
- * Hook to check macOS permissions (camera, microphone, local network,
- * bluetooth). Uses `tauri-plugin-macos-permissions` for
- * camera/microphone and custom Rust commands for the rest (macOS Sequoia+).
+ * Hook to check macOS permissions (local network, bluetooth) using custom
+ * Rust commands (macOS Sequoia+).
  *
  * Checks periodically and exposes a manual `refresh` for immediate checks.
  *
@@ -101,8 +96,6 @@ export function usePermissions({
   // Auto-grant on non-macOS OR in E2E mode.
   const autoGrant = !isMac || shouldBypassPermissions;
 
-  const [cameraGranted, setCameraGranted] = useState<boolean>(autoGrant);
-  const [microphoneGranted, setMicrophoneGranted] = useState<boolean>(autoGrant);
   const [localNetworkGranted, setLocalNetworkGranted] = useState<boolean>(autoGrant);
   const [bluetoothGranted, setBluetoothGranted] = useState<boolean>(autoGrant);
   // Only check on macOS (non-E2E).
@@ -116,8 +109,6 @@ export function usePermissions({
 
   // Track previous state to only log changes.
   const previousStateRef = useRef<PermissionSnapshot>({
-    camera: null,
-    microphone: null,
     localNetwork: null,
     bluetooth: null,
   });
@@ -133,24 +124,6 @@ export function usePermissions({
 
     try {
       setIsChecking(true);
-
-      const cameraStatus = (await invoke(
-        'plugin:macos-permissions|check_camera_permission'
-      )) as boolean;
-
-      // 🔒 Check if this response is stale (a newer check was launched).
-      if (currentVersion !== checkVersionRef.current) {
-        return;
-      }
-
-      const micStatus = (await invoke(
-        'plugin:macos-permissions|check_microphone_permission'
-      )) as boolean;
-
-      // 🔒 Check again after mic check (another check could have started).
-      if (currentVersion !== checkVersionRef.current) {
-        return;
-      }
 
       // Check local network permission (macOS Sequoia+). Returns:
       //   true  -> granted
@@ -192,30 +165,22 @@ export function usePermissions({
         return;
       }
 
-      const cameraResult = cameraStatus === true;
-      const micResult = micStatus === true;
       const localNetworkResult = localNetworkStatus === true;
       const bluetoothResult = bluetoothStatus === true;
 
       // Only log if state changed or first check.
       const stateChanged =
-        previousStateRef.current.camera !== cameraResult ||
-        previousStateRef.current.microphone !== micResult ||
         previousStateRef.current.localNetwork !== localNetworkResult ||
         previousStateRef.current.bluetooth !== bluetoothResult ||
-        previousStateRef.current.camera === null;
+        previousStateRef.current.localNetwork === null;
 
       if (stateChanged) {
         previousStateRef.current = {
-          camera: cameraResult,
-          microphone: micResult,
           localNetwork: localNetworkResult,
           bluetooth: bluetoothResult,
         };
       }
 
-      setCameraGranted(cameraResult);
-      setMicrophoneGranted(micResult);
       setLocalNetworkGranted(localNetworkResult);
       setBluetoothGranted(bluetoothResult);
       setHasChecked(true);
@@ -225,8 +190,6 @@ export function usePermissions({
         return;
       }
 
-      setCameraGranted(false);
-      setMicrophoneGranted(false);
       setLocalNetworkGranted(false);
       setBluetoothGranted(false);
       setHasChecked(true);
@@ -251,12 +214,9 @@ export function usePermissions({
     };
   }, [checkInterval, checkPermissions]);
 
-  const allGranted =
-    cameraGranted && microphoneGranted && localNetworkGranted && bluetoothGranted;
+  const allGranted = localNetworkGranted && bluetoothGranted;
 
   return {
-    cameraGranted,
-    microphoneGranted,
     localNetworkGranted,
     bluetoothGranted,
     allGranted,

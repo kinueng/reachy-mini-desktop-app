@@ -36,13 +36,5 @@
 	<!-- Allow USB device access -->
 	<key>com.apple.security.device.usb</key>
 	<true/>
-	
-	<!-- Allow camera access (required for permission request) -->
-	<key>com.apple.security.device.camera</key>
-	<true/>
-	
-	<!-- Allow microphone access (required for permission request) -->
-	<key>com.apple.security.device.audio-input</key>
-	<true/>
 </dict>
 </plist>

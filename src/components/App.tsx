@@ -166,7 +166,7 @@ function App(): React.ReactElement {
   });
 
   // 🔐 Permissions check (macOS only)
-  // Blocks the app until camera and microphone permissions are granted
+  // Blocks the app until local network and bluetooth permissions are granted
   const { allGranted: permissionsGranted, hasChecked } = usePermissions({ checkInterval: 2000 });
   const [isRestarting, setIsRestarting] = useState<boolean>(false);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

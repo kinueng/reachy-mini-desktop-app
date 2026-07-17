@@ -61,10 +61,10 @@ async function handleUpdateViewIfPresent() {
 async function checkPermissionsView() {
   const pageContent = await browser.execute(() => document.body.innerText);
   
-  if (pageContent.includes('Grant permissions') || (pageContent.includes('Camera') && pageContent.includes('Microphone'))) {
+  if (pageContent.includes('Grant permissions') || (pageContent.includes('Local Network') && pageContent.includes('Bluetooth'))) {
     console.log('🔐 Permissions view detected!');
     console.log('   On macOS, this requires manual permission grants.');
-    console.log('   The app needs Camera, Microphone, and Local Network access.');
+    console.log('   The app needs Local Network and Bluetooth access.');
     return true;
   }
   return false;

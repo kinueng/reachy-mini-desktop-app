@@ -1,6 +1,4 @@
-//! Module for managing cross-platform permissions (camera, microphone, local network, etc.)
-//!
-//! Note: Camera/microphone permissions are managed by tauri-plugin-macos-permissions.
+//! Module for managing cross-platform permissions (local network, bluetooth, etc.)
 //!
 //! Local Network (macOS Sequoia+): There is no API to silently check permission
 //! status (Apple FB8711182). UDP connect() does not trigger the privacy check;
@@ -13,15 +11,8 @@
 #[cfg(target_os = "macos")]
 pub fn request_all_permissions() {
     log::info!("macOS permissions configured:");
-    log::info!("   Camera: NSCameraUsageDescription declared in Info.plist");
-    log::info!("   Microphone: NSMicrophoneUsageDescription declared in Info.plist");
     log::info!("   Filesystem: Entitlements configured");
     log::info!("   USB: Entitlements configured");
-    log::info!("Permissions will be requested automatically when needed:");
-    log::info!("   - Camera/microphone: macOS will show dialog when first accessed by apps");
-    log::info!("   - Filesystem/USB: Already granted via entitlements");
-    log::info!("Note: Permissions granted to the main app will propagate to child processes");
-    log::info!("   (Python daemon and its apps)");
     log::info!("Note: App will appear in System Settings > Privacy after first permission request");
 }
 
@@ -30,48 +21,6 @@ pub fn request_all_permissions() {
 pub fn request_all_permissions() {
     // No-op on non-macOS platforms
     log::info!("Permission requests are only needed on macOS");
-}
-
-/// Open System Settings to Privacy & Security > Camera (macOS)
-#[tauri::command]
-#[cfg(target_os = "macos")]
-pub fn open_camera_settings() -> Result<(), String> {
-    use std::process::Command;
-
-    let output = Command::new("open")
-        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Camera")
-        .output()
-        .map_err(|e| format!("Failed to open System Settings: {}", e))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to open System Settings: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-
-    Ok(())
-}
-
-/// Open System Settings to Privacy & Security > Microphone (macOS)
-#[tauri::command]
-#[cfg(target_os = "macos")]
-pub fn open_microphone_settings() -> Result<(), String> {
-    use std::process::Command;
-
-    let output = Command::new("open")
-        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
-        .output()
-        .map_err(|e| format!("Failed to open System Settings: {}", e))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to open System Settings: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-
-    Ok(())
 }
 
 /// Open System Settings to Network/WiFi (macOS)
@@ -378,30 +327,6 @@ pub fn open_bluetooth_settings() -> Result<(), String> {
 
 #[tauri::command]
 #[cfg(target_os = "windows")]
-pub fn open_camera_settings() -> Result<(), String> {
-    use std::process::Command;
-    // Open Windows Settings > Privacy > Camera
-    Command::new("cmd")
-        .args(["/C", "start", "ms-settings:privacy-webcam"])
-        .spawn()
-        .map_err(|e| format!("Failed to open Settings: {}", e))?;
-    Ok(())
-}
-
-#[tauri::command]
-#[cfg(target_os = "windows")]
-pub fn open_microphone_settings() -> Result<(), String> {
-    use std::process::Command;
-    // Open Windows Settings > Privacy > Microphone
-    Command::new("cmd")
-        .args(["/C", "start", "ms-settings:privacy-microphone"])
-        .spawn()
-        .map_err(|e| format!("Failed to open Settings: {}", e))?;
-    Ok(())
-}
-
-#[tauri::command]
-#[cfg(target_os = "windows")]
 pub fn open_wifi_settings() -> Result<(), String> {
     use std::process::Command;
     // Open Windows Settings > Network & Internet > Wi-Fi
@@ -455,25 +380,6 @@ pub async fn request_local_network_permission() -> Result<Option<bool>, String> 
 
 #[tauri::command]
 #[cfg(target_os = "linux")]
-pub fn open_camera_settings() -> Result<(), String> {
-    // Linux doesn't have a centralized camera settings
-    // Best effort: open GNOME Settings if available
-    use std::process::Command;
-    let _ = Command::new("gnome-control-center").arg("privacy").spawn();
-    Ok(())
-}
-
-#[tauri::command]
-#[cfg(target_os = "linux")]
-pub fn open_microphone_settings() -> Result<(), String> {
-    use std::process::Command;
-    // Try GNOME Sound settings
-    let _ = Command::new("gnome-control-center").arg("sound").spawn();
-    Ok(())
-}
-
-#[tauri::command]
-#[cfg(target_os = "linux")]
 pub fn open_wifi_settings() -> Result<(), String> {
     use std::process::Command;
     // Try GNOME Network settings first, fallback to nm-connection-editor
@@ -523,18 +429,6 @@ pub async fn request_local_network_permission() -> Result<Option<bool>, String> 
 // ============================================================================
 // Fallback for other platforms (no-op)
 // ============================================================================
-
-#[tauri::command]
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-pub fn open_camera_settings() -> Result<(), String> {
-    Ok(())
-}
-
-#[tauri::command]
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-pub fn open_microphone_settings() -> Result<(), String> {
-    Ok(())
-}
 
 #[tauri::command]
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]

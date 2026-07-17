@@ -1,8 +1,6 @@
 import { useReducer, useRef, useEffect, useCallback } from 'react';
 import { Box, Typography, useTheme, alpha } from '@mui/material';
 import type { SvgIconComponent } from '@mui/icons-material';
-import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined';
-import MicNoneOutlinedIcon from '@mui/icons-material/MicNoneOutlined';
 import LanOutlinedIcon from '@mui/icons-material/LanOutlined';
 import BluetoothOutlinedIcon from '@mui/icons-material/BluetoothOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
@@ -130,8 +128,6 @@ const PermissionRow = ({ icon: Icon, label, subtitle, granted, onClick }: Permis
 };
 
 interface PermissionsViewState {
-  cameraRequested: boolean;
-  microphoneRequested: boolean;
   localNetworkRequested: boolean;
   bluetoothRequested: boolean;
   isRestarting: boolean;
@@ -139,10 +135,7 @@ interface PermissionsViewState {
 }
 
 type PermissionsViewAction =
-  | { type: 'SET_CAMERA_REQUESTED' }
-  | { type: 'SET_MICROPHONE_REQUESTED' }
-  | { type: 'SET_LOCAL_NETWORK_REQUESTED' }
-  | { type: 'SET_BLUETOOTH_REQUESTED' };
+  { type: 'SET_LOCAL_NETWORK_REQUESTED' } | { type: 'SET_BLUETOOTH_REQUESTED' };
 
 /**
  * Reducer for managing permissions view state
@@ -152,10 +145,6 @@ const permissionsViewReducer = (
   action: PermissionsViewAction
 ): PermissionsViewState => {
   switch (action.type) {
-    case 'SET_CAMERA_REQUESTED':
-      return { ...state, cameraRequested: true };
-    case 'SET_MICROPHONE_REQUESTED':
-      return { ...state, microphoneRequested: true };
     case 'SET_LOCAL_NETWORK_REQUESTED':
       return { ...state, localNetworkRequested: true };
     case 'SET_BLUETOOTH_REQUESTED':
@@ -169,8 +158,6 @@ export interface PermissionsRequiredViewProps {
   isRestarting?: boolean;
 }
 
-type PermissionType = 'camera' | 'microphone';
-
 /**
  * PermissionsRequiredView
  * Blocks the app until permissions are granted
@@ -180,16 +167,12 @@ export default function PermissionsRequiredView({
 }: PermissionsRequiredViewProps) {
   const palette = useAppPalette();
   const {
-    cameraGranted,
-    microphoneGranted,
     localNetworkGranted,
     bluetoothGranted,
     refresh: refreshPermissions,
   } = usePermissions({ checkInterval: 2000 });
 
   const [state, dispatch] = useReducer(permissionsViewReducer, {
-    cameraRequested: false,
-    microphoneRequested: false,
     localNetworkRequested: false,
     bluetoothRequested: false,
     isRestarting: false,
@@ -252,92 +235,6 @@ export default function PermissionsRequiredView({
       }
     };
   }, []);
-
-  // Test plugin availability on mount (macOS only)
-  useEffect(() => {
-    if (!isMacOS()) return;
-    const testPlugin = async () => {
-      try {
-        await invoke('plugin:macos-permissions|check_camera_permission');
-      } catch (error) {
-        // Plugin error - non-critical
-      }
-    };
-    testPlugin();
-  }, []);
-
-  // Generic permission request handler for camera/microphone (uses plugin)
-  const requestPermission = useCallback(
-    async (type: PermissionType) => {
-      if (!isMacOS()) {
-        return;
-      }
-
-      try {
-        const checkCommand = `plugin:macos-permissions|check_${type}_permission`;
-        const requestCommand = `plugin:macos-permissions|request_${type}_permission`;
-        const settingsCommand = `open_${type}_settings`;
-
-        const currentStatus = await invoke(checkCommand);
-        if (currentStatus === true) return;
-
-        const result = await invoke(requestCommand);
-
-        if (type === 'camera') {
-          dispatch({ type: 'SET_CAMERA_REQUESTED' });
-        } else if (type === 'microphone') {
-          dispatch({ type: 'SET_MICROPHONE_REQUESTED' });
-        }
-
-        if (result === null) {
-          if (permissionPollingRef.current) {
-            clearInterval(permissionPollingRef.current);
-          }
-
-          let checkCount = 0;
-          const maxChecks = 20;
-
-          permissionPollingRef.current = setInterval(async () => {
-            checkCount++;
-            await refreshPermissions();
-
-            try {
-              const status = await invoke(checkCommand);
-              if (status === true) {
-                if (permissionPollingRef.current) {
-                  clearInterval(permissionPollingRef.current);
-                  permissionPollingRef.current = null;
-                }
-                await refreshPermissions();
-              }
-            } catch (error) {
-              // Ignore errors during polling
-            }
-
-            if (checkCount >= maxChecks) {
-              if (permissionPollingRef.current) {
-                clearInterval(permissionPollingRef.current);
-                permissionPollingRef.current = null;
-              }
-            }
-          }, 500);
-
-          return;
-        }
-
-        if (result === false) {
-          await invoke(settingsCommand);
-        }
-      } catch (error) {
-        try {
-          await invoke(`open_${type}_settings`);
-        } catch {
-          // Failed to open settings
-        }
-      }
-    },
-    [refreshPermissions]
-  );
 
   // Local Network permission request handler (uses custom Rust command)
   // Flow mirrors Camera/Microphone: request -> poll -> detect granted/denied.
@@ -603,34 +500,6 @@ export default function PermissionsRequiredView({
                 mb: 2.5,
               }}
             >
-              <PermissionRow
-                icon={CameraAltOutlinedIcon}
-                label="Camera"
-                subtitle={cameraGranted ? 'Granted' : 'Required'}
-                granted={cameraGranted}
-                onClick={() => {
-                  if (state.cameraRequested) {
-                    openSettings('camera');
-                  } else {
-                    requestPermission('camera');
-                  }
-                }}
-              />
-
-              <PermissionRow
-                icon={MicNoneOutlinedIcon}
-                label="Microphone"
-                subtitle={microphoneGranted ? 'Granted' : 'Required'}
-                granted={microphoneGranted}
-                onClick={() => {
-                  if (state.microphoneRequested) {
-                    openSettings('microphone');
-                  } else {
-                    requestPermission('microphone');
-                  }
-                }}
-              />
-
               {/* Local Network - macOS Sequoia+ requires this permission for LAN communication */}
               {isMacOS() && (
                 <PermissionRow

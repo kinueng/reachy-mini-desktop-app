@@ -416,12 +416,6 @@ pub fn run() {
         builder
     };
 
-    let builder = if cfg!(target_os = "macos") {
-        builder.plugin(tauri_plugin_macos_permissions::init())
-    } else {
-        builder
-    };
-
     // Add automation plugin for E2E testing (macOS requires CrabNebula driver)
     // This plugin is only active when the app is launched via WebDriver
     let builder = builder.plugin(tauri_plugin_automation::init());
@@ -471,8 +465,6 @@ pub fn run() {
             usb::check_usb_robot,
             window::apply_transparent_titlebar,
             window::close_window,
-            permissions::open_camera_settings,
-            permissions::open_microphone_settings,
             permissions::open_wifi_settings,
             permissions::open_files_settings,
             permissions::open_local_network_settings,
