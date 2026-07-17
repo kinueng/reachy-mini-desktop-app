@@ -10,9 +10,7 @@ name: Build macOS app (unsigned)
 on:
   push:
     branches:
-      - ci/unsigned-macos-build
-      - feat/disable-location
-      - feat/disable-camera-mic
+      - '**'
   workflow_dispatch:
 
 jobs:
